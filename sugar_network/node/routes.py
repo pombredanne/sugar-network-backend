@@ -121,9 +121,9 @@ class NodeRoutes(db.Routes, FrontRoutes):
         enforce(solution is not None, 'Failed to solve')
         return solution
 
-    @route('GET', ['context', None], cmd='clone',
-            arguments={'requires': list})
-    def get_clone(self, request, response):
+    @route('GET', ['context', None], cmd='resolve',
+            arguments={'requires': list, 'stability': list})
+    def resolve(self, request):
         solution = self.solve(request)
         return this.volume.blobs.get(solution[request.guid]['blob'])
 
@@ -149,12 +149,6 @@ class NodeRoutes(db.Routes, FrontRoutes):
             enforce(self.authorize(request.principal, 'root'), http.Forbidden,
                     'Operation is permitted only for superusers')
 
-    def on_create(self, request, props):
-        if request.resource == 'user':
-            with file(this.volume.blobs.get(props['pubkey']).path) as f:
-                props['guid'] = str(hashlib.sha1(f.read()).hexdigest())
-        db.Routes.on_create(self, request, props)
-
     def on_aggprop_update(self, request, prop, value):
         if prop.acl & ACL.AUTHOR:
             self._enforce_authority(request)
@@ -164,8 +158,8 @@ class NodeRoutes(db.Routes, FrontRoutes):
     def authenticate(self, auth):
         enforce(auth.scheme == 'sugar', http.BadRequest,
                 'Unknown authentication scheme')
-        if not self.volume['user'].exists(auth.login):
-            raise Unauthorized('Principal does not exist', auth.nonce)
+        enforce(self.volume['user'][auth.login].exists, Unauthorized,
+                'Principal does not exist')
 
         from M2Crypto import RSA
 

@@ -12,8 +12,9 @@ from os.path import exists, join, basename
 from __init__ import tests
 
 from sugar_network import db, client
-from sugar_network.client import Connection, keyfile, api, packagekit, injector as injector_
+from sugar_network.client import Connection, keyfile, api, packagekit, injector as injector_, model
 from sugar_network.client.injector import _PreemptivePool, Injector
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, lsb_release
 
 
@@ -398,7 +399,7 @@ class InjectorTest(tests.Test):
         activity_bundle = self.zips(('topdir/activity/activity.info', activity_info))
         release = conn.upload(['context'], activity_bundle, cmd='submit', initial=True)
 
-        self.assertRaises(RuntimeError, injector._solve, 'context', 'stable')
+        self.assertRaises(http.ServiceUnavailable, injector._solve, 'context', 'stable')
 
     def test_solve_ReuseCachedSolution(self):
         volume = self.start_master()
@@ -514,7 +515,7 @@ class InjectorTest(tests.Test):
         self.assertEqual([client.api.value, 'stable', 0], json.load(file('client/solutions/context'))[:-1])
 
         os.unlink('client/solutions/context')
-        self.assertRaises(RuntimeError, injector._solve, 'context', 'stable')
+        self.assertRaises(http.ServiceUnavailable, injector._solve, 'context', 'stable')
 
     def test_download_SetExecPermissions(self):
         volume = self.start_master()
@@ -575,6 +576,7 @@ class InjectorTest(tests.Test):
             ],
             [i for i in injector.checkin('context')])
 
+        self.assertEqual(['checkin'], this.volume['context']['context']['pins'])
         self.assertEqual(activity_info, file(join('client', 'releases', release, 'activity', 'activity.info')).read())
         self.assertEqual([client.api.value, 'stable', 0, {
             'context': {
@@ -626,6 +628,7 @@ class InjectorTest(tests.Test):
             },
             json.load(file('client/checkins')))
         self.assertEqual(0, injector._pool._du)
+        self.assertEqual(['checkin'], this.volume['context']['context']['pins'])
 
         assert injector.checkout('context')
         assert exists(join('client', 'releases', release))
@@ -633,6 +636,7 @@ class InjectorTest(tests.Test):
             },
             json.load(file('client/checkins')))
         self.assertEqual(len(activity_info), injector._pool._du)
+        self.assertEqual([], this.volume['context']['context']['pins'])
 
         for __ in injector.checkin('context'):
             pass
@@ -642,6 +646,7 @@ class InjectorTest(tests.Test):
             },
             json.load(file('client/checkins')))
         self.assertEqual(0, injector._pool._du)
+        self.assertEqual(['checkin'], this.volume['context']['context']['pins'])
 
         assert injector.checkout('context')
         assert not injector.checkout('context')
@@ -651,6 +656,7 @@ class InjectorTest(tests.Test):
             },
             json.load(file('client/checkins')))
         self.assertEqual(len(activity_info), injector._pool._du)
+        self.assertEqual([], this.volume['context']['context']['pins'])
 
     def test_checkin_Refresh(self):
         volume = self.start_master()

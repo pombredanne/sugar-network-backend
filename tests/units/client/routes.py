@@ -5,18 +5,22 @@
 import os
 import json
 import time
+import hashlib
 from cStringIO import StringIO
 from os.path import exists
 
 from __init__ import tests
 
-from sugar_network import db, client, model, toolkit
-from sugar_network.client import journal, IPCConnection, cache_limit, cache_lifetime
+from sugar_network import db, client, toolkit
+from sugar_network.client import journal, IPCConnection, cache_limit, cache_lifetime, api, injector, routes
+from sugar_network.client.model import RESOURCES
+from sugar_network.client.injector import Injector
 from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
-from sugar_network.model.user import User
-from sugar_network.model.report import Report
-from sugar_network.toolkit.router import Router, Request, Response
-from sugar_network.toolkit import coroutine, i18n
+from sugar_network.node.model import User
+from sugar_network.node.master import MasterRoutes
+from sugar_network.toolkit.router import Router, Request, Response, route
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import coroutine, i18n, parcel, http
 
 import requests
 
@@ -24,7 +28,7 @@ import requests
 class RoutesTest(tests.Test):
 
     def test_Hub(self):
-        volume = db.Volume('db', model.RESOURCES)
+        volume = db.Volume('db', RESOURCES)
         cp = ClientRoutes(volume)
         server = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(cp))
@@ -47,8 +51,305 @@ class RoutesTest(tests.Test):
         response = requests.request('GET', url + '/hub/', allow_redirects=False)
         self.assertEqual(index_html, response.content)
 
-    def test_LocalLayers(self):
-        self.home_volume = self.start_online_client()
+    def test_I18nQuery(self):
+        os.environ['LANGUAGE'] = 'foo'
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        ipc.request('POST', [], ''.join(parcel.encode([
+            ('push', None, [
+                {'resource': 'context'},
+                {'guid': '1', 'patch': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'ctime': {'value': 1, 'mtime': 1},
+                    'mtime': {'value': 1, 'mtime': 1},
+                    'type': {'value': ['activity'], 'mtime': 1},
+                    'summary': {'value': {}, 'mtime': 1},
+                    'description': {'value': {}, 'mtime': 1},
+                    'title': {'value': {'en-US': 'qwe', 'ru-RU': 'йцу'}, 'mtime': 1},
+                    }},
+                {'guid': '2', 'patch': {
+                    'guid': {'value': '2', 'mtime': 1},
+                    'ctime': {'value': 1, 'mtime': 1},
+                    'mtime': {'value': 1, 'mtime': 1},
+                    'type': {'value': ['activity'], 'mtime': 1},
+                    'summary': {'value': {}, 'mtime': 1},
+                    'description': {'value': {}, 'mtime': 1},
+                    'title': {'value': {'en-US': 'qwerty', 'ru-RU': 'йцукен'}, 'mtime': 1},
+                    }},
+                ]),
+            ], header={'to': '127.0.0.1:7777', 'from': 'slave'})), params={'cmd': 'push'})
+
+        self.assertEqual([
+            {'guid': '1'},
+            {'guid': '2'},
+            ],
+            ipc.get(['context'], query='йцу')['result'])
+        self.assertEqual([
+            {'guid': '1'},
+            {'guid': '2'},
+            ],
+            ipc.get(['context'], query='qwe')['result'])
+
+        self.assertEqual([
+            {'guid': '2'},
+            ],
+            ipc.get(['context'], query='йцукен')['result'])
+        self.assertEqual([
+            {'guid': '2'},
+            ],
+            ipc.get(['context'], query='qwerty')['result'])
+
+    def test_LanguagesFallbackInRequests(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        ipc.request('POST', [], ''.join(parcel.encode([
+            ('push', None, [
+                {'resource': 'context'},
+                {'guid': '1', 'patch': {
+                    'guid': {'value': '1', 'mtime': 1},
+                    'ctime': {'value': 1, 'mtime': 1},
+                    'mtime': {'value': 1, 'mtime': 1},
+                    'type': {'value': ['activity'], 'mtime': 1},
+                    'summary': {'value': {}, 'mtime': 1},
+                    'description': {'value': {}, 'mtime': 1},
+                    'title': {'value': {'en': '1', 'ru': '2', 'es': '3'}, 'mtime': 1},
+                    }},
+                {'guid': '2', 'patch': {
+                    'guid': {'value': '2', 'mtime': 1},
+                    'ctime': {'value': 1, 'mtime': 1},
+                    'mtime': {'value': 1, 'mtime': 1},
+                    'type': {'value': ['activity'], 'mtime': 1},
+                    'summary': {'value': {}, 'mtime': 1},
+                    'description': {'value': {}, 'mtime': 1},
+                    'title': {'value': {'en': '1', 'ru': '2'}, 'mtime': 1},
+                    }},
+                {'guid': '3', 'patch': {
+                    'guid': {'value': '3', 'mtime': 1},
+                    'ctime': {'value': 1, 'mtime': 1},
+                    'mtime': {'value': 1, 'mtime': 1},
+                    'type': {'value': ['activity'], 'mtime': 1},
+                    'summary': {'value': {}, 'mtime': 1},
+                    'description': {'value': {}, 'mtime': 1},
+                    'title': {'value': {'en': '1'}, 'mtime': 1},
+                    }},
+                ]),
+            ], header={'to': '127.0.0.1:7777', 'from': 'slave'})), params={'cmd': 'push'})
+
+        i18n._default_langs = None
+        os.environ['LANGUAGE'] = 'es:ru:en'
+        ipc = IPCConnection()
+        self.assertEqual('3', ipc.get(['context', '1', 'title']))
+        self.assertEqual('2', ipc.get(['context', '2', 'title']))
+        self.assertEqual('1', ipc.get(['context', '3', 'title']))
+
+        i18n._default_langs = None
+        os.environ['LANGUAGE'] = 'ru:en'
+        ipc = IPCConnection()
+        self.assertEqual('2', ipc.get(['context', '1', 'title']))
+        self.assertEqual('2', ipc.get(['context', '2', 'title']))
+        self.assertEqual('1', ipc.get(['context', '3', 'title']))
+
+        i18n._default_langs = None
+        os.environ['LANGUAGE'] = 'en'
+        ipc = IPCConnection()
+        self.assertEqual('1', ipc.get(['context', '1', 'title']))
+        self.assertEqual('1', ipc.get(['context', '2', 'title']))
+        self.assertEqual('1', ipc.get(['context', '3', 'title']))
+
+        i18n._default_langs = None
+        os.environ['LANGUAGE'] = 'foo'
+        ipc = IPCConnection()
+        self.assertEqual('1', ipc.get(['context', '1', 'title']))
+        self.assertEqual('1', ipc.get(['context', '2', 'title']))
+        self.assertEqual('1', ipc.get(['context', '3', 'title']))
+
+    def test_whoami(self):
+        self.start_offline_client()
+        ipc = IPCConnection()
+
+        self.assertEqual(
+                {'guid': tests.UID, 'roles': [], 'route': 'offline'},
+                ipc.get(cmd='whoami'))
+
+        self.fork_master()
+        self.wait_for_events(event='inline', state='online').wait()
+
+        self.assertEqual(
+                {'guid': tests.UID, 'roles': [], 'route': 'proxy'},
+                ipc.get(cmd='whoami'))
+
+    def test_Events(self):
+        self.override(time, 'time', lambda: 0)
+        self.start_offline_client()
+        ipc = IPCConnection()
+        events = []
+
+        def read_events():
+            for event in ipc.subscribe():
+                if event['event'] not in ('commit', 'pong'):
+                    events.append(event)
+        coroutine.spawn(read_events)
+        coroutine.dispatch()
+
+        guid = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        ipc.put(['context', guid], {
+            'title': 'title_2',
+            })
+        ipc.delete(['context', guid])
+        coroutine.sleep(.1)
+
+        self.assertEqual([
+            {'event': 'create', 'guid': guid, 'resource': 'context'},
+            {'event': 'update', 'guid': guid, 'resource': 'context', 'props': {'mtime': 0, 'title': {'en-us': 'title_2'}}},
+            {'event': 'delete', 'guid': guid, 'resource': 'context'},
+            ],
+            events)
+        del events[:]
+
+        self.fork_master()
+        self.wait_for_events(event='inline', state='online').wait()
+        coroutine.sleep(.1)
+
+        self.assertEqual([
+            {'event': 'inline', 'state': 'connecting'},
+            {'event': 'inline', 'state': 'online'},
+            ],
+            events)
+        del events[:]
+
+        guid = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        ipc.put(['context', guid], {
+            'title': 'title_2',
+            })
+        coroutine.sleep(.1)
+        ipc.delete(['context', guid])
+        coroutine.sleep(.1)
+
+        self.assertEqual([
+            {'event': 'create', 'guid': tests.UID, 'resource': 'user'},
+            {'event': 'create', 'guid': guid, 'resource': 'context'},
+            {'event': 'update', 'guid': guid, 'resource': 'context', 'props': {'mtime': 0, 'title': {'en-us': 'title_2'}}},
+            {'event': 'delete', 'guid': guid, 'resource': 'context'},
+            ],
+            events)
+        del events[:]
+
+    def test_HomeVolumeEventsOnlyInOffline(self):
+        home_volume = self.start_offline_client()
+        ipc = IPCConnection()
+        events = []
+
+        def read_events():
+            for event in ipc.subscribe():
+                if event['event'] not in ('commit', 'pong'):
+                    events.append(event)
+        coroutine.spawn(read_events)
+        coroutine.sleep(.1)
+
+        guid = home_volume['context'].create({
+            'type': ['activity'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        home_volume['context'].update(guid, {
+            'title': {'en': 'title_2'},
+            })
+        home_volume['context'].delete(guid)
+        coroutine.sleep(.1)
+
+        self.assertEqual([
+            {'guid': guid, 'resource': 'context', 'event': 'create'},
+            {'guid': guid, 'resource': 'context', 'event': 'update', 'props': {'title': {'en': 'title_2'}}},
+            {'guid': guid, 'event': 'delete', 'resource': 'context'},
+            ],
+            events)
+        del events[:]
+
+        self.fork_master()
+        self.wait_for_events(event='inline', state='online').wait()
+        coroutine.sleep(.1)
+        del events[:]
+
+        guid = home_volume['context'].create({
+            'type': ['activity'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        home_volume['context'].update(guid, {
+            'title': {'en': 'title_2'},
+            })
+        coroutine.sleep(.1)
+        home_volume['context'].delete(guid)
+        coroutine.sleep(.1)
+
+        self.assertEqual([], events)
+
+    def test_BLOBs(self):
+        self.start_offline_client()
+        ipc = IPCConnection()
+
+        blob = 'blob_value'
+        digest = hashlib.sha1(blob).hexdigest()
+
+        guid = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        ipc.request('PUT', ['context', guid, 'logo'], blob, headers={'content-type': 'image/png'})
+
+        self.assertEqual(
+                blob,
+                ipc.request('GET', ['context', guid, 'logo']).content)
+        self.assertEqual({
+            'logo': 'http://127.0.0.1:5555/blobs/%s' % digest,
+            },
+            ipc.get(['context', guid], reply=['logo']))
+        self.assertEqual([{
+            'logo': 'http://127.0.0.1:5555/blobs/%s' % digest,
+            }],
+            ipc.get(['context'], reply=['logo'])['result'])
+
+        self.fork_master()
+        self.wait_for_events(event='inline', state='online').wait()
+
+        guid = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        ipc.request('PUT', ['context', guid, 'logo'], blob, headers={'content-type': 'image/png'})
+
+        self.assertEqual(
+                blob,
+                ipc.request('GET', ['context', guid, 'logo']).content)
+        self.assertEqual({
+            'logo': 'http://127.0.0.1:7777/blobs/%s' % digest,
+            },
+            ipc.get(['context', guid], reply=['logo']))
+        self.assertEqual([{
+            'logo': 'http://127.0.0.1:7777/blobs/%s' % digest,
+            }],
+            ipc.get(['context'], reply=['logo'])['result'])
+
+    def test_OnlinePins(self):
+        home_volume = self.start_online_client()
         ipc = IPCConnection()
 
         guid1 = ipc.post(['context'], {
@@ -58,7 +359,7 @@ class RoutesTest(tests.Test):
             'summary': 'summary',
             'description': 'description',
             })
-        ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        ipc.upload(['context'], self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = 2',
             'bundle_id = context2',
@@ -67,9 +368,9 @@ class RoutesTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='submit', initial=True)
+            ]]), cmd='submit', initial=True)
         guid2 = 'context2'
-        ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
+        ipc.upload(['context'], self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = 3',
             'bundle_id = context3',
@@ -78,7 +379,7 @@ class RoutesTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             'stability = stable',
-            ]])), cmd='submit', initial=True)
+            ]]), cmd='submit', initial=True)
         guid3 = 'context3'
         guid4 = ipc.post(['context'], {
             'guid': 'context4',
@@ -89,70 +390,722 @@ class RoutesTest(tests.Test):
             })
 
         self.assertEqual([
-            {'guid': guid1, 'title': '1', 'layer': []},
-            {'guid': guid2, 'title': '2', 'layer': []},
-            {'guid': guid3, 'title': '3', 'layer': []},
-            {'guid': guid4, 'title': '4', 'layer': []},
+            {'guid': guid1, 'title': '1', 'pins': []},
+            {'guid': guid2, 'title': '2', 'pins': []},
+            {'guid': guid3, 'title': '3', 'pins': []},
+            {'guid': guid4, 'title': '4', 'pins': []},
             ],
-            ipc.get(['context'], reply=['guid', 'title', 'layer'])['result'])
+            ipc.get(['context'], reply=['guid', 'title', 'pins'])['result'])
         self.assertEqual([
             ],
-            ipc.get(['context'], reply=['guid', 'title'], layer='favorite')['result'])
+            ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result'])
         self.assertEqual([
             ],
-            ipc.get(['context'], reply=['guid', 'title'], layer='clone')['result'])
+            ipc.get(['context'], reply=['guid', 'title'], pins='checkin')['result'])
 
         ipc.put(['context', guid1], True, cmd='favorite')
         ipc.put(['context', guid2], True, cmd='favorite')
-        ipc.put(['context', guid2], True, cmd='clone')
-        ipc.put(['context', guid3], True, cmd='clone')
-        self.home_volume['context'].update(guid1, {'title': '1_'})
-        self.home_volume['context'].update(guid2, {'title': '2_'})
-        self.home_volume['context'].update(guid3, {'title': '3_'})
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'event': 'checkin', 'state': 'download'},
+            {'event': 'checkin', 'state': 'ready'},
+            ],
+            [i for i in ipc.put(['context', guid2], True, cmd='checkin')])
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'event': 'checkin', 'state': 'download'},
+            {'event': 'checkin', 'state': 'ready'},
+            ],
+            [i for i in ipc.put(['context', guid3], True, cmd='checkin')])
+        home_volume['context'].update(guid1, {'title': {i18n.default_lang(): '1_'}})
+        home_volume['context'].update(guid2, {'title': {i18n.default_lang(): '2_'}})
+        home_volume['context'].update(guid3, {'title': {i18n.default_lang(): '3_'}})
 
         self.assertEqual([
-            {'guid': guid1, 'title': '1', 'layer': ['favorite']},
-            {'guid': guid2, 'title': '2', 'layer': ['clone', 'favorite']},
-            {'guid': guid3, 'title': '3', 'layer': ['clone']},
-            {'guid': guid4, 'title': '4', 'layer': []},
+            {'guid': guid1, 'title': '1', 'pins': ['favorite']},
+            {'guid': guid2, 'title': '2', 'pins': ['checkin', 'favorite']},
+            {'guid': guid3, 'title': '3', 'pins': ['checkin']},
+            {'guid': guid4, 'title': '4', 'pins': []},
             ],
-            ipc.get(['context'], reply=['guid', 'title', 'layer'])['result'])
+            ipc.get(['context'], reply=['guid', 'title', 'pins'])['result'])
         self.assertEqual([
             {'guid': guid1, 'title': '1_'},
             {'guid': guid2, 'title': '2_'},
             ],
-            ipc.get(['context'], reply=['guid', 'title'], layer='favorite')['result'])
+            ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result'])
         self.assertEqual([
             {'guid': guid2, 'title': '2_'},
             {'guid': guid3, 'title': '3_'},
             ],
-            ipc.get(['context'], reply=['guid', 'title'], layer='clone')['result'])
+            ipc.get(['context'], reply=['guid', 'title'], pins='checkin')['result'])
 
-    def test_SetLocalLayerInOffline(self):
-        volume = db.Volume('client', model.RESOURCES)
-        cp = ClientRoutes(volume, client.api.value)
-        post = Request(method='POST', path=['context'])
-        post.content_type = 'application/json'
-        post.content = {
-                'type': 'activity',
-                'title': 'title',
-                'summary': 'summary',
-                'description': 'description',
-                }
+        ipc.delete(['context', guid1], cmd='favorite')
+        ipc.delete(['context', guid2], cmd='checkin')
 
-        guid = call(cp, post)
-        self.assertEqual(['local'], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
+        self.assertEqual([
+            {'guid': guid1, 'pins': []},
+            {'guid': guid2, 'pins': ['favorite']},
+            {'guid': guid3, 'pins': ['checkin']},
+            {'guid': guid4, 'pins': []},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+        self.assertEqual([
+            {'guid': guid2, 'pins': ['favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='favorite')['result'])
+        self.assertEqual([
+            {'guid': guid3, 'pins': ['checkin']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='checkin')['result'])
+
+    def test_OfflinePins(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        ipc.upload(['context'], self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = 1',
+            'bundle_id = 1',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ]]), cmd='submit', initial=True)
+        ipc.upload(['context'], self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = 2',
+            'bundle_id = 2',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ]]), cmd='submit', initial=True)
+        ipc.upload(['context'], self.zips(['TestActivity/activity/activity.info', [
+            '[Activity]',
+            'name = 3',
+            'bundle_id = 3',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 3',
+            'license = Public Domain',
+            ]]), cmd='submit', initial=True)
+
+        ipc.put(['context', '1'], None, cmd='favorite')
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'event': 'checkin', 'state': 'download'},
+            {'event': 'checkin', 'state': 'ready'},
+            ],
+            [i for i in ipc.put(['context', '2'], None, cmd='checkin')])
+        self.assertEqual([
+            {'guid': '1', 'pins': ['favorite']},
+            {'guid': '2', 'pins': ['checkin']},
+            {'guid': '3', 'pins': []},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+
+        self.assertEqual([
+            {'guid': '1', 'pins': ['favorite']},
+            {'guid': '2', 'pins': ['checkin']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+        self.assertEqual([
+            {'guid': '1', 'pins': ['favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='favorite')['result'])
+        self.assertEqual([
+            {'guid': '2', 'pins': ['checkin']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='checkin')['result'])
+
+        ipc.delete(['context', '1'], cmd='favorite')
+        ipc.put(['context', '2'], None, cmd='favorite')
+        self.assertRaises(http.ServiceUnavailable, ipc.put, ['context', '3'], None, cmd='favorite')
+
+        self.assertEqual([
+            {'guid': '1', 'pins': []},
+            {'guid': '2', 'pins': ['checkin', 'favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+        self.assertEqual([
+            {'guid': '2', 'pins': ['checkin', 'favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='favorite')['result'])
+        self.assertEqual([
+            {'guid': '2', 'pins': ['checkin', 'favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='checkin')['result'])
+
+        ipc.delete(['context', '2'], cmd='checkin')
+        ipc.delete(['context', '2'], cmd='favorite')
+
+        self.assertEqual([
+            {'guid': '1', 'pins': []},
+            {'guid': '2', 'pins': []},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+        self.assertEqual([
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='favorite')['result'])
+        self.assertEqual([
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='checkin')['result'])
+
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'event': 'failure', 'error': 'Not available in offline', 'exception': 'ServiceUnavailable'},
+            ],
+            [i for i in ipc.put(['context', '1'], None, cmd='checkin')])
+        ipc.put(['context', '1'], None, cmd='favorite')
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'event': 'checkin', 'state': 'ready'},
+            ],
+            [i for i in ipc.put(['context', '2'], None, cmd='checkin')])
+        ipc.put(['context', '2'], None, cmd='favorite')
+        self.assertEqual([
+            {'event': 'failure', 'error': 'Not available in offline', 'exception': 'ServiceUnavailable'},
+            ],
+            [i for i in ipc.put(['context', '3'], None, cmd='checkin')])
+        self.assertRaises(http.ServiceUnavailable, ipc.put, ['context', '3'], None, cmd='favorite')
+
+        self.assertEqual([
+            {'guid': '1', 'pins': ['favorite']},
+            {'guid': '2', 'pins': ['checkin', 'favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+        self.assertEqual([
+            {'guid': '1', 'pins': ['favorite']},
+            {'guid': '2', 'pins': ['checkin', 'favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='favorite')['result'])
+        self.assertEqual([
+            {'guid': '2', 'pins': ['checkin', 'favorite']},
+            ],
+            ipc.get(['context'], reply=['guid', 'pins'], pins='checkin')['result'])
+
+    def test_checkin_Notificaitons(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ])
+        activity_bundle = self.zips(('topdir/activity/activity.info', activity_info))
+        release = ipc.upload(['context'], activity_bundle, cmd='submit', initial=True)
+
+        def subscribe():
+            for i in ipc.subscribe():
+                if i.get('event') != 'commit':
+                    events.append(i)
+        events = []
+        coroutine.spawn(subscribe)
+        coroutine.sleep(.1)
+        del events[:]
+
+        assert {'event': 'checkin', 'state': 'ready'} in [i for i in ipc.put(['context', 'context'], None, cmd='checkin')]
+        self.assertEqual([
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['inprogress']}, 'resource': 'context'},
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['checkin']}, 'resource': 'context'},
+            ], events)
+        del events[:]
+
+        ipc.put(['context', 'context'], None, cmd='favorite')
+        ipc.delete(['context', 'context'], cmd='checkin')
+        coroutine.sleep(.1)
+        self.assertEqual([
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['favorite']}, 'resource': 'context'},
+            ], events)
+
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+        coroutine.sleep(.1)
+        del events[:]
+
+        assert {'event': 'checkin', 'state': 'ready'} in [i for i in ipc.put(['context', 'context'], None, cmd='checkin')]
+        self.assertEqual([
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['favorite', 'inprogress']}, 'resource': 'context'},
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['checkin', 'favorite']}, 'resource': 'context'},
+            ], events)
+        del events[:]
+
+        ipc.delete(['context', 'context'], cmd='checkin')
+        coroutine.sleep(.1)
+        self.assertEqual([
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['favorite']}, 'resource': 'context'},
+            ], events)
+
+    def test_launch_Notificaitons(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = context',
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ])
+        activity_bundle = self.zips(('topdir/activity/activity.info', activity_info))
+        release = ipc.upload(['context'], activity_bundle, cmd='submit', initial=True)
+
+        def subscribe():
+            for i in ipc.subscribe():
+                if i.get('event') != 'commit':
+                    events.append(i)
+        events = []
+        coroutine.spawn(subscribe)
+        coroutine.sleep(.1)
+        del events[:]
+
+        assert {'event': 'launch', 'state': 'exit'} in [i for i in ipc.get(['context', 'context'], cmd='launch')]
+        self.assertEqual([
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['inprogress']}, 'resource': 'context'},
+            {'event': 'update', 'guid': 'context', 'props': {'pins': []}, 'resource': 'context'},
+            ], events)
+
+        ipc.put(['context', 'context'], None, cmd='favorite')
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+        coroutine.sleep(.1)
+        del events[:]
+
+        assert {'event': 'launch', 'state': 'exit'} in [i for i in ipc.get(['context', 'context'], None, cmd='launch')]
+        self.assertEqual([
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['favorite', 'inprogress']}, 'resource': 'context'},
+            {'event': 'update', 'guid': 'context', 'props': {'pins': ['favorite']}, 'resource': 'context'},
+            ], events)
+        del events[:]
+
+    def test_checkin_Fails(self):
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'error': 'Context not found', 'event': 'failure', 'exception': 'NotFound'},
+            ],
+            [i for i in ipc.put(['context', 'context'], None, cmd='checkin')])
+
+        guid = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'error': 'Failed to solve', 'event': 'failure', 'exception': 'RuntimeError'},
+            ],
+            [i for i in ipc.put(['context', guid], None, cmd='checkin')])
+
+        ipc.put(['context', guid], None, cmd='favorite')
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+        coroutine.sleep(.1)
+
+        self.assertEqual([
+            {'error': 'Not available in offline', 'event': 'failure', 'exception': 'ServiceUnavailable'},
+            ],
+            [i for i in ipc.put(['context', 'context'], None, cmd='checkin')])
+
+        self.assertEqual([
+            {'event': 'checkin', 'state': 'solve'},
+            {'error': 'Not available in offline', 'event': 'failure', 'exception': 'ServiceUnavailable'},
+            ],
+            [i for i in ipc.put(['context', guid], None, cmd='checkin')])
+
+    def test_launch_Fails(self):
+        self.override(injector, '_activity_id_new', lambda: 'activity_id')
+        self.start_online_client()
+        ipc = IPCConnection()
+
+        self.assertEqual([
+            {'activity_id': 'activity_id'},
+            {'event': 'launch', 'state': 'init'},
+            {'event': 'launch', 'state': 'solve'},
+            {'error': 'Context not found', 'event': 'failure', 'exception': 'NotFound'},
+            ],
+            [i for i in ipc.get(['context', 'context'], cmd='launch')])
+
+        guid1 = ipc.post(['context'], {
+            'type': 'activity',
+            'title': 'title',
+            'summary': 'summary',
+            'description': 'description',
+            })
+
+        self.assertEqual([
+            {'activity_id': 'activity_id'},
+            {'event': 'launch', 'state': 'init'},
+            {'event': 'launch', 'state': 'solve'},
+            {'error': 'Failed to solve', 'event': 'failure', 'exception': 'RuntimeError'},
+            ],
+            [i for i in ipc.get(['context', guid1], cmd='launch')])
+
+        activity_info = '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = context2',
+            'exec = false',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ])
+        activity_bundle = self.zips(('topdir/activity/activity.info', activity_info))
+        release = ipc.upload(['context'], activity_bundle, cmd='submit', initial=True)
+
+        self.assertEqual([
+            {'activity_id': 'activity_id'},
+            {'event': 'launch', 'state': 'init'},
+            {'event': 'launch', 'state': 'solve'},
+            {'event': 'launch', 'state': 'download'},
+            {'event': 'launch', 'state': 'exec'},
+            {'context': 'context2',
+                'args': ['false', '-b', 'context2', '-a', 'activity_id'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    tests.tmpdir + '/.sugar/default/logs/context2.log',
+                    ],
+                'solution': {
+                    'context2': {
+                        'blob': release,
+                        'command': ['activity', 'false'],
+                        'content-type': 'application/vnd.olpc-sugar',
+                        'size': len(activity_bundle),
+                        'title': 'Activity',
+                        'unpack_size': len(activity_info),
+                        'version': [[1], 0],
+                        },
+                    },
+                },
+            {'error': 'Process exited with 1 status', 'event': 'failure', 'exception': 'RuntimeError'},
+            ],
+            [i for i in ipc.get(['context', 'context2'], cmd='launch')])
+
+        ipc.put(['context', guid1], None, cmd='favorite')
+        ipc.put(['context', 'context2'], None, cmd='favorite')
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+        coroutine.sleep(.1)
+
+        self.assertEqual([
+            {'activity_id': 'activity_id'},
+            {'event': 'launch', 'state': 'init'},
+            {'event': 'launch', 'state': 'solve'},
+            {'error': 'Not available in offline', 'event': 'failure', 'exception': 'ServiceUnavailable'},
+            ],
+            [i for i in ipc.get(['context', 'context'], cmd='launch')])
+
+        self.assertEqual([
+            {'activity_id': 'activity_id'},
+            {'event': 'launch', 'state': 'init'},
+            {'event': 'launch', 'state': 'solve'},
+            {'error': 'Not available in offline', 'event': 'failure', 'exception': 'ServiceUnavailable'},
+            ],
+            [i for i in ipc.get(['context', guid1], cmd='launch')])
+
+        self.assertEqual([
+            {'activity_id': 'activity_id'},
+            {'event': 'launch', 'state': 'init'},
+            {'event': 'launch', 'state': 'solve'},
+            {'event': 'launch', 'state': 'exec'},
+            {'context': 'context2',
+                'args': ['false', '-b', 'context2', '-a', 'activity_id'],
+                'logs': [
+                    tests.tmpdir + '/.sugar/default/logs/shell.log',
+                    tests.tmpdir + '/.sugar/default/logs/sugar-network-client.log',
+                    tests.tmpdir + '/.sugar/default/logs/context2_1.log',
+                    ],
+                'solution': {
+                    'context2': {
+                        'blob': release,
+                        'command': ['activity', 'false'],
+                        'content-type': 'application/vnd.olpc-sugar',
+                        'size': len(activity_bundle),
+                        'title': 'Activity',
+                        'unpack_size': len(activity_info),
+                        'version': [[1], 0],
+                        },
+                    },
+                },
+            {'error': 'Process exited with 1 status', 'event': 'failure', 'exception': 'RuntimeError'},
+            ],
+            [i for i in ipc.get(['context', 'context2'], cmd='launch')])
+
+    def test_SubmitReport(self):
+        home_volume = self.start_online_client()
+        ipc = IPCConnection()
+
+        self.touch(
+                ['file1', 'content1'],
+                ['file2', 'content2'],
+                ['file3', 'content3'],
+                )
+        events = [i for i in ipc.post(['report'], {'context': 'context', 'error': 'error', 'logs': [
+            tests.tmpdir + '/file1',
+            tests.tmpdir + '/file2',
+            tests.tmpdir + '/file3',
+            ]}, cmd='submit')]
+        self.assertEqual('done', events[-1]['event'])
+        guid = events[-1]['guid']
+
+        self.assertEqual({
+            'context': 'context',
+            'error': 'error',
+            },
+            ipc.get(['report', guid], reply=['context', 'error']))
+        self.assertEqual(sorted([
+            'content1',
+            'content2',
+            'content3',
+            ]),
+            sorted([ipc.get(['report', guid, 'logs', i]) for i in ipc.get(['report', guid, 'logs']).keys()]))
+        assert not home_volume['report'][guid].exists
+
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+
+        events = [i for i in ipc.post(['report'], {'context': 'context', 'error': 'error', 'logs': [
+            tests.tmpdir + '/file1',
+            tests.tmpdir + '/file2',
+            tests.tmpdir + '/file3',
+            ]}, cmd='submit')]
+        self.assertEqual('done', events[-1]['event'])
+        guid = events[-1]['guid']
+
+        self.assertEqual({
+            'context': 'context',
+            'error': 'error',
+            },
+            ipc.get(['report', guid], reply=['context', 'error']))
+        self.assertEqual(sorted([
+            'content1',
+            'content2',
+            'content3',
+            ]),
+            sorted([ipc.get(['report', guid, 'logs', i]) for i in ipc.get(['report', guid, 'logs']).keys()]))
+        assert home_volume['report'][guid].exists
+
+    def test_inline(self):
+        routes._RECONNECT_TIMEOUT = 2
+
+        this.injector = Injector('client')
+        cp = ClientRoutes(db.Volume('client', RESOURCES))
+        cp.connect(client.api.value)
+        assert not cp.inline()
 
         trigger = self.wait_for_events(cp, event='inline', state='online')
-        node_volume = self.start_master()
-        cp._remote_connect()
+        coroutine.sleep(.5)
+        self.fork_master()
+        trigger.wait(.5)
+        assert trigger.value is None
+        assert not cp.inline()
+
         trigger.wait()
+        assert cp.inline()
 
-        guid = call(cp, post)
-        self.assertEqual([], call(cp, Request(method='GET', path=['context', guid, 'layer'])))
+        trigger = self.wait_for_events(cp, event='inline', state='offline')
+        self.stop_master()
+        trigger.wait()
+        assert not cp.inline()
 
-    def test_CachedClientRoutes(self):
-        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
+    def test_DoNotSwitchToOfflineOnRedirectFails(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Blob)
+            def blob1(self, value):
+                raise http.Redirect(prefix + '/blob2')
+
+            @db.stored_property(db.Blob)
+            def blob2(self, value):
+                raise http._ConnectionError()
+
+        local_volume = self.start_online_client([User, Document])
+        ipc = IPCConnection()
+        guid = ipc.post(['document'], {})
+        prefix = client.api.value + '/document/' + guid + '/'
+        local_volume['document'].create({'guid': guid})
+
+        trigger = self.wait_for_events(ipc, event='inline', state='connecting')
+        try:
+            ipc.get(['document', guid, 'blob1'])
+        except Exception:
+            pass
+        assert trigger.wait(.1) is None
+
+        trigger = self.wait_for_events(ipc, event='inline', state='connecting')
+        try:
+            ipc.get(['document', guid, 'blob2'])
+        except Exception:
+            pass
+        assert trigger.wait(.1) is not None
+
+    def test_FallbackToLocalOnRemoteTransportFails(self):
+
+        class LocalRoutes(routes._LocalRoutes):
+
+            @route('GET', cmd='sleep')
+            def sleep(self):
+                return 'local'
+
+            @route('GET', cmd='yield_raw_and_sleep',
+                    mime_type='application/octet-stream')
+            def yield_raw_and_sleep(self):
+                yield 'local'
+
+            @route('GET', cmd='yield_json_and_sleep',
+                    mime_type='application/json')
+            def yield_json_and_sleep(self):
+                yield '"local"'
+
+        self.override(routes, '_LocalRoutes', LocalRoutes)
+        this.injector = Injector('client')
+        home_volume = self.start_client()
+        ipc = IPCConnection()
+
+        self.assertEqual('local', ipc.get(cmd='sleep'))
+        self.assertEqual('local', ipc.get(cmd='yield_raw_and_sleep'))
+        self.assertEqual('local', ipc.get(cmd='yield_json_and_sleep'))
+
+        class NodeRoutes(MasterRoutes):
+
+            @route('GET', cmd='sleep')
+            def sleep(self):
+                coroutine.sleep(.5)
+                return 'remote'
+
+            @route('GET', cmd='yield_raw_and_sleep',
+                    mime_type='application/octet-stream')
+            def yield_raw_and_sleep(self):
+                for __ in range(33):
+                    yield "remote\n"
+                coroutine.sleep(.5)
+                for __ in range(33):
+                    yield "remote\n"
+
+            @route('GET', cmd='yield_json_and_sleep',
+                    mime_type='application/json')
+            def yield_json_and_sleep(self):
+                yield '"'
+                yield 'r'
+                coroutine.sleep(1)
+                yield 'emote"'
+
+        node_pid = self.fork_master([User], NodeRoutes)
+        self.client_routes._remote_connect()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        ts = time.time()
+        self.assertEqual('remote', ipc.get(cmd='sleep'))
+        self.assertEqual('remote\n' * 66, ipc.get(cmd='yield_raw_and_sleep'))
+        self.assertEqual('remote', ipc.get(cmd='yield_json_and_sleep'))
+        assert time.time() - ts >= 2
+
+        def kill():
+            coroutine.sleep(.5)
+            self.waitpid(node_pid)
+
+        coroutine.spawn(kill)
+        self.assertEqual('local', ipc.get(cmd='sleep'))
+        assert not ipc.get(cmd='inline')
+
+        node_pid = self.fork_master([User], NodeRoutes)
+        self.client_routes._remote_connect()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        coroutine.spawn(kill)
+        self.assertEqual('local', ipc.get(cmd='yield_raw_and_sleep'))
+        assert not ipc.get(cmd='inline')
+
+        node_pid = self.fork_master([User], NodeRoutes)
+        self.client_routes._remote_connect()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        coroutine.spawn(kill)
+        self.assertEqual('local', ipc.get(cmd='yield_json_and_sleep'))
+        assert not ipc.get(cmd='inline')
+
+    def test_ReconnectOnServerFall(self):
+        routes._RECONNECT_TIMEOUT = 1
+
+        this.injector = Injector('client')
+        node_pid = self.fork_master()
+        self.start_client()
+        ipc = IPCConnection()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        def shutdown():
+            coroutine.sleep(.1)
+            self.waitpid(node_pid)
+        coroutine.spawn(shutdown)
+        self.wait_for_events(ipc, event='inline', state='offline').wait()
+
+        self.fork_master()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+    def test_SilentReconnectOnGatewayErrors(self):
+
+        class Routes(object):
+
+            subscribe_tries = 0
+
+            def __init__(self, volume, *args):
+                pass
+
+            @route('GET', cmd='status', mime_type='application/json')
+            def info(self):
+                return {'resources': {}}
+
+            @route('GET', cmd='subscribe', mime_type='text/event-stream')
+            def subscribe(self, request=None, response=None, **condition):
+                Routes.subscribe_tries += 1
+                coroutine.sleep(.1)
+                if Routes.subscribe_tries % 2:
+                    raise http.BadGateway()
+                else:
+                    raise http.GatewayTimeout()
+
+        this.injector = Injector('client')
+        node_pid = self.start_master(None, Routes)
+        self.start_client()
+        ipc = IPCConnection()
+        self.wait_for_events(ipc, event='inline', state='online').wait()
+
+        def read_events():
+            for event in ipc.subscribe():
+                events.append(event)
+        events = []
+        coroutine.spawn(read_events)
+
+        coroutine.sleep(1)
+        self.assertEqual([{'event': 'pong'}], events)
+        assert Routes.subscribe_tries > 2
+
+
+
+
+
+
+
+
+
+    def ___test_CachedClientRoutes(self):
+        volume = db.Volume('client', RESOURCES, lazy_open=True)
         cp = CachedClientRoutes(volume, client.api.value)
 
         post = Request(method='POST', path=['context'])
@@ -214,8 +1167,8 @@ class RoutesTest(tests.Test):
                 {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
                 self.node_volume['context'].get(guid2)['author'])
 
-    def test_CachedClientRoutes_WipeReports(self):
-        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
+    def ___test_CachedClientRoutes_WipeReports(self):
+        volume = db.Volume('client', RESOURCES, lazy_open=True)
         cp = CachedClientRoutes(volume, client.api.value)
 
         post = Request(method='POST', path=['report'])
@@ -227,15 +1180,15 @@ class RoutesTest(tests.Test):
         guid = call(cp, post)
 
         trigger = self.wait_for_events(cp, event='push')
-        self.start_master([User, Report])
+        self.start_master()
         cp._remote_connect()
         trigger.wait()
 
         assert not volume['report'].exists(guid)
         assert self.node_volume['report'].exists(guid)
 
-    def test_CachedClientRoutes_OpenOnlyChangedResources(self):
-        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
+    def ___test_CachedClientRoutes_OpenOnlyChangedResources(self):
+        volume = db.Volume('client', RESOURCES, lazy_open=True)
         cp = CachedClientRoutes(volume, client.api.value)
         guid = call(cp, Request(method='POST', path=['context'], content_type='application/json', content={
             'type': 'activity',
@@ -246,7 +1199,7 @@ class RoutesTest(tests.Test):
             }))
         cp.close()
 
-        volume = db.Volume('client', model.RESOURCES, lazy_open=True)
+        volume = db.Volume('client', RESOURCES, lazy_open=True)
         cp = CachedClientRoutes(volume, client.api.value)
 
         trigger = self.wait_for_events(cp, event='push')
@@ -258,8 +1211,8 @@ class RoutesTest(tests.Test):
         assert self.node_volume['context'].exists(guid)
         self.assertEqual(['context'], volume.keys())
 
-    def test_SwitchToOfflineForAbsentOnlineProps(self):
-        volume = db.Volume('client', model.RESOURCES)
+    def ___test_SwitchToOfflineForAbsentOnlineProps(self):
+        volume = db.Volume('client', RESOURCES)
         cp = ClientRoutes(volume, client.api.value)
 
         post = Request(method='POST', path=['context'])
@@ -281,177 +1234,6 @@ class RoutesTest(tests.Test):
 
         assert not self.node_volume['context'].exists(guid)
         self.assertEqual('title', call(cp, Request(method='GET', path=['context', guid, 'title'])))
-
-    def test_I18nQuery(self):
-        os.environ['LANGUAGE'] = 'foo'
-        self.start_online_client()
-        ipc = IPCConnection()
-
-        guid1 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en-US': 'qwe', 'ru-RU': 'йцу'},
-            'summary': 'summary',
-            'description': 'description',
-            })
-        guid2 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en-US': 'qwerty', 'ru-RU': 'йцукен'},
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        self.assertEqual([
-            {'guid': guid1},
-            {'guid': guid2},
-            ],
-            ipc.get(['context'], query='йцу')['result'])
-        self.assertEqual([
-            {'guid': guid1},
-            {'guid': guid2},
-            ],
-            ipc.get(['context'], query='qwe')['result'])
-
-        self.assertEqual([
-            {'guid': guid2},
-            ],
-            ipc.get(['context'], query='йцукен')['result'])
-        self.assertEqual([
-            {'guid': guid2},
-            ],
-            ipc.get(['context'], query='qwerty')['result'])
-
-    def test_IgnoreClonesOnOpen(self):
-        self.start_online_client()
-        ipc = IPCConnection()
-
-        guid = ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
-            '[Activity]',
-            'name = name',
-            'bundle_id = context',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'stability = stable',
-            ]])), cmd='submit', initial=True)
-        ipc.put(['context', 'context'], True, cmd='clone')
-        ts = time.time()
-        os.utime('client/release/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
-        self.client_routes.close()
-        self.stop_nodes()
-
-        home_volume = self.start_online_client()
-        cache_lifetime.value = 1
-        self.client_routes.recycle()
-        assert home_volume['release'].exists(guid)
-        assert exists('client/release/%s/%s' % (guid[:2], guid))
-
-    def test_IgnoreClonesWhileCheckingFreeSpace(self):
-        home_volume = self.start_online_client()
-        ipc = IPCConnection()
-
-        guid = ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
-            '[Activity]',
-            'name = name',
-            'bundle_id = context',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'stability = stable',
-            ]])), cmd='submit', initial=True)
-        ipc.put(['context', 'context'], True, cmd='clone')
-
-        class statvfs(object):
-            f_blocks = 100
-            f_bfree = 10
-            f_frsize = 1
-
-        self.override(os, 'statvfs', lambda *args: statvfs())
-        cache_limit.value = 10
-
-        self.assertRaises(RuntimeError, self.client_routes._cache.ensure, 1, 0)
-        assert home_volume['release'].exists(guid)
-        assert exists('client/release/%s/%s' % (guid[:2], guid))
-
-    def test_IgnoreClonesOnRecycle(self):
-        home_volume = self.start_online_client()
-        ipc = IPCConnection()
-
-        guid = ipc.upload(['release'], StringIO(self.zips(['TestActivity/activity/activity.info', [
-            '[Activity]',
-            'name = name',
-            'bundle_id = context',
-            'exec = true',
-            'icon = icon',
-            'activity_version = 1',
-            'license = Public Domain',
-            'stability = stable',
-            ]])), cmd='submit', initial=True)
-        ipc.put(['context', 'context'], True, cmd='clone')
-        ts = time.time()
-        os.utime('client/release/%s/%s' % (guid[:2], guid), (ts - 2 * 86400, ts - 2 * 86400))
-
-        cache_lifetime.value = 1
-        self.client_routes.recycle()
-        assert home_volume['release'].exists(guid)
-        assert exists('client/release/%s/%s' % (guid[:2], guid))
-
-    def test_LanguagesFallbackInRequests(self):
-        self.start_online_client()
-        ipc = IPCConnection()
-
-        guid1 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en': '1', 'ru': '2', 'es': '3'},
-            'summary': '',
-            'description': '',
-            })
-        guid2 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en': '1', 'ru': '2'},
-            'summary': '',
-            'description': '',
-            })
-        guid3 = self.node_volume['context'].create({
-            'type': 'activity',
-            'title': {'en': '1'},
-            'summary': '',
-            'description': '',
-            })
-
-        i18n._default_langs = None
-        os.environ['LANGUAGE'] = 'es:ru:en'
-        ipc = IPCConnection()
-        self.assertEqual('3', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-        i18n._default_langs = None
-        os.environ['LANGUAGE'] = 'ru:en'
-        ipc = IPCConnection()
-        self.assertEqual('2', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('2', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-        i18n._default_langs = None
-        os.environ['LANGUAGE'] = 'en'
-        ipc = IPCConnection()
-        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-        i18n._default_langs = None
-        os.environ['LANGUAGE'] = 'foo'
-        ipc = IPCConnection()
-        self.assertEqual('1', ipc.get(['context', guid1, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid2, 'title']))
-        self.assertEqual('1', ipc.get(['context', guid3, 'title']))
-
-
-def call(routes, request):
-    router = Router(routes)
-    return router.call(request, Response())
 
 
 if __name__ == '__main__':

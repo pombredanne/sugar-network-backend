@@ -161,10 +161,14 @@ class JournalTest(tests.Test):
         request = Request()
         request.path = ['journal', 'guid1', 'preview']
         response = Response()
+        blob = ds.journal_get_preview(request, response)
         self.assertEqual({
-            'mime_type': 'image/png',
-            'blob': '.sugar/default/datastore/gu/guid1/metadata/preview',
-            }, ds.journal_get_preview(request, response))
+            'content-type': 'image/png',
+            },
+            dict(blob))
+        self.assertEqual(
+                '.sugar/default/datastore/gu/guid1/metadata/preview',
+                blob.path)
         self.assertEqual(None, response.content_type)
 
 

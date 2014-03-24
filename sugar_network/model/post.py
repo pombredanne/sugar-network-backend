@@ -74,7 +74,8 @@ class Post(db.Resource):
     def preview(self, value):
         return value
 
-    @db.stored_property(db.Aggregated, subtype=db.Blob())
+    @db.stored_property(db.Aggregated, subtype=db.Blob(),
+            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
     def attachments(self, value):
         if value:
             value['name'] = self['title']

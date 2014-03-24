@@ -17,6 +17,9 @@ import logging
 from urlparse import urlsplit
 
 from sugar_network import toolkit
+from sugar_network.model.post import Post
+from sugar_network.model.report import Report
+from sugar_network.node.model import User, Context
 from sugar_network.node import obs, master_api
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
@@ -24,12 +27,7 @@ from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, parcel, pylru, ranges, enforce
 
 
-RESOURCES = (
-        'sugar_network.node.model',
-        'sugar_network.model.post',
-        'sugar_network.model.report',
-        'sugar_network.model.user',
-        )
+RESOURCES = (User, Context, Post, Report)
 
 _logger = logging.getLogger('node.master')
 

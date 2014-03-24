@@ -10,6 +10,8 @@ from __init__ import tests
 from sugar_network import db
 from sugar_network.model import load_bundle
 from sugar_network.model.post import Post
+from sugar_network.model.context import Context
+from sugar_network.node.model import User
 from sugar_network.client import IPCConnection, Connection, keyfile
 from sugar_network.toolkit.router import Request
 from sugar_network.toolkit.coroutine import this
@@ -19,6 +21,7 @@ from sugar_network.toolkit import i18n, http, coroutine, enforce
 class ModelTest(tests.Test):
 
     def test_RatingSort(self):
+        this.localcast = lambda event: None
         directory = db.Volume('db', [Post])['post']
 
         directory.create({'guid': '1', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [0, 0]})
@@ -518,7 +521,7 @@ class ModelTest(tests.Test):
             release['requires'])
 
     def test_load_bundle_IgnoreNotSupportedContextTypes(self):
-        volume = self.start_master()
+        volume = self.start_master([User, Context])
         conn = Connection(auth=http.SugarAuth(keyfile.value))
 
         context = conn.post(['context'], {
@@ -528,9 +531,9 @@ class ModelTest(tests.Test):
             'description': '',
             })
         this.request = Request(method='POST', path=['context', context])
-        aggid = conn.post(['context', context, 'releases'], -1)
+        aggid = conn.post(['context', context, 'releases'], {})
         self.assertEqual({
-            aggid: {'seqno': 4, 'value': -1, 'author': {tests.UID: {'role': 3, 'name': tests.UID, 'order': 0}}},
+            aggid: {'seqno': 4, 'value': {}, 'author': {tests.UID: {'role': 3, 'name': tests.UID, 'order': 0}}},
             }, volume['context'][context]['releases'])
 
 

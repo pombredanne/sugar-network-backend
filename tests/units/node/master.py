@@ -20,8 +20,8 @@ from sugar_network.client import Connection, keyfile, api
 from sugar_network.db.directory import Directory
 from sugar_network import db, node, toolkit
 from sugar_network.node.master import MasterRoutes
+from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
-from sugar_network.model.user import User
 from sugar_network.toolkit.router import Response, File
 from sugar_network.toolkit import coroutine, parcel, http
 
@@ -64,7 +64,7 @@ class MasterTest(tests.Test):
         response = conn.request('POST', [], patch, params={'cmd': 'push'})
         reply = parcel.decode(response.raw)
 
-        assert volume['document'].exists('1')
+        assert volume['document']['1'].exists
         blob = volume.blobs.get(hashlib.sha1('1').hexdigest())
         self.assertEqual('1', ''.join(blob.iter_content()))
         blob = volume.blobs.get('foo/bar')
@@ -165,7 +165,7 @@ class MasterTest(tests.Test):
             })
         reply = parcel.decode(response.raw)
 
-        assert volume['document'].exists('1')
+        assert volume['document']['1'].exists
         blob_digest = hashlib.sha1('blob').hexdigest()
         blob = volume.blobs.get(blob_digest)
         self.assertEqual('blob', ''.join(blob.iter_content()))
@@ -541,7 +541,7 @@ class MasterTest(tests.Test):
             ],
             [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
 
-        assert volume['document'].exists('2')
+        assert volume['document']['2'].exists
         self.assertEqual('ccc', ''.join(blob2.iter_content()))
 
 

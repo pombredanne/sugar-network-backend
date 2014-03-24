@@ -90,7 +90,7 @@
         <dia:point val="30,26.3"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="17.68,25.55;30.05,30.85"/>
+        <dia:rectangle val="17.825,25.54;30.05,30.84"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
@@ -99,7 +99,7 @@
         <dia:point val="30,26.3"/>
         <dia:point val="17.879,26.3"/>
         <dia:point val="17.879,30"/>
-        <dia:point val="18.265,30"/>
+        <dia:point val="18.41,30"/>
       </dia:attribute>
       <dia:attribute name="orth_orient">
         <dia:enum val="0"/>
@@ -484,10 +484,10 @@
             <dia:string>#previews#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#[blob] [R WA]#</dia:string>
+            <dia:string>#aggregated[blob] [R WA]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
-            <dia:string>##</dia:string>
+            <dia:string>#[]#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#List of screenshot in PNG and arbitrary sizes#</dia:string>
@@ -507,7 +507,7 @@
             <dia:string>#releases#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#[] [R WA]#</dia:string>
+            <dia:string>#aggregated[] [R W]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>#[]#</dia:string>
@@ -759,7 +759,7 @@
             <dia:string>#pubkey#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#str [WN]#</dia:string>
+            <dia:string>#blob [WN]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
@@ -789,7 +789,7 @@
         <dia:point val="-13,6"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="-13.015,5.985;-0.9725,24.415"/>
+        <dia:rectangle val="-13.015,5.985;-0.9725,27.215"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="-13,6"/>
@@ -798,7 +798,7 @@
         <dia:real val="12.012499999999999"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="18.400000000000002"/>
+        <dia:real val="21.200000000000003"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Resource#</dia:string>
@@ -965,36 +965,13 @@
             <dia:string>#author#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#list [R S F]#</dia:string>
+            <dia:string>#[] [R S F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Users related to this object; see the Wiki for details#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#layer#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#[enum] [R WA]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#[]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#List of layers this object belongs to; see the Wiki for details#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -1017,7 +994,53 @@
             <dia:string>#[]#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#List of tags#</dia:string>
+            <dia:string>#List of tags set by the author#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#status#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#[enum] [R]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#[]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#Object status set by editors; see the Wiki for details#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="visibility">
+            <dia:enum val="0"/>
+          </dia:attribute>
+          <dia:attribute name="abstract">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+          <dia:attribute name="class_scope">
+            <dia:boolean val="false"/>
+          </dia:attribute>
+        </dia:composite>
+        <dia:composite type="umlattribute">
+          <dia:attribute name="name">
+            <dia:string>#pins#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="type">
+            <dia:string>#[enum] [R W]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="value">
+            <dia:string>#[]#</dia:string>
+          </dia:attribute>
+          <dia:attribute name="comment">
+            <dia:string>#List of preferences set by observer; see Wiki for details#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>
@@ -1041,7 +1064,7 @@
         <dia:point val="49.39,26.3"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="49.34,25.55;62.046,31.1085"/>
+        <dia:rectangle val="49.34,25.54;63.6285,31.0985"/>
       </dia:attribute>
       <dia:attribute name="meta">
         <dia:composite type="dict"/>
@@ -1050,7 +1073,7 @@
         <dia:point val="49.39,26.3"/>
         <dia:point val="61.7373,26.3"/>
         <dia:point val="61.7373,30.2585"/>
-        <dia:point val="61.461,30.2585"/>
+        <dia:point val="63.5785,30.2585"/>
       </dia:attribute>
       <dia:attribute name="orth_orient">
         <dia:enum val="0"/>
@@ -1121,13 +1144,13 @@
         <dia:point val="55.2435,30.2585"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="55.2285,30.2435;67.6935,64.6735"/>
+        <dia:rectangle val="55.2285,30.2435;71.9285,64.6735"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="55.2435,30.2585"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
-        <dia:real val="12.434999999999999"/>
+        <dia:real val="16.669999999999998"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
         <dia:real val="34.400000000000006"/>
@@ -1389,7 +1412,7 @@
             <dia:string>#comments#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#[str] [R W F I]#</dia:string>
+            <dia:string>#aggregated[str] [R W F I]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>#[]#</dia:string>
@@ -1432,13 +1455,13 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#data#</dia:string>
+            <dia:string>#attachments#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#blob [R WN]#</dia:string>
+            <dia:string>#aggregated[blob] [R WA]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
-            <dia:string>#null#</dia:string>
+            <dia:string>#[]#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#Attachments to the Post#</dia:string>
@@ -1511,13 +1534,13 @@
         <dia:point val="12,30"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="11.985,29.985;24.545,53.615"/>
+        <dia:rectangle val="11.985,29.985;24.835,53.615"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="12,30"/>
       </dia:attribute>
       <dia:attribute name="elem_width">
-        <dia:real val="12.529999999999999"/>
+        <dia:real val="12.82"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
         <dia:real val="23.600000000000005"/>
@@ -1710,7 +1733,7 @@
             <dia:string>#lsb_release#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#dict [R WN F]#</dia:string>
+            <dia:string>#{} [R WN F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>
@@ -1756,7 +1779,7 @@
             <dia:string>#logs#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#[blob] [R WN F]#</dia:string>
+            <dia:string>#aggregated[blob] [R WA F]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>##</dia:string>

@@ -202,6 +202,9 @@ class Connection(object):
         if not isinstance(path, basestring):
             path = '/'.join([i.strip('/') for i in [self.url] + path])
 
+        # TODO Disable cookies on requests library level
+        self._session.cookies.clear()
+
         try_ = 0
         while True:
             try_ += 1

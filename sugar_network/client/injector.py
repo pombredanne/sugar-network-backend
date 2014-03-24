@@ -27,6 +27,7 @@ from sugar_network import toolkit
 from sugar_network.client import packagekit, journal, profile_path
 from sugar_network.toolkit.spec import format_version
 from sugar_network.toolkit.bundle import Bundle
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import lsb_release, coroutine, i18n, pylru, http
 from sugar_network.toolkit import enforce
 
@@ -47,6 +48,7 @@ class Injector(object):
                 limit_bytes, limit_percent)
         self._api = None
         self._checkins = toolkit.Bin(join(root, 'checkins'), {})
+        self._inprogress = {}
 
         for dir_name in ('solutions', 'releases'):
             dir_path = join(root, dir_name)
@@ -81,8 +83,8 @@ class Injector(object):
 
         yield {'event': 'launch', 'state': 'init'}
         releases = []
-        acquired = []
         checkedin = {}
+        inprogress = []
         environ = {}
 
         def acquire(ctx):
@@ -92,8 +94,8 @@ class Injector(object):
             if ctx in self._checkins:
                 checkedin[ctx] = (self.api, stability, self.seqno)
             else:
-                _logger.debug('Acquire %r', ctx)
-                acquired.extend(solution.values())
+                inprogress.append((ctx, solution))
+                self._progress_in(ctx)
             releases.extend(solution.values())
             release = solution[ctx]
             return release, self._pool.path(release['blob'])
@@ -135,9 +137,9 @@ class Injector(object):
             yield environ
             status = child.wait()
         finally:
-            if acquired:
-                _logger.debug('Release acquired contexts')
-                self._pool.push(acquired)
+            for ctx, solution in inprogress:
+                self._progress_out(ctx, True)
+                self._pool.push(solution.values())
 
         if checkedin:
             with self._checkins as checkins:
@@ -148,19 +150,22 @@ class Injector(object):
         yield {'event': 'launch', 'state': 'exit'}
 
     def checkin(self, context, stability='stable'):
-        if context in self._checkins:
-            _logger.debug('Refresh %r checkin', context)
-        else:
-            _logger.debug('Checkin %r', context)
-        yield {'event': 'checkin', 'state': 'solve'}
-        solution = self._solve(context, stability)
-        for event in self._download(solution.values()):
-            event['event'] = 'checkin'
-            yield event
-        self._pool.pop(solution.values())
-        with self._checkins as checkins:
-            checkins[context] = (self.api, stability, self.seqno)
-        yield {'event': 'checkin', 'state': 'ready'}
+        self._progress_in(context)
+        try:
+            yield {'event': 'checkin', 'state': 'solve'}
+            solution = self._solve(context, stability)
+            for event in self._download(solution.values()):
+                event['event'] = 'checkin'
+                yield event
+            self._pool.pop(solution.values())
+            with self._checkins as checkins:
+                checkins[context] = (self.api, stability, self.seqno)
+            yield {'event': 'checkin', 'state': 'ready'}
+            directory = this.volume['context']
+            pins = list(set(directory[context]['pins']) | set(['checkin']))
+            directory.update(context, {'pins': pins})
+        finally:
+            self._progress_out(context)
 
     def checkout(self, context):
         if context not in self._checkins:
@@ -171,7 +176,50 @@ class Injector(object):
         self._pool.push(solution.values())
         with self._checkins as checkins:
             del checkins[context]
+        directory = this.volume['context']
+        pins = list(set(directory[context]['pins']) - set(['checkin']))
+        directory.update(context, {'pins': pins})
+        self._notify(context)
         return True
+
+    def pins(self, context, stability='stable'):
+        result = []
+        if self.api and context in self._checkins:
+            api, s, seqno = self._checkins[context]
+            if api != self.api or s != stability or seqno != self.seqno:
+                result.append('stale')
+        if self._inprogress.get(context):
+            result.append('inprogress')
+        return result
+
+    def _notify(self, context, force=False):
+        if not force and not self.api:
+            return
+        doc = this.volume['context'][context]
+        pins = doc.repr('pins') if doc.exists else self.pins(context)
+        this.localcast({
+            'event': 'update',
+            'resource': 'context',
+            'guid': context,
+            'props': {'pins': pins},
+            })
+
+    def _progress_in(self, context):
+        progress = self._inprogress.setdefault(context, 0)
+        self._inprogress[context] = progress + 1
+        if not progress:
+            _logger.debug('%r is in-progress', context)
+            self._notify(context, True)
+
+    def _progress_out(self, context, force=False):
+        progress = self._inprogress.get(context)
+        if not progress:
+            _logger.warn('Progress counter broken for %r', context)
+            return
+        self._inprogress[context] = progress - 1
+        if progress == 1:
+            _logger.debug('%r is not in-progress', context)
+            self._notify(context, force)
 
     def _solve(self, context, stability):
         path = join(self._root, 'solutions', context)
@@ -193,7 +241,8 @@ class Injector(object):
                 _logger.debug('Reuse cached %r solution in offline', context)
 
         if not solution:
-            enforce(self.api, 'Cannot solve in offline')
+            enforce(self.api, http.ServiceUnavailable,
+                    'Not available in offline')
             _logger.debug('Solve %r', context)
             solution = self._api.get(['context', context], cmd='solve',
                     stability=stability, lsb_id=lsb_release.distributor_id(),
@@ -422,21 +471,21 @@ def _exec(context, release, path, args, environ):
 
         os.chdir(path)
 
-        environ = os.environ
-        environ['PATH'] = ':'.join([
+        env = os.environ
+        env['PATH'] = ':'.join([
             join(path, 'activity'),
             join(path, 'bin'),
-            environ['PATH'],
+            env['PATH'],
             ])
-        environ['PYTHONPATH'] = path + ':' + environ.get('PYTHONPATH', '')
-        environ['SUGAR_BUNDLE_PATH'] = path
-        environ['SUGAR_BUNDLE_ID'] = context
-        environ['SUGAR_BUNDLE_NAME'] = i18n.decode(release['title'])
-        environ['SUGAR_BUNDLE_VERSION'] = format_version(release['version'])
-        environ['SUGAR_ACTIVITY_ROOT'] = datadir
-        environ['SUGAR_LOCALEDIR'] = join(path, 'locale')
+        env['PYTHONPATH'] = path + ':' + env.get('PYTHONPATH', '')
+        env['SUGAR_BUNDLE_PATH'] = path
+        env['SUGAR_BUNDLE_ID'] = context
+        env['SUGAR_BUNDLE_NAME'] = i18n.decode(release['title'])
+        env['SUGAR_BUNDLE_VERSION'] = format_version(release['version'])
+        env['SUGAR_ACTIVITY_ROOT'] = datadir
+        env['SUGAR_LOCALEDIR'] = join(path, 'locale')
 
-        os.execvpe(args[0], args, environ)
+        os.execvpe(args[0], args, env)
     except BaseException:
         logging.exception('Failed to execute %r args=%r', release, args)
     finally:

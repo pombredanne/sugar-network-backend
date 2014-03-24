@@ -28,6 +28,7 @@ class FrontRoutes(object):
     def __init__(self):
         self._spooler = coroutine.Spooler()
         this.broadcast = self._broadcast
+        this.localcast = self._broadcast
 
     @route('GET', mime_type='text/html')
     def hello(self):

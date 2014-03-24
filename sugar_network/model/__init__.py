@@ -122,7 +122,6 @@ def generate_node_stats(volume):
 
 
 def load_bundle(blob, context=None, initial=False, extra_deps=None):
-    contexts = this.volume['context']
     context_type = None
     context_meta = None
     release_notes = None
@@ -186,18 +185,21 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
     enforce(context, http.BadRequest, 'Context is not specified')
     enforce(version, http.BadRequest, 'Version is not specified')
     release['version'] = parse_version(version)
-    if initial and not contexts.exists(context):
-        enforce(context_meta, http.BadRequest, 'No way to initate context')
-        context_meta['guid'] = context
-        context_meta['type'] = [context_type]
-        this.call(method='POST', path=['context'], content=context_meta)
+
+    doc = this.volume['context'][context]
+    if initial:
+        if not doc.exists:
+            enforce(context_meta, http.BadRequest, 'No way to initate context')
+            context_meta['guid'] = context
+            context_meta['type'] = [context_type]
+            this.call(method='POST', path=['context'], content=context_meta)
     else:
-        enforce(context_type in contexts[context]['type'],
+        enforce(doc.exists, http.NotFound, 'No context')
+        enforce(context_type in doc['type'],
                 http.BadRequest, 'Inappropriate bundle type')
-    context_doc = contexts[context]
 
     if 'license' not in release:
-        releases = context_doc['releases'].values()
+        releases = doc['releases'].values()
         enforce(releases, http.BadRequest, 'License is not specified')
         recent = max(releases, key=lambda x: x.get('value', {}).get('release'))
         enforce(recent, http.BadRequest, 'License is not specified')
@@ -205,11 +207,11 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
 
     _logger.debug('Load %r release: %r', context, release)
 
-    if this.request.principal in context_doc['author']:
-        patch = context_doc.format_patch(context_meta)
+    if this.request.principal in doc['author']:
+        patch = doc.format_patch(context_meta)
         if patch:
             this.call(method='PUT', path=['context', context], content=patch)
-            context_doc.posts.update(patch)
+            doc.posts.update(patch)
         # TRANS: Release notes title
         title = i18n._('%(name)s %(version)s release')
     else:
@@ -220,7 +222,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
                 'context': context,
                 'type': 'notification',
                 'title': i18n.encode(title,
-                    name=context_doc['title'],
+                    name=doc['title'],
                     version=version,
                     ),
                 'message': release_notes or '',
@@ -228,7 +230,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
             content_type='application/json')
 
     blob['content-disposition'] = 'attachment; filename="%s-%s%s"' % (
-            ''.join(i18n.decode(context_doc['title']).split()),
+            ''.join(i18n.decode(doc['title']).split()),
             version, mimetypes.guess_extension(blob.get('content-type')) or '',
             )
     this.volume.blobs.update(blob.digest, blob)

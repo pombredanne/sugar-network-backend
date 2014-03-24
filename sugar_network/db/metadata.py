@@ -374,6 +374,9 @@ class Aggregated(Composite):
     def subtypecast(self, value):
         return self._subtype.typecast(value)
 
+    def subreprcast(self, value):
+        return self._subtype.reprcast(value)
+
     def subteardown(self, value):
         self._subtype.teardown(value)
 

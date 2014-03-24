@@ -5,7 +5,6 @@ from __init__ import tests
 
 from sugar_network import db
 from sugar_network.client import Connection, keyfile
-from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.model.post import Post
 from sugar_network.toolkit.coroutine import this

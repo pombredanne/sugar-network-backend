@@ -20,81 +20,14 @@ from sugar_network.client import Connection, keyfile, api
 from sugar_network.toolkit import http, coroutine
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.node.master import MasterRoutes
-from sugar_network.model.user import User
 from sugar_network.model.context import Context
-from sugar_network.model.user import User
+from sugar_network.node.model import User
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, route
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http
 
 
 class NodeTest(tests.Test):
-
-    def test_HandleDeletes(self):
-        volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
-        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
-
-        guid = this.call(method='POST', path=['context'], principal=tests.UID, content={
-            'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-        guid_path = 'master/db/context/%s/%s' % (guid[:2], guid)
-
-        assert exists(guid_path)
-        self.assertEqual({
-            'guid': guid,
-            'title': 'title',
-            'layer': [],
-            },
-            this.call(method='GET', path=['context', guid], reply=['guid', 'title', 'layer']))
-        self.assertEqual([], volume['context'].get(guid)['layer'])
-
-        def subscribe():
-            for event in conn.subscribe():
-                events.append(event)
-        events = []
-        coroutine.spawn(subscribe)
-        coroutine.dispatch()
-
-        this.call(method='DELETE', path=['context', guid], principal=tests.UID)
-        coroutine.dispatch()
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['context', guid], reply=['guid', 'title'])
-        self.assertEqual(['deleted'], volume['context'].get(guid)['layer'])
-
-    def test_DeletedRestoredHandlers(self):
-        trigger = []
-
-        class TestDocument(db.Resource):
-
-            def deleted(self):
-                trigger.append(False)
-
-            def restored(self):
-                trigger.append(True)
-
-        volume = self.start_master([TestDocument, User])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
-
-        guid = conn.post(['testdocument'], {})
-        self.assertEqual([], trigger)
-
-        conn.put(['testdocument', guid, 'layer'], ['deleted'])
-        self.assertEqual([False], trigger)
-
-        conn.put(['testdocument', guid, 'layer'], [])
-        self.assertEqual([False, True], trigger)
-
-        conn.put(['testdocument', guid, 'layer'], ['bar'])
-        self.assertEqual([False, True], trigger)
-
-        conn.put(['testdocument', guid, 'layer'], ['deleted'])
-        self.assertEqual([False, True, False], trigger)
-
-        conn.put(['testdocument', guid, 'layer'], ['deleted', 'foo'])
-        self.assertEqual([False, True, False], trigger)
 
     def test_RegisterUser(self):
         volume = self.start_master()
@@ -369,7 +302,7 @@ class NodeTest(tests.Test):
         this.call(method='GET', path=['context', guid])
         self.assertNotEqual([], this.call(method='GET', path=['context'])['result'])
 
-        volume['context'].update(guid, {'layer': ['deleted']})
+        volume['context'].update(guid, {'state': 'deleted'})
 
         self.assertRaises(http.NotFound, this.call, method='GET', path=['context', guid])
         self.assertEqual([], this.call(method='GET', path=['context'])['result'])
@@ -415,7 +348,7 @@ class NodeTest(tests.Test):
             'description': 'description',
             })
 
-        self.assertRaises(http.BadRequest, this.call, method='POST', path=['context'], principal=tests.UID, content={
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['context'], principal=tests.UID, content={
             'guid': guid,
             'type': 'activity',
             'title': 'title',
@@ -496,7 +429,7 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             release: {
-                'seqno': 6,
+                'seqno': 9,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
@@ -568,6 +501,7 @@ class NodeTest(tests.Test):
                 'version': [[1], 0],
                 'size': len(activity_pack),
                 'unpack_size': len(activity_unpack),
+                'content-type': 'application/vnd.olpc-sugar',
                 },
             'dep': {
                 'title': 'dep',
@@ -575,6 +509,7 @@ class NodeTest(tests.Test):
                 'version': [[2], 0],
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),
+                'content-type': 'application/vnd.olpc-sugar',
                 },
             'package': {
                 'packages': ['package.bin'],
@@ -646,6 +581,7 @@ class NodeTest(tests.Test):
                 'version': [[1], 0],
                 'size': len(activity_pack),
                 'unpack_size': len(activity_unpack),
+                'content-type': 'application/vnd.olpc-sugar',
                 },
             'dep': {
                 'title': 'dep',
@@ -653,6 +589,7 @@ class NodeTest(tests.Test):
                 'version': [[2], 0],
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),
+                'content-type': 'application/vnd.olpc-sugar',
                 },
             'package': {
                 'packages': ['package.bin'],
@@ -662,7 +599,7 @@ class NodeTest(tests.Test):
             conn.get(['context', 'activity'], cmd='solve',
                 stability='developer', lsb_id='Ubuntu', lsb_release='10.04', requires=['dep', 'package']))
 
-    def test_Clone(self):
+    def test_Resolve(self):
         volume = self.start_master()
         conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
 
@@ -699,7 +636,7 @@ class NodeTest(tests.Test):
         conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         response = Response()
-        reply = conn.call(Request(method='GET', path=['context', 'activity'], cmd='clone'), response)
+        reply = conn.call(Request(method='GET', path=['context', 'activity'], cmd='resolve'), response)
         assert activity_blob == reply.read()
 
     def test_AggpropInsertAccess(self):

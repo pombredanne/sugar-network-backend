@@ -14,8 +14,8 @@ from sugar_network.client import Connection, keyfile
 from sugar_network.node import master_api
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
+from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
-from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, File
 from sugar_network.toolkit import coroutine, http, parcel
 

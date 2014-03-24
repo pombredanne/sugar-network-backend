@@ -602,11 +602,11 @@ class Router(object):
                 request.ensure_content()
                 coroutine.spawn(self._event_stream, request, result)
                 result = None
-        except Exception, exception:
-            raise
-        else:
-            if route_.mime_type and 'content-type' not in response:
+            elif route_.mime_type and 'content-type' not in response:
                 response.set('content-type', route_.mime_type)
+        except Exception, exception:
+            # To populate `exception` only
+            raise
         finally:
             for i in self._postroutes:
                 i(request, response, result, exception)
@@ -689,7 +689,8 @@ class Router(object):
         elif not streamed_content:
             if response.content_type == 'application/json':
                 content = json.dumps(content)
-            if 'content-length' not in response:
+                response.content_length = len(content)
+            elif 'content-length' not in response:
                 response.content_length = len(content) if content else 0
         if request.method == 'HEAD' and content is not None:
             _logger.warning('Content from HEAD response is ignored')
@@ -753,21 +754,12 @@ class Router(object):
             commons['guid'] = request.guid
         if request.prop:
             commons['prop'] = request.prop
-        try:
-            for event in _event_stream(request, stream):
-                if 'event' not in event:
-                    commons.update(event)
-                else:
-                    event.update(commons)
-                    this.localcast(event)
-        except Exception, error:
-            _logger.exception('Event stream %r failed', request)
-            event = {'event': 'failure',
-                     'exception': type(error).__name__,
-                     'error': str(error),
-                     }
-            event.update(commons)
-            this.localcast(event)
+        for event in _event_stream(request, stream):
+            if 'event' not in event:
+                commons.update(event)
+            else:
+                event.update(commons)
+                this.localcast(event)
 
     def _assert_origin(self, environ):
         origin = environ['HTTP_ORIGIN']
@@ -837,6 +829,12 @@ def _event_stream(request, stream):
                     event[0].update(i)
                 event = event[0]
             yield event
+    except Exception, error:
+        _logger.exception('Event stream %r failed', request)
+        yield {'event': 'failure',
+               'exception': type(error).__name__,
+               'error': str(error),
+               }
     finally:
         _logger.debug('Event stream %r exited', request)
 

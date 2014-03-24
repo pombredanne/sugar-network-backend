@@ -29,9 +29,10 @@ coroutine.inject()
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.client.routes import CachedClientRoutes
-from sugar_network.node import stats_user
-from sugar_network.model import RESOURCES
+from sugar_network.client.injector import Injector
+from sugar_network.client.model import RESOURCES
 from sugar_network.toolkit.router import Router, Request, Response
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import mountpoints, printf, application
 from sugar_network.toolkit import Option
 
@@ -100,9 +101,11 @@ class Application(application.Daemon):
         self.cmd_start()
 
     def run(self):
+        this.injector = Injector(client.path('cache'),
+                client.cache_lifetime.value, client.cache_limit.value,
+                client.cache_limit_percent.value)
         volume = db.Volume(client.path('db'), RESOURCES)
-        routes = CachedClientRoutes(volume,
-                client.api.value if not client.server_mode.value else None)
+        routes = CachedClientRoutes(volume)
         router = Router(routes, allow_spawn=True)
 
         logging.info('Listening for IPC requests on %s port',
@@ -136,7 +139,8 @@ class Application(application.Daemon):
             if client.cache_timeout.value:
                 self.jobs.spawn(self._recycle_cache, routes)
 
-            routes.connect()
+            api_url = None if client.discover_node.value else client.api.value
+            routes.connect(api_url)
 
         def delayed_start(event=None):
             for __ in routes.subscribe(event='delayed-start'):
@@ -198,7 +202,6 @@ Option.seek('webui', webui)
 Option.seek('client', client)
 Option.seek('db', db)
 Option.seek('node', [node.port, node.find_limit])
-Option.seek('user-stats', stats_user)
 
 app = Application(
         name='sugar-network-client',

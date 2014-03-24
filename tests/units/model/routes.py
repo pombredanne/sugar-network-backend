@@ -10,7 +10,6 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import db, model
-from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine
@@ -49,7 +48,7 @@ class RoutesTest(tests.Test):
         self.assertEqual([
             {'event': 'pong'},
             {'guid': 'guid', 'resource': 'document', 'event': 'create'},
-            {'guid': 'guid', 'resource': 'document', 'event': 'update'},
+            {'guid': 'guid', 'resource': 'document', 'event': 'update', 'props': {'prop': 'value2'}},
             {'guid': 'guid', 'event': 'delete', 'resource': u'document'},
             ],
             events)

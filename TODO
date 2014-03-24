@@ -9,6 +9,7 @@
 - changed pulls should take into account accept_length
 - secure node-to-node sync
 - cache init sync pull
+- switch auth from WWW-AUTHENTICATE to mutual authentication over the HTTPS
 
 v2.0
 ====

@@ -24,6 +24,10 @@ from sugar_network.toolkit import coroutine, http, i18n
 
 class RoutesTest(tests.Test):
 
+    def setUp(self, fork_num=0):
+        tests.Test.setUp(self, fork_num)
+        this.localcast = lambda x: x
+
     def test_PostDefaults(self):
 
         class Document(db.Resource):
@@ -646,12 +650,6 @@ class RoutesTest(tests.Test):
 
     def test_on_create_Override(self):
 
-        class Routes(db.Routes):
-
-            def on_create(self, request, props):
-                props['prop'] = 'overriden'
-                db.Routes.on_create(self, request, props)
-
         class TestDocument(db.Resource):
 
             @db.indexed_property(slot=1, default='')
@@ -662,13 +660,16 @@ class RoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(Routes(volume))
+            def created(self):
+                self.posts['prop'] = 'overriden'
 
-        guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'}, routes=Routes)
+        volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes(volume))
+
+        guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'})
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
 
-        this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'}, routes=Routes)
+        this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'})
         self.assertEqual('bar', volume['testdocument'].get(guid)['prop'])
 
     def test_on_update(self):
@@ -696,12 +697,6 @@ class RoutesTest(tests.Test):
 
     def test_on_update_Override(self):
 
-        class Routes(db.Routes):
-
-            def on_update(self, request, props):
-                props['prop'] = 'overriden'
-                db.Routes.on_update(self, request, props)
-
         class TestDocument(db.Resource):
 
             @db.indexed_property(slot=1, default='')
@@ -712,13 +707,16 @@ class RoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(Routes(volume))
+            def updated(self):
+                self.posts['prop'] = 'overriden'
 
-        guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'}, routes=Routes)
+        volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes(volume))
+
+        guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'})
         self.assertEqual('foo', volume['testdocument'].get(guid)['prop'])
 
-        this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'}, routes=Routes)
+        this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'})
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
 
     def __test_DoNotPassGuidsForCreate(self):
@@ -796,6 +794,7 @@ class RoutesTest(tests.Test):
                 )
 
         events = []
+        this.localcast = lambda x: events.append(x)
         this.broadcast = lambda x: events.append(x)
         volume = db.Volume(tests.tmpdir, [Document1, Document2])
         volume['document1']
@@ -821,8 +820,8 @@ class RoutesTest(tests.Test):
         volume['document1'].update('guid1', {'prop': 'foo'})
         volume['document2'].update('guid2', {'prop': 'bar'})
         self.assertEqual([
-            {'event': 'update', 'resource': 'document1', 'guid': 'guid1'},
-            {'event': 'update', 'resource': 'document2', 'guid': 'guid2'},
+            {'event': 'update', 'resource': 'document1', 'guid': 'guid1', 'props': {'prop': 'foo'}},
+            {'event': 'update', 'resource': 'document2', 'guid': 'guid2', 'props': {'prop': 'bar'}},
             ],
             events)
         del events[:]
@@ -1516,7 +1515,7 @@ class RoutesTest(tests.Test):
         events = []
         volume = db.Volume(tests.tmpdir, [Document])
         router = Router(db.Routes(volume))
-        this.broadcast = lambda x: events.append(x)
+        this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
 
         self.assertRaises(http.NotFound, this.call, method='POST', path=['document', 'foo', 'bar'], content={})
@@ -1532,7 +1531,10 @@ class RoutesTest(tests.Test):
             },
             volume['document'].get(guid)['prop3'])
         self.assertEqual([
-            {'event': 'update', 'resource': 'document', 'guid': guid},
+            {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
+                'mtime': 0,
+                'prop3': {'0': {'seqno': 2, 'value': 0}},
+                }},
             ],
             events)
 
@@ -1556,6 +1558,7 @@ class RoutesTest(tests.Test):
             volume['document'].get(guid)['prop3'])
 
     def test_RemoveAggprops(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -1570,7 +1573,7 @@ class RoutesTest(tests.Test):
         events = []
         volume = db.Volume(tests.tmpdir, [Document])
         router = Router(db.Routes(volume))
-        this.broadcast = lambda x: events.append(x)
+        this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
 
         agg_guid = this.call(method='POST', path=['document', guid, 'prop1'], content=2)
@@ -1594,7 +1597,10 @@ class RoutesTest(tests.Test):
                 {agg_guid: {'seqno': 4}},
                 volume['document'].get(guid)['prop2'])
         self.assertEqual([
-            {'event': 'update', 'resource': 'document', 'guid': guid},
+            {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
+                'mtime': 0,
+                'prop2': {agg_guid: {'seqno': 4}},
+                }},
             ],
             events)
 
@@ -1609,7 +1615,7 @@ class RoutesTest(tests.Test):
         events = []
         volume = db.Volume(tests.tmpdir, [Document])
         router = Router(db.Routes(volume))
-        this.broadcast = lambda x: events.append(x)
+        this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
         del events[:]
 
@@ -1617,6 +1623,7 @@ class RoutesTest(tests.Test):
         self.assertEqual([], events)
 
     def test_UpdateAggprops(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -1631,7 +1638,7 @@ class RoutesTest(tests.Test):
         events = []
         volume = db.Volume(tests.tmpdir, [Document])
         router = Router(db.Routes(volume))
-        this.broadcast = lambda x: events.append(x)
+        this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
 
         agg_guid = this.call(method='POST', path=['document', guid, 'prop1'], content=1)
@@ -1655,11 +1662,15 @@ class RoutesTest(tests.Test):
                 {agg_guid: {'seqno': 4, 'value': 3}},
                 volume['document'].get(guid)['prop2'])
         self.assertEqual([
-            {'event': 'update', 'resource': 'document', 'guid': guid},
+            {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
+                'mtime': 0,
+                'prop2': {agg_guid: {'seqno': 4, 'value': 3}},
+                }},
             ],
             events)
 
     def test_PostAbsentAggpropsOnUpdate(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -1670,7 +1681,7 @@ class RoutesTest(tests.Test):
         events = []
         volume = db.Volume(tests.tmpdir, [Document])
         router = Router(db.Routes(volume))
-        this.broadcast = lambda x: events.append(x)
+        this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
         del events[:]
 
@@ -1679,7 +1690,10 @@ class RoutesTest(tests.Test):
                 {'absent': {'seqno': 2, 'value': 'probe'}},
                 volume['document'].get(guid)['prop'])
         self.assertEqual([
-            {'event': 'update', 'resource': 'document', 'guid': guid},
+            {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
+                'mtime': 0,
+                'prop': {'absent': {'seqno': 2, 'value': 'probe'}},
+                }},
             ],
             events)
 
@@ -1823,6 +1837,27 @@ class RoutesTest(tests.Test):
         self.assertEqual(
                 sorted([guid2, guid3]),
                 sorted([i['guid'] for i in this.call(method='GET', path=['document'], query='comments:c')['result']]))
+
+    def test_HandleDeletes(self):
+
+        class Document(db.Resource):
+            pass
+
+        volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes(volume))
+
+        guid = this.call(method='POST', path=['document'], content={})
+        self.assertEqual('active', volume['document'][guid]['state'])
+
+        events = []
+        this.localcast = lambda x: events.append(x)
+        this.call(method='DELETE', path=['document', guid], principal=tests.UID)
+
+        self.assertRaises(http.NotFound, this.call, method='GET', path=['document', guid])
+        self.assertEqual('deleted', volume['document'][guid]['state'])
+        self.assertEqual(
+                [{'event': 'delete', 'resource': 'document', 'guid': guid}],
+                events)
 
 
 if __name__ == '__main__':

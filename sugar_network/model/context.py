@@ -21,7 +21,11 @@ from sugar_network.toolkit import svg_to_png
 
 class Context(db.Resource):
 
-    @db.indexed_property(db.List, prefix='T', full_text=True,
+    @db.indexed_property(db.List, prefix='P', default=[])
+    def pins(self, value):
+        return value
+
+    @db.indexed_property(db.List, prefix='T',
             subtype=db.Enum(model.CONTEXT_TYPES))
     def type(self, value):
         return value
@@ -74,7 +78,7 @@ class Context(db.Resource):
     def homepage(self, value):
         return value
 
-    @db.indexed_property(db.List, prefix='Y', default=[], full_text=True)
+    @db.indexed_property(db.List, prefix='Y', default=[])
     def mime_types(self, value):
         return value
 
@@ -90,19 +94,14 @@ class Context(db.Resource):
     def logo(self, value):
         return value
 
-    @db.stored_property(db.Aggregated, subtype=db.Blob())
+    @db.stored_property(db.Aggregated, subtype=db.Blob(),
+            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
     def previews(self, value):
         return value
 
     @db.stored_property(db.Aggregated, subtype=model.Release(),
             acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
     def releases(self, value):
-        return value
-
-    @releases.setter
-    def releases(self, value):
-        if value or this.request.method != 'POST':
-            self.invalidate_solutions()
         return value
 
     @db.indexed_property(db.Numeric, slot=2, default=0,
@@ -124,20 +123,19 @@ class Context(db.Resource):
         """
         return value
 
-    @dependencies.setter
-    def dependencies(self, value):
-        if value or this.request.method != 'POST':
-            self.invalidate_solutions()
-        return value
+    def created(self):
+        db.Resource.created(self)
+        self._invalidate_solutions()
 
-    def deleted(self):
-        self.invalidate_solutions()
+    def updated(self):
+        db.Resource.updated(self)
+        self._invalidate_solutions()
 
-    def restored(self):
-        self.invalidate_solutions()
-
-    def invalidate_solutions(self):
-        this.broadcast({
-            'event': 'release',
-            'seqno': this.volume.releases_seqno.next(),
-            })
+    def _invalidate_solutions(self):
+        if self['releases'] and \
+                [i for i in ('state', 'releases', 'dependencies')
+                    if i in self.posts and self.posts[i] != self.orig(i)]:
+            this.broadcast({
+                'event': 'release',
+                'seqno': this.volume.releases_seqno.next(),
+                })

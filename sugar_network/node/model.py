@@ -14,10 +14,12 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import bisect
+import hashlib
 import logging
 
 from sugar_network import db
-from sugar_network.model import Release, context as base_context
+from sugar_network.model import Release, context as _context, user as _user
+
 from sugar_network.node import obs
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
@@ -26,6 +28,13 @@ from sugar_network.toolkit import spec, sat, http, coroutine, i18n, enforce
 
 _logger = logging.getLogger('node.model')
 _presolve_queue = None
+
+
+class User(_user.User):
+
+    def created(self):
+        with file(this.volume.blobs.get(self['pubkey']).path) as f:
+            self.posts['guid'] = str(hashlib.sha1(f.read()).hexdigest())
 
 
 class _Release(Release):
@@ -87,21 +96,15 @@ class _Release(Release):
 
     def teardown(self, value):
         if 'package' not in this.resource['type']:
-            return Release.typecast(self, value)
+            return Release.teardown(self, value)
         # TODO Delete presolved files
 
 
-class Context(base_context.Context):
+class Context(_context.Context):
 
     @db.stored_property(db.Aggregated, subtype=_Release(),
             acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
     def releases(self, value):
-        return value
-
-    @releases.setter
-    def releases(self, value):
-        if value or this.request.method != 'POST':
-            self.invalidate_solutions()
         return value
 
 
@@ -151,6 +154,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         if context in context_clauses:
             return context_clauses[context]
         context = volume['context'][context]
+        enforce(context.exists, http.NotFound, 'Context not found')
         releases = context['releases']
         clause = []
 

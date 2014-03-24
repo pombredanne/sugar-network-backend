@@ -19,9 +19,11 @@ from copy import deepcopy
 from os.path import exists, join, abspath
 
 from sugar_network import toolkit
+from sugar_network.db.metadata import Blob
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.db.blobs import Blobs
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, coroutine, ranges, enforce
 
 
@@ -35,6 +37,7 @@ class Volume(dict):
     def __init__(self, root, documents, index_class=None):
         Volume._flush_pool.append(self)
         self.resources = {}
+        self.mute = False
         self._populators = coroutine.Pool()
 
         if index_class is None:
@@ -122,6 +125,17 @@ class Volume(dict):
             ranges.exclude(r, None, last_seqno)
             yield {'commit': commit_r}
 
+    def clone(self, resource, guid):
+        doc = self[resource][guid]
+        patch = doc.diff([[1, None]])
+        if not patch:
+            return
+        for name, prop in self[resource].metadata.items():
+            if isinstance(prop, Blob) and name in patch:
+                yield self.blobs.get(patch[name]['value'])
+        yield {'resource': resource}
+        yield {'guid': guid, 'patch': patch}
+
     def patch(self, records):
         directory = None
         committed = []
@@ -150,6 +164,13 @@ class Volume(dict):
 
         return seqno, committed
 
+    def broadcast(self, event):
+        if not self.mute:
+            if event['event'] == 'commit':
+                this.broadcast(event)
+            else:
+                this.localcast(event)
+
     def __enter__(self):
         return self
 
@@ -167,7 +188,8 @@ class Volume(dict):
                 cls = getattr(mod, name.capitalize())
             else:
                 cls = resource
-            dir_ = Directory(self._root, cls, self._index_class, self.seqno)
+            dir_ = Directory(self._root, cls, self._index_class, self.seqno,
+                    self.broadcast)
             self._populators.spawn(self._populate, dir_)
             self[name] = dir_
         return dir_

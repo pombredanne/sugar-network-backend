@@ -22,12 +22,18 @@ from os.path import join, dirname, exists, isabs
 from gettext import gettext as _
 
 from sugar_network import toolkit
+from sugar_network.model.context import Context
+from sugar_network.model.post import Post
+from sugar_network.model.report import Report
+from sugar_network.node.model import User
 from sugar_network.node import master_api
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, parcel, ranges, enforce
 
+
+RESOURCES = (User, Context, Post, Report)
 
 _logger = logging.getLogger('node.slave')
 
@@ -46,7 +52,6 @@ class SlaveRoutes(NodeRoutes):
     @route('POST', cmd='online_sync', acl=ACL.LOCAL,
             arguments={'no_pull': bool})
     def online_sync(self, no_pull=False):
-        self._export(not no_pull)
         conn = http.Connection(master_api.value)
         response = conn.request('POST',
                 data=parcel.encode(self._export(not no_pull), header={
@@ -100,22 +105,22 @@ class SlaveRoutes(NodeRoutes):
                 seqno, committed = this.volume.patch(packet)
                 if seqno is not None:
                     if from_master:
-                        ranges.exclude(self._pull_r.value, committed)
-                        self._pull_r.commit()
+                        with self._pull_r as r:
+                            ranges.exclude(r, committed)
                     else:
                         requests.append(('request', {
                             'origin': sender,
                             'ranges': committed,
                             }, []))
-                    ranges.exclude(self._push_r.value, seqno, seqno)
-                    self._push_r.commit()
+                    with self._push_r as r:
+                        ranges.exclude(r, seqno, seqno)
             elif packet.name == 'ack' and from_master and \
                     packet['to'] == self.guid:
-                ranges.exclude(self._pull_r.value, packet['ack'])
-                self._pull_r.commit()
+                with self._pull_r as r:
+                    ranges.exclude(r, packet['ack'])
                 if packet['ranges']:
-                    ranges.exclude(self._push_r.value, packet['ranges'])
-                    self._push_r.commit()
+                    with self._push_r as r:
+                        ranges.exclude(r, packet['ranges'])
 
         return requests
 

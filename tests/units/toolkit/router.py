@@ -550,6 +550,7 @@ class RouterTest(tests.Test):
 
             @postroute
             def _(self, request, response, result, exception):
+                print exception
                 postroutes.append(('_', result, str(exception)))
 
         class B1(A):

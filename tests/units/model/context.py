@@ -96,20 +96,20 @@ class ContextTest(tests.Test):
         assert release1 == str(hashlib.sha1(bundle1).hexdigest())
         self.assertEqual({
             release1: {
-                'seqno': 5,
+                'seqno': 10,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:1')[0]).guid,
                     'version': [[1], 0],
                     'requires': {},
-                    'command': 'true',
+                    'commands': {'activity': {'exec': 'true'}},
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle1).hexdigest()), 'unpack_size': len(activity_info1)}},
                     'stability': 'stable',
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest()))
+        assert volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
 
         activity_info2 = '\n'.join([
             '[Activity]',
@@ -125,71 +125,71 @@ class ContextTest(tests.Test):
         assert release2 == str(hashlib.sha1(bundle2).hexdigest())
         self.assertEqual({
             release1: {
-                'seqno': 5,
+                'seqno': 10,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:1')[0]).guid,
                     'version': [[1], 0],
                     'requires': {},
-                    'command': 'true',
+                    'commands': {'activity': {'exec': 'true'}},
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle1).hexdigest()), 'unpack_size': len(activity_info1)}},
                     'stability': 'stable',
                     },
                 },
             release2: {
-                'seqno': 7,
+                'seqno': 13,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:2')[0]).guid,
                     'version': [[2], 0],
                     'requires': {},
-                    'command': 'true',
+                    'commands': {'activity': {'exec': 'true'}},
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle2).hexdigest()), 'unpack_size': len(activity_info2)}},
                     'stability': 'stable',
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest()))
-        assert blobs.get(str(hashlib.sha1(bundle2).hexdigest()))
+        assert volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
+        assert volume.blobs.get(str(hashlib.sha1(bundle2).hexdigest())).exists
 
         conn.delete(['context', context, 'releases', release1])
         self.assertEqual({
             release1: {
-                'seqno': 8,
+                'seqno': 15,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 },
             release2: {
-                'seqno': 7,
+                'seqno': 13,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:2')[0]).guid,
                     'version': [[2], 0],
                     'requires': {},
-                    'command': 'true',
+                    'commands': {'activity': {'exec': 'true'}},
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle2).hexdigest()), 'unpack_size': len(activity_info2)}},
                     'stability': 'stable',
                     },
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest())) is None
-        assert blobs.get(str(hashlib.sha1(bundle2).hexdigest()))
+        assert not volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
+        assert volume.blobs.get(str(hashlib.sha1(bundle2).hexdigest())).exists
 
         conn.delete(['context', context, 'releases', release2])
         self.assertEqual({
             release1: {
-                'seqno': 8,
+                'seqno': 15,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 },
             release2: {
-                'seqno': 9,
+                'seqno': 17,
                 'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
                 },
             }, conn.get(['context', context, 'releases']))
-        assert blobs.get(str(hashlib.sha1(bundle1).hexdigest())) is None
-        assert blobs.get(str(hashlib.sha1(bundle2).hexdigest())) is None
+        assert not volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
+        assert not volume.blobs.get(str(hashlib.sha1(bundle2).hexdigest())).exists
 
     def test_IncrementReleasesSeqnoOnNewReleases(self):
         events = []
@@ -287,13 +287,29 @@ class ContextTest(tests.Test):
             ], [i for i in events if i['event'] == 'release'])
         self.assertEqual(0, volume.releases_seqno.value)
 
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'seqno': 1, 'event': 'release'}
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(1, volume.releases_seqno.value)
+        del events[:]
+
         conn.put(['context', context], {
             'dependencies': 'dep',
             })
         self.assertEqual([
-            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
             ], [i for i in events if i['event'] == 'release'])
-        self.assertEqual(1, volume.releases_seqno.value)
+        self.assertEqual(2, volume.releases_seqno.value)
 
     def test_IncrementReleasesSeqnoOnDeletes(self):
         events = []
@@ -311,22 +327,28 @@ class ContextTest(tests.Test):
             ], [i for i in events if i['event'] == 'release'])
         self.assertEqual(0, volume.releases_seqno.value)
 
-        conn.put(['context', context], {
-            'layer': ['deleted'],
-            })
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
         self.assertEqual([
-            {'event': 'release', 'seqno': 1},
+            {'seqno': 1, 'event': 'release'}
             ], [i for i in events if i['event'] == 'release'])
         self.assertEqual(1, volume.releases_seqno.value)
+        del events[:]
 
-        conn.put(['context', context], {
-            'layer': [],
-            })
+        conn.delete(['context', context])
         self.assertEqual([
-            {'event': 'release', 'seqno': 1},
             {'event': 'release', 'seqno': 2},
             ], [i for i in events if i['event'] == 'release'])
         self.assertEqual(2, volume.releases_seqno.value)
+        del events[:]
 
     def test_RestoreReleasesSeqno(self):
         events = []
@@ -341,6 +363,16 @@ class ContextTest(tests.Test):
             'description': 'description',
             'dependencies': 'dep',
             })
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
         self.assertEqual(1, volume.releases_seqno.value)
 
         volume.close()

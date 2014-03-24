@@ -8,10 +8,10 @@ from __init__ import tests
 
 from sugar_network import db, toolkit
 from sugar_network.client import Connection, keyfile, api
-from sugar_network.model.user import User
 from sugar_network.model.post import Post
 from sugar_network.model.context import Context
 from sugar_network.node import model, obs
+from sugar_network.node.model import User
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import Request, Router

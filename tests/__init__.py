@@ -22,14 +22,17 @@ coroutine.inject()
 from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, parcel
 from sugar_network.toolkit.router import Router, Request
 from sugar_network.toolkit.coroutine import this
-#from sugar_network.client import IPCConnection, journal, routes as client_routes
-#from sugar_network.client.routes import ClientRoutes, _Auth
+from sugar_network.client import IPCConnection, journal, routes as client_routes, model as client_model
+from sugar_network.client.injector import Injector
+from sugar_network.client.routes import ClientRoutes, _Auth
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
+from sugar_network.node.model import Context as MasterContext
+from sugar_network.node.model import User as MasterUser
 from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
-from sugar_network.node import obs, slave
+from sugar_network.node import obs, slave, master
 from requests import adapters
 
 
@@ -91,13 +94,12 @@ class Test(unittest.TestCase):
         client.api.value = 'http://127.0.0.1:7777'
         client.mounts_root.value = None
         client.ipc_port.value = 5555
-        client.layers.value = None
         client.cache_limit.value = 0
         client.cache_limit_percent.value = 0
         client.cache_lifetime.value = 0
         client.keyfile.value = join(root, 'data', UID)
-        #client_routes._RECONNECT_TIMEOUT = 0
-        #journal._ds_root = tmpdir + '/datastore'
+        client_routes._RECONNECT_TIMEOUT = 0
+        journal._ds_root = tmpdir + '/datastore'
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
@@ -114,11 +116,11 @@ class Test(unittest.TestCase):
                 'sugar_network.model.report',
                 ]
 
-        #if tmp_root is None:
-        #    self.override(_Auth, 'profile', lambda self: {
-        #        'name': 'test',
-        #        'pubkey': PUBKEY,
-        #        })
+        if tmp_root is None:
+            self.override(_Auth, 'profile', lambda self: {
+                'name': 'test',
+                'pubkey': PUBKEY,
+                })
 
         os.makedirs('tmp')
 
@@ -131,6 +133,7 @@ class Test(unittest.TestCase):
         this.volume = None
         this.call = None
         this.broadcast = lambda x: x
+        this.injector = None
 
     def tearDown(self):
         self.stop_nodes()
@@ -152,6 +155,11 @@ class Test(unittest.TestCase):
             pid = self.forks.pop()
             self.assertEqual(0, self.waitpid(pid))
         coroutine.shutdown()
+
+    def stop_master(self):
+        while self.forks:
+            pid = self.forks.pop()
+            self.assertEqual(0, self.waitpid(pid))
 
     def waitpid(self, pid, sig=signal.SIGTERM, ignore_status=False):
         if pid in self.forks:
@@ -258,7 +266,7 @@ class Test(unittest.TestCase):
 
     def start_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
-            classes = [User, Context, Post]
+            classes = master.RESOURCES
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
         self.node_volume = db.Volume('master', classes)
         self.node_routes = routes(volume=self.node_volume)
@@ -272,7 +280,7 @@ class Test(unittest.TestCase):
 
     def fork_master(self, classes=None, routes=MasterRoutes):
         if classes is None:
-            classes = [User, Context]
+            classes = master.RESOURCES
 
         def node():
             volume = db.Volume('master', classes)
@@ -284,12 +292,11 @@ class Test(unittest.TestCase):
         return pid
 
     def start_client(self, classes=None, routes=None):
-        if classes is None:
-            classes = [User, Context]
         if routes is None:
             routes = ClientRoutes
-        volume = db.Volume('client', classes)
-        self.client_routes = routes(volume, client.api.value)
+        volume = db.Volume('client', classes or client_model.RESOURCES)
+        self.client_routes = routes(volume)
+        self.client_routes.connect(client.api.value)
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
@@ -298,29 +305,34 @@ class Test(unittest.TestCase):
         return volume
 
     def start_online_client(self, classes=None):
-        if classes is None:
-            classes = [User, Context]
-        self.start_master(classes)
-        volume = db.Volume('client', classes)
-        self.client_routes = ClientRoutes(volume, client.api.value)
+        self.fork_master(classes)
+        this.injector = Injector('client/cache')
+        home_volume = db.Volume('client', classes or client_model.RESOURCES)
+        self.client_routes = ClientRoutes(home_volume)
+        self.client_routes.connect(client.api.value)
         self.wait_for_events(self.client_routes, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
-        this.volume = volume
-        return volume
+        this.volume = home_volume
+        return home_volume
 
     def start_offline_client(self, resources=None):
-        self.home_volume = db.Volume('db', resources or model.RESOURCES)
-        self.client_routes = ClientRoutes(self.home_volume)
+        this.injector = Injector('client/cache')
+        home_volume = db.Volume('client', resources or client_model.RESOURCES)
+        self.client_routes = ClientRoutes(home_volume)
         server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
-        this.volume = self.home_volume
-        return IPCConnection()
+        this.volume = home_volume
+        return home_volume
 
-    def wait_for_events(self, cp, **condition):
+    def wait_for_events(self, cp=None, **condition):
+        if cp is None:
+            cp = self.client_routes
+        if hasattr(cp, 'inline') and not cp.inline():
+            cp.connect(client.api.value)
         trigger = coroutine.AsyncResult()
 
         def waiter(trigger):

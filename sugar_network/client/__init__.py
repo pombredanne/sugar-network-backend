@@ -81,11 +81,6 @@ hub_root = Option(
         'from file:// url',
         default='/usr/share/sugar-network/hub')
 
-layers = Option(
-        'comma separated list of layers to restrict Sugar Network content by',
-        default=[], type_cast=Option.list_cast, type_repr=Option.list_repr,
-        name='layers')
-
 discover_node = Option(
         'discover nodes in local network instead of using --api',
         default=False, type_cast=Option.bool_cast,
@@ -179,7 +174,7 @@ def Connection(url=None, **args):
 
 def IPCConnection():
     return http.Connection(
-            api='http://127.0.0.1:%s' % ipc_port.value,
+            'http://127.0.0.1:%s' % ipc_port.value,
             # Online ipc->client->node request might fail if node connection
             # is lost in client process, so, re-send ipc request immediately
             # to retrive data from client in offline mode without propagating

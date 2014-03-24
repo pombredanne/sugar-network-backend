@@ -24,7 +24,7 @@ from os.path import exists
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
-from sugar_network import db, node, toolkit, model
+from sugar_network import db, node, toolkit
 from sugar_network.node import obs, master, slave
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
@@ -54,13 +54,13 @@ class Application(application.Daemon):
         if node.certfile.value:
             ssl_args['certfile'] = node.certfile.value
 
-        if node.master_mode.value:
+        if node.mode.value == 'master':
             node_class = master.MasterRoutes
             resources = master.RESOURCES
             logging.info('Start master node')
         else:
             node_class = slave.SlaveRoutes
-            resources = model.RESOURCES
+            resources = slave.RESOURCES
             logging.info('Start slave node')
         volume = db.Volume(node.data_root.value, resources)
         cp = node_class(volume=volume, find_limit=node.find_limit.value)

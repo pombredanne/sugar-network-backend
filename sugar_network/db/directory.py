@@ -20,8 +20,7 @@ from os.path import exists, join
 from sugar_network import toolkit
 from sugar_network.db.storage import Storage
 from sugar_network.db.metadata import Metadata, Guid
-from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, exception, enforce
+from sugar_network.toolkit import exception, enforce
 
 
 # To invalidate existed index on stcuture changes
@@ -32,7 +31,7 @@ _logger = logging.getLogger('db.directory')
 
 class Directory(object):
 
-    def __init__(self, root, resource, index_class, seqno):
+    def __init__(self, root, resource, index_class, seqno, broadcast):
         """
         :param index_class:
             what class to use to access to indexes, for regular casses
@@ -52,6 +51,7 @@ class Directory(object):
         self._seqno = seqno
         self._storage = None
         self._index = None
+        self._broadcast = broadcast
 
         self._open()
 
@@ -92,10 +92,10 @@ class Directory(object):
             guid = props['guid'] = toolkit.uuid()
         _logger.debug('Create %s[%s]: %r', self.metadata.name, guid, props)
         event = {'event': 'create', 'guid': guid}
-        self._index.store(guid, props, self._prestore, self._broadcast, event)
+        self._index.store(guid, props, self._prestore, self.broadcast, event)
         return guid
 
-    def update(self, guid, props):
+    def update(self, guid, props, event='update'):
         """Update properties for an existing document.
 
         :param guid:
@@ -105,8 +105,10 @@ class Directory(object):
 
         """
         _logger.debug('Update %s[%s]: %r', self.metadata.name, guid, props)
-        event = {'event': 'update', 'guid': guid}
-        self._index.store(guid, props, self._prestore, self._broadcast, event)
+        event = {'event': event, 'guid': guid}
+        if event['event'] == 'update':
+            event['props'] = props.copy()
+        self._index.store(guid, props, self._prestore, self.broadcast, event)
 
     def delete(self, guid):
         """Delete document.
@@ -119,15 +121,9 @@ class Directory(object):
         event = {'event': 'delete', 'guid': guid}
         self._index.delete(guid, self._postdelete, guid, event)
 
-    def exists(self, guid):
-        return self._storage.get(guid).consistent
-
     def get(self, guid):
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
-        enforce(cached_props or record.exists, http.NotFound,
-                'Resource %r does not exist in %r',
-                guid, self.metadata.name)
         return self.resource(guid, record, cached_props)
 
     def __getitem__(self, guid):
@@ -202,9 +198,13 @@ class Directory(object):
         if doc.post_seqno is not None and doc.exists:
             # No need in after-merge event, further commit event
             # is enough to avoid increasing events flow
-            self._index.store(guid, doc.origs, self._preindex)
+            self._index.store(guid, doc.posts, self._preindex)
 
         return seqno
+
+    def broadcast(self, event):
+        event['resource'] = self.metadata.name
+        self._broadcast(event)
 
     def _open(self):
         index_path = join(self._root, 'index', self.metadata.name)
@@ -218,10 +218,6 @@ class Directory(object):
                 self._postcommit)
         self._storage = Storage(join(self._root, 'db', self.metadata.name))
         _logger.debug('Open %r resource', self.resource)
-
-    def _broadcast(self, event):
-        event['resource'] = self.metadata.name
-        this.broadcast(event)
 
     def _preindex(self, guid, changes):
         doc = self.resource(guid, self._storage.get(guid), changes)
@@ -240,11 +236,11 @@ class Directory(object):
 
     def _postdelete(self, guid, event):
         self._storage.delete(guid)
-        self._broadcast(event)
+        self.broadcast(event)
 
     def _postcommit(self):
         self._seqno.commit()
-        self._broadcast({'event': 'commit', 'mtime': self._index.mtime})
+        self.broadcast({'event': 'commit', 'mtime': self._index.mtime})
 
     def _save_layout(self):
         path = join(self._root, 'index', self.metadata.name, 'layout')

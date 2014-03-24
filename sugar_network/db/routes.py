@@ -14,7 +14,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
-import time
 import logging
 from contextlib import contextmanager
 
@@ -22,7 +21,7 @@ from sugar_network import toolkit
 from sugar_network.db.metadata import Aggregated
 from sugar_network.toolkit.router import ACL, File, route, fallbackroute
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, enforce
+from sugar_network.toolkit import http, parcel, enforce
 
 
 _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
@@ -40,20 +39,17 @@ class Routes(object):
     @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
     def create(self, request):
         with self._post(request, ACL.CREATE) as doc:
-            self.on_create(request, doc.posts)
+            doc.created()
+            if request.principal:
+                authors = doc.posts['author'] = {}
+                self._useradd(authors, request.principal, ACL.ORIGINAL)
             self.volume[request.resource].create(doc.posts)
-            self.after_post(doc)
             return doc['guid']
 
     @route('GET', [None],
-            arguments={
-                'offset': int,
-                'limit': int,
-                'layer': [],
-                'reply': ('guid',),
-                },
+            arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
             mime_type='application/json')
-    def find(self, request, reply, limit, layer):
+    def find(self, request, reply, limit):
         self._preget(request)
         if self._find_limit:
             if limit <= 0:
@@ -62,27 +58,22 @@ class Routes(object):
                 _logger.warning('The find limit is restricted to %s',
                         self._find_limit)
                 request['limit'] = self._find_limit
-        if 'deleted' in layer:
-            _logger.warning('Requesting "deleted" layer, will ignore')
-            layer.remove('deleted')
         documents, total = self.volume[request.resource].find(
-                not_layer='deleted', **request)
+                not_state='deleted', **request)
         result = [self._postget(request, i, reply) for i in documents]
         return {'total': total, 'result': result}
 
     @route('GET', [None, None], cmd='exists', mime_type='application/json')
     def exists(self, request):
-        directory = self.volume[request.resource]
-        return directory.exists(request.guid)
+        return self.volume[request.resource][request.guid].exists
 
     @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update(self, request):
         with self._post(request, ACL.WRITE) as doc:
             if not doc.posts:
                 return
-            self.on_update(request, doc.posts)
+            doc.updated()
             self.volume[request.resource].update(doc.guid, doc.posts)
-            self.after_post(doc)
 
     @route('PUT', [None, None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update_prop(self, request):
@@ -97,8 +88,12 @@ class Routes(object):
     def delete(self, request):
         # Node data should not be deleted immediately
         # to make master-slave synchronization possible
-        request.content = {'layer': 'deleted'}
-        self.update(request)
+        directory = self.volume[request.resource]
+        doc = directory[request.guid]
+        enforce(doc.exists, http.NotFound, 'Resource not found')
+        doc.posts['state'] = 'deleted'
+        doc.updated()
+        directory.update(doc.guid, doc.posts, 'delete')
 
     @route('GET', [None, None], arguments={'reply': list},
             mime_type='application/json')
@@ -111,26 +106,16 @@ class Routes(object):
                     reply.append(prop.name)
         self._preget(request)
         doc = self.volume[request.resource].get(request.guid)
-        enforce('deleted' not in doc['layer'], http.NotFound, 'Deleted')
+        enforce(doc.exists and doc['state'] != 'deleted', http.NotFound,
+                'Resource not found')
         return self._postget(request, doc, reply)
 
     @route('GET', [None, None, None], mime_type='application/json')
     def get_prop(self, request, response):
         directory = self.volume[request.resource]
-        doc = directory.get(request.guid)
-
-        prop = directory.metadata[request.prop]
-        prop.assert_access(ACL.READ)
-
-        meta = doc.meta(prop.name)
-        if meta:
-            value = meta['value']
-            response.last_modified = meta['mtime']
-        else:
-            value = prop.default
-        value = _get_prop(doc, prop, value)
+        directory.metadata[request.prop].assert_access(ACL.READ)
+        value = directory[request.guid].repr(request.prop)
         enforce(value is not File.AWAY, http.NotFound, 'No blob')
-
         return value
 
     @route('HEAD', [None, None, None])
@@ -152,6 +137,20 @@ class Routes(object):
     def remove_from_aggprop(self, request):
         self._aggpost(request, ACL.REMOVE, request.key)
 
+    @route('GET', [None, None, None, None], mime_type='application/json')
+    def get_aggprop(self):
+        doc = self.volume[this.request.resource][this.request.guid]
+        prop = doc.metadata[this.request.prop]
+        prop.assert_access(ACL.READ)
+        enforce(isinstance(prop, Aggregated), http.BadRequest,
+                'Property is not aggregated')
+        agg_value = doc[prop.name].get(this.request.key)
+        enforce(agg_value is not None, http.NotFound,
+                'Aggregated item not found')
+        value = prop.subreprcast(agg_value['value'])
+        enforce(value is not File.AWAY, http.NotFound, 'No blob')
+        return value
+
     @route('PUT', [None, None], cmd='useradd',
             arguments={'role': 0}, acl=ACL.AUTH | ACL.AUTHOR)
     def useradd(self, request, user, role):
@@ -171,60 +170,50 @@ class Routes(object):
         del authors[user]
         directory.update(request.guid, {'author': authors})
 
+    @route('GET', [None, None], cmd='clone')
+    def clone(self, request):
+        clone = self.volume.clone(request.resource, request.guid)
+        return parcel.encode([('push', None, clone)])
+
     @fallbackroute('GET', ['blobs'])
     def blobs(self):
         return this.volume.blobs.get(this.request.guid)
 
-    def on_create(self, request, props):
-        ts = int(time.time())
-        props['ctime'] = ts
-        props['mtime'] = ts
-
-        if request.principal:
-            authors = props['author'] = {}
-            self._useradd(authors, request.principal, ACL.ORIGINAL)
-
-    def on_update(self, request, props):
-        props['mtime'] = int(time.time())
-
     def on_aggprop_update(self, request, prop, value):
-        pass
-
-    def after_post(self, doc):
         pass
 
     @contextmanager
     def _post(self, request, access):
         content = request.content
         enforce(isinstance(content, dict), http.BadRequest, 'Invalid value')
-        directory = self.volume[request.resource]
 
         if access == ACL.CREATE:
-            doc = directory.resource(None, None)
             if 'guid' in content:
                 # TODO Temporal security hole, see TODO
                 guid = content['guid']
-                enforce(not directory.exists(guid),
-                        http.BadRequest, '%s already exists', guid)
                 enforce(_GUID_RE.match(guid) is not None,
                         http.BadRequest, 'Malformed %s GUID', guid)
             else:
-                doc.posts['guid'] = toolkit.uuid()
-            for name, prop in directory.metadata.items():
+                guid = toolkit.uuid()
+            doc = self.volume[request.resource][guid]
+            enforce(not doc.exists, 'Resource already exists')
+            doc.posts['guid'] = guid
+            for name, prop in doc.metadata.items():
                 if name not in content and prop.default is not None:
                     doc.posts[name] = prop.default
         else:
-            doc = directory.get(request.guid)
+            doc = self.volume[request.resource][request.guid]
+            enforce(doc.exists, 'Resource not found')
         this.resource = doc
 
         def teardown(new, old):
             for name, value in new.items():
                 if old.get(name) != value:
-                    directory.metadata[name].teardown(value)
+                    doc.metadata[name].teardown(value)
 
         try:
             for name, value in content.items():
-                prop = directory.metadata[name]
+                prop = doc.metadata[name]
                 prop.assert_access(access, doc.orig(name))
                 if value is None:
                     doc.posts[name] = prop.default
@@ -255,8 +244,7 @@ class Routes(object):
     def _postget(self, request, doc, props):
         result = {}
         for name in props:
-            prop = doc.metadata[name]
-            value = _get_prop(doc, prop, doc.get(name))
+            value = doc.repr(name)
             if isinstance(value, File):
                 value = value.url
             result[name] = value
@@ -264,10 +252,9 @@ class Routes(object):
 
     def _useradd(self, authors, user, role):
         props = {}
-
-        users = self.volume['user']
-        if users.exists(user):
-            props['name'] = users.get(user)['name']
+        user_doc = self.volume['user'][user]
+        if user_doc.exists:
+            props['name'] = user_doc['name']
             role |= ACL.INSYSTEM
         else:
             role &= ~ACL.INSYSTEM
@@ -316,15 +303,8 @@ class Routes(object):
             authors = aggvalue['author'] = {}
             role = ACL.ORIGINAL if request.principal in doc['author'] else 0
             self._useradd(authors, request.principal, role)
-        props = {request.prop: {aggid: aggvalue}}
-        self.on_update(request, props)
-        self.volume[request.resource].update(request.guid, props)
+        doc.posts[request.prop] = {aggid: aggvalue}
+        doc.updated()
+        self.volume[request.resource].update(request.guid, doc.posts)
 
         return aggid
-
-
-def _get_prop(doc, prop, value):
-    value = prop.reprcast(value)
-    if prop.on_get is not None:
-        value = prop.on_get(doc, value)
-    return value

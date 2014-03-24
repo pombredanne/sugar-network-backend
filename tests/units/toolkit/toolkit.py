@@ -16,16 +16,12 @@ class ToolkitTest(tests.Test):
     def test_Seqno_commit(self):
         seqno = Seqno(tests.tmpdir + '/seqno')
 
-        self.assertEqual(False, seqno.commit())
-
         seqno.next()
-        self.assertEqual(True, seqno.commit())
-        self.assertEqual(False, seqno.commit())
+        seqno.commit()
         seqno.next()
 
         seqno = Seqno(tests.tmpdir + '/seqno')
         self.assertEqual(1, seqno.value)
-        self.assertEqual(False, seqno.commit())
 
     def test_readline(self):
 

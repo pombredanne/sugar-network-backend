@@ -370,8 +370,9 @@ def _print_exception(context, klass, value, tb):
         context = 'Undefined'
     elif not isinstance(context, basestring):
         if isinstance(context, dict) and 'PATH_INFO' in context:
-            context_repr = '%s%s' % \
-                    (context['PATH_INFO'], context.get('QUERY_STRING') or '')
+            context_repr = context['PATH_INFO']
+            if 'QUERY_STRING' in context:
+                context_repr += '?' + context['QUERY_STRING']
         try:
             context = self.format_context(context)
         except Exception:

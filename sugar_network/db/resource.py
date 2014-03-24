@@ -13,12 +13,17 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import time
+
 from sugar_network.db.metadata import indexed_property, Localized
-from sugar_network.db.metadata import Numeric, List, Authors
+from sugar_network.db.metadata import Numeric, List, Authors, Enum
 from sugar_network.db.metadata import Composite, Aggregated
-from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit import ranges
+
+
+STATES = ['active', 'deleted']
+STATUSES = ['featured']
 
 
 class Resource(object):
@@ -32,10 +37,13 @@ class Resource(object):
     def __init__(self, guid, record, origs=None, posts=None):
         self.origs = origs or {}
         self.posts = posts or {}
-        self.guid = guid
-        self.is_new = not bool(guid)
         self.record = record
         self._post_seqno = None
+        self._guid = guid
+
+    @property
+    def guid(self):
+        return self._guid or self['guid']
 
     @property
     def post_seqno(self):
@@ -64,33 +72,34 @@ class Resource(object):
     def author(self, value):
         return value
 
-    @indexed_property(List, prefix='RL', default=[])
-    def layer(self, value):
-        return value
-
-    @layer.setter
-    def layer(self, value):
-        orig = self.orig('layer')
-        if 'deleted' in value:
-            if this.request.method != 'POST' and 'deleted' not in orig:
-                self.deleted()
-        elif this.request.method != 'POST' and 'deleted' in orig:
-            self.restored()
+    @indexed_property(Enum, STATES, prefix='RE', default=STATES[0], acl=0)
+    def state(self, value):
         return value
 
     @indexed_property(List, prefix='RT', full_text=True, default=[])
     def tags(self, value):
         return value
 
+    @indexed_property(List, prefix='RU', default=[], acl=ACL.READ,
+            subtype=Enum(STATUSES))
+    def status(self, value):
+        return value
+
+    @indexed_property(List, prefix='RP', default=[])
+    def pins(self, value):
+        return value
+
     @property
     def exists(self):
         return self.record is not None and self.record.consistent
 
-    def deleted(self):
-        pass
+    def created(self):
+        ts = int(time.time())
+        self.posts['ctime'] = ts
+        self.posts['mtime'] = ts
 
-    def restored(self):
-        pass
+    def updated(self):
+        self.posts['mtime'] = int(time.time())
 
     def get(self, prop, default=None):
         """Get document's property value.
@@ -126,6 +135,19 @@ class Resource(object):
             else:
                 value = prop.default
             self.origs[prop.name] = value
+        return value
+
+    def repr(self, prop):
+        """Get property value with applying output typecasts.
+
+        Such property values should be used to return property
+        out from the system.
+
+        """
+        prop_ = self.metadata[prop]
+        value = prop_.reprcast(self.get(prop))
+        if prop_.on_get is not None:
+            value = prop_.on_get(self, value)
         return value
 
     def properties(self, props):

@@ -31,6 +31,7 @@ class ResourceTest(tests.Test):
 
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
+        this.localcast = lambda x: x
         this.broadcast = lambda x: x
 
     def test_ActiveProperty_Slotted(self):
@@ -45,7 +46,7 @@ class ResourceTest(tests.Test):
             def not_slotted(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         self.assertEqual(1, directory.metadata['slotted'].slot)
 
         directory.create({'slotted': 'slotted', 'not_slotted': 'not_slotted'})
@@ -70,7 +71,7 @@ class ResourceTest(tests.Test):
             def prop_2(self, value):
                 return value
 
-        self.assertRaises(RuntimeError, Directory, tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        self.assertRaises(RuntimeError, Directory, tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
     def test_ActiveProperty_Terms(self):
 
@@ -84,7 +85,7 @@ class ResourceTest(tests.Test):
             def not_term(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         self.assertEqual('T', directory.metadata['term'].prefix)
 
         guid = directory.create({'term': 'term', 'not_term': 'not_term'})
@@ -110,7 +111,7 @@ class ResourceTest(tests.Test):
             def prop_2(self, value):
                 return value
 
-        self.assertRaises(RuntimeError, Directory, tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        self.assertRaises(RuntimeError, Directory, tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
     def test_ActiveProperty_FullTextSearch(self):
 
@@ -124,7 +125,7 @@ class ResourceTest(tests.Test):
             def yes(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         self.assertEqual(False, directory.metadata['no'].full_text)
         self.assertEqual(True, directory.metadata['yes'].full_text)
 
@@ -145,7 +146,7 @@ class ResourceTest(tests.Test):
             def prop_2(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
         guid = directory.create({'prop_1': '1', 'prop_2': '2'})
         self.assertEqual(
@@ -165,7 +166,7 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
         guid_1 = directory.create({'prop': '1'})
         guid_2 = directory.create({'prop': '2'})
@@ -212,7 +213,7 @@ class ResourceTest(tests.Test):
                 ('db/document/2/2/seqno', '{"value": 0}'),
                 )
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
         self.assertEqual(0, directory._index.mtime)
         for i in directory.populate():
@@ -264,7 +265,7 @@ class ResourceTest(tests.Test):
                 ('db/document/3/3/seqno', ''),
                 )
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
         populated = 0
         for i in directory.populate():
@@ -285,7 +286,7 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
         guid = directory.create({'guid': 'guid', 'prop': 'foo'})
         self.assertEqual(
@@ -305,7 +306,7 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
         guid_1 = directory.create({'prop': 'value'})
         seqno = directory.get(guid_1).get('seqno')
@@ -349,7 +350,7 @@ class ResourceTest(tests.Test):
             def prop2(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         guid = directory.create({'guid': '1', 'prop1': '1', 'prop2': '2'})
         doc = directory.get(guid)
 
@@ -366,7 +367,7 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         guid = directory.create({'guid': '1', 'prop': {'ru': 'ru'}})
         doc = directory.get(guid)
 
@@ -384,7 +385,7 @@ class ResourceTest(tests.Test):
             def prop(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         guid = directory.create({'prop': '1'})
         self.assertEqual([guid], [i.guid for i in directory.find()[0]])
         directory.commit()
@@ -417,7 +418,7 @@ class ResourceTest(tests.Test):
             def prop3(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         guid = directory.create({'guid': 'guid', 'prop1': 'set1', 'prop2': 'set2', 'prop3': 'set3'})
 
         doc = directory.get(guid)
@@ -446,7 +447,7 @@ class ResourceTest(tests.Test):
             def prop3(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         guid = directory.create({'guid': 'guid', 'prop2': 'set2'})
 
         doc = directory.get(guid)
@@ -475,7 +476,7 @@ class ResourceTest(tests.Test):
             def prop3(self, value):
                 return value
 
-        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno())
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
         guid = directory.create({'guid': 'guid', 'prop2': 'set2'})
 
         doc = directory.get(guid)

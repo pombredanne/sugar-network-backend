@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,66 +17,53 @@ import os
 import logging
 from base64 import b64encode
 from httplib import IncompleteRead
-from zipfile import ZipFile, ZIP_DEFLATED
-from os.path import join, basename
+from os.path import join
 
 from sugar_network import db, client, node, toolkit, model
-from sugar_network.client import journal, releases
-from sugar_network.node.slave import SlaveRoutes
-from sugar_network.toolkit import netlink, mountpoints
+from sugar_network.client import journal
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import ACL, Request, Response, Router
 from sugar_network.toolkit.router import route, fallbackroute
-from sugar_network.toolkit import zeroconf, coroutine, http, exception, enforce
+from sugar_network.toolkit import netlink, zeroconf, coroutine, http, parcel
+from sugar_network.toolkit import lsb_release, exception, enforce
 
 
-# Top-level directory name to keep SN data on mounted devices
-_SN_DIRNAME = 'sugar-network'
 # Flag file to recognize a directory as a synchronization directory
-_SYNC_DIRNAME = 'sugar-network-sync'
 _RECONNECT_TIMEOUT = 3
 _RECONNECT_TIMEOUT_MAX = 60 * 15
-_LOCAL_LAYERS = frozenset(['local', 'clone', 'favorite'])
 
 _logger = logging.getLogger('client.routes')
 
 
-class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
+class ClientRoutes(model.FrontRoutes, journal.Routes):
 
-    def __init__(self, home_volume, api_url=None, no_subscription=False):
+    def __init__(self, home_volume, no_subscription=False):
         model.FrontRoutes.__init__(self)
-        releases.Routes.__init__(self, home_volume)
         journal.Routes.__init__(self)
+
+        this.localcast = this.broadcast
 
         self._local = _LocalRoutes(home_volume)
         self._inline = coroutine.Event()
         self._inline_job = coroutine.Pool()
         self._remote_urls = []
         self._node = None
-        self._jobs = coroutine.Pool()
+        self._connect_jobs = coroutine.Pool()
         self._no_subscription = no_subscription
-        self._server_mode = not api_url
-        self._api_url = api_url
         self._auth = _Auth()
 
-        if not client.delayed_start.value:
-            self.connect()
-
-    def connect(self):
-        self._got_offline(force=True)
-        if self._server_mode:
-            enforce(not client.login.value)
-            mountpoints.connect(_SN_DIRNAME,
-                    self._found_mount, self._lost_mount)
+    def connect(self, api=None):
+        if self._connect_jobs:
+            return
+        self._got_offline()
+        if not api:
+            self._connect_jobs.spawn(self._discover_node)
         else:
-            if client.discover_server.value:
-                self._jobs.spawn(self._discover_node)
-            else:
-                self._remote_urls.append(self._api_url)
-            self._jobs.spawn(self._wait_for_connectivity)
+            self._remote_urls.append(api)
+        self._connect_jobs.spawn(self._wait_for_connectivity)
 
     def close(self):
-        self._jobs.kill()
+        self._connect_jobs.kill()
         self._got_offline()
         self._local.volume.close()
 
@@ -132,62 +119,88 @@ class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
         return result
 
     @route('GET', [None],
-            arguments={
-                'offset': int,
-                'limit': int,
-                'reply': ('guid',),
-                'layer': list,
-                },
+            arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
             mime_type='application/json')
-    def find(self, request, response, layer):
-        if set(request.get('layer', [])) & set(['favorite', 'clone']):
+    def find(self, request, response):
+        if not self._inline.is_set() or 'pins' in request:
             return self._local.call(request, response)
 
         reply = request.setdefault('reply', ['guid'])
-        if 'layer' not in reply:
+        if 'pins' not in reply:
             return self.fallback(request, response)
 
         if 'guid' not in reply:
-            # Otherwise there is no way to mixin local `layer`
+            # Otherwise there is no way to mixin `pins`
             reply.append('guid')
         result = self.fallback(request, response)
 
         directory = self._local.volume[request.resource]
         for item in result['result']:
-            if directory.exists(item['guid']):
-                existing_layer = directory.get(item['guid'])['layer']
-                item['layer'][:] = set(item['layer']) | set(existing_layer)
+            doc = directory[item['guid']]
+            if doc.exists:
+                item['pins'] += doc.repr('pins')
 
         return result
 
     @route('GET', [None, None], mime_type='application/json')
     def get(self, request, response):
-        if self._local.volume[request.resource].exists(request.guid):
+        if self._local.volume[request.resource][request.guid].exists:
             return self._local.call(request, response)
         else:
             return self.fallback(request, response)
 
     @route('GET', [None, None, None], mime_type='application/json')
     def get_prop(self, request, response):
-        if self._local.volume[request.resource].exists(request.guid):
+        if self._local.volume[request.resource][request.guid].exists:
             return self._local.call(request, response)
         else:
             return self.fallback(request, response)
 
     @route('POST', ['report'], cmd='submit', mime_type='text/event-stream')
-    def submit_report(self, request, response):
-        logs = request.content.pop('logs')
+    def submit_report(self):
+        props = this.request.content
+        logs = props.pop('logs')
+        props['uname'] = os.uname()
+        props['lsb_release'] = {
+                'distributor_id': lsb_release.distributor_id(),
+                'release': lsb_release.release(),
+                }
         guid = self.fallback(method='POST', path=['report'],
-                content=request.content, content_type='application/json')
-        if logs:
-            with toolkit.TemporaryFile() as tmpfile:
-                with ZipFile(tmpfile, 'w', ZIP_DEFLATED) as zipfile:
-                    for path in logs:
-                        zipfile.write(path, basename(path))
-                tmpfile.seek(0)
-                self.fallback(method='PUT', path=['report', guid, 'data'],
-                        content_stream=tmpfile, content_type='application/zip')
+                content=props, content_type='application/json')
+        for logfile in logs:
+            with file(logfile) as f:
+                self.fallback(method='POST', path=['report', guid, 'logs'],
+                        content_stream=f, content_type='text/plain')
         yield {'event': 'done', 'guid': guid}
+
+    @route('GET', ['context', None], cmd='launch', arguments={'args': list},
+            mime_type='text/event-stream')
+    def launch(self):
+        return this.injector.launch(this.request.guid, **this.request)
+
+    @route('PUT', ['context', None], cmd='checkin',
+            mime_type='text/event-stream')
+    def put_checkin(self):
+        self._checkin_context()
+        for event in this.injector.checkin(this.request.guid):
+            yield event
+
+    @route('DELETE', ['context', None], cmd='checkin')
+    def delete_checkin(self, request):
+        this.injector.checkout(this.request.guid)
+        self._checkout_context()
+
+    @route('PUT', ['context', None], cmd='favorite')
+    def put_favorite(self, request):
+        self._checkin_context('favorite')
+
+    @route('DELETE', ['context', None], cmd='favorite')
+    def delete_favorite(self, request):
+        self._checkout_context('favorite')
+
+    @route('GET', cmd='recycle')
+    def recycle(self):
+        return this.injector.recycle()
 
     @fallbackroute()
     def fallback(self, request=None, response=None, **kwargs):
@@ -199,8 +212,6 @@ class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
         if not self._inline.is_set():
             return self._local.call(request, response)
 
-        if client.layers.value and request.resource in ('context', 'release'):
-            request.add('layer', *client.layers.value)
         request.principal = self._auth.login
         try:
             reply = self._node.call(request, response)
@@ -217,21 +228,23 @@ class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
             self._restart_online()
             return self._local.call(request, response)
 
-    def _got_online(self):
+    def _got_online(self, url):
         enforce(not self._inline.is_set())
         _logger.debug('Got online on %r', self._node)
         self._inline.set()
+        self._local.volume.mute = True
+        this.injector.api = url
         this.localcast({'event': 'inline', 'state': 'online'})
 
-    def _got_offline(self, force=False):
-        if not force and not self._inline.is_set():
-            return
+    def _got_offline(self):
         if self._node is not None:
             self._node.close()
         if self._inline.is_set():
             _logger.debug('Got offline on %r', self._node)
-            this.localcast({'event': 'inline', 'state': 'offline'})
             self._inline.clear()
+            self._local.volume.mute = False
+            this.injector.api = None
+            this.localcast({'event': 'inline', 'state': 'offline'})
 
     def _restart_online(self):
         _logger.debug('Lost %r connection, try to reconnect in %s seconds',
@@ -256,10 +269,8 @@ class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
 
         def pull_events():
             for event in self._node.subscribe():
-                if event.get('resource') == 'release':
-                    mtime = event.get('mtime')
-                    if mtime:
-                        self.invalidate_solutions(mtime)
+                if event.get('event') == 'release':
+                    this.injector.seqno = event['seqno']
                 this.broadcast(event)
 
         def handshake(url):
@@ -267,16 +278,13 @@ class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
             self._node = client.Connection(url, auth=self._auth)
             status = self._node.get(cmd='status')
             self._auth.allow_basic_auth = (status.get('level') == 'master')
-            """
-            TODO switch to seqno
-            impl_info = status['resources'].get('release')
-            if impl_info:
-                self.invalidate_solutions(impl_info['mtime'])
-            """
+            seqno = status.get('seqno')
+            if seqno and 'releases' in seqno:
+                this.injector.seqno = seqno['releases']
             if self._inline.is_set():
                 _logger.info('Reconnected to %r node', url)
             else:
-                self._got_online()
+                self._got_online(url)
 
         def connect():
             timeout = _RECONNECT_TIMEOUT
@@ -307,40 +315,32 @@ class ClientRoutes(model.FrontRoutes, releases.Routes, journal.Routes):
         self._inline_job.kill()
         self._inline_job.spawn_later(timeout, connect)
 
-    def _found_mount(self, root):
-        if self._inline.is_set():
-            _logger.debug('Found %r node mount but %r is already active',
-                    root, self._node.volume.root)
+    def _checkin_context(self, pin=None):
+        context = this.volume['context'][this.request.guid]
+        if not context.exists:
+            enforce(self.inline(), http.ServiceUnavailable,
+                    'Not available in offline')
+            _logger.debug('Checkin %r context', context.guid)
+            clone = self.fallback(
+                    method='GET', path=['context', context.guid], cmd='clone')
+            this.volume.patch(next(parcel.decode(clone)))
+        pins = context['pins']
+        if pin and pin not in pins:
+            this.volume['context'].update(context.guid, {'pins': pins + [pin]})
+
+    def _checkout_context(self, pin=None):
+        directory = this.volume['context']
+        context = directory[this.request.guid]
+        if not context.exists:
             return
-
-        _logger.debug('Found %r node mount', root)
-
-        db_path = join(root, _SN_DIRNAME, 'db')
-        node.data_root.value = db_path
-        node.stats_root.value = join(root, _SN_DIRNAME, 'stats')
-        node.files_root.value = join(root, _SN_DIRNAME, 'files')
-        volume = db.Volume(db_path, model.RESOURCES)
-
-        if not volume['user'].exists(self._auth.login):
-            profile = self._auth.profile()
-            profile['guid'] = self._auth.login
-            volume['user'].create(profile)
-
-        self._node = _NodeRoutes(join(db_path, 'node'), volume)
-        self._jobs.spawn(volume.populate)
-
-        logging.info('Start %r node on %s port', volume.root, node.port.value)
-        server = coroutine.WSGIServer(('0.0.0.0', node.port.value), self._node)
-        self._inline_job.spawn(server.serve_forever)
-        self._got_online()
-
-    def _lost_mount(self, root):
-        if not self._inline.is_set() or \
-                not self._node.volume.root.startswith(root):
-            return
-        _logger.debug('Lost %r node mount', root)
-        self._inline_job.kill()
-        self._got_offline()
+        pins = set(context.repr('pins'))
+        if pin:
+            pins -= set([pin])
+        if not self._inline.is_set() or pins:
+            if pin:
+                directory.update(context.guid, {'pins': list(pins)})
+        else:
+            directory.delete(context.guid)
 
 
 class CachedClientRoutes(ClientRoutes):
@@ -351,16 +351,16 @@ class CachedClientRoutes(ClientRoutes):
         self._push_job = coroutine.Pool()
         ClientRoutes.__init__(self, home_volume, api_url, no_subscription)
 
-    def _got_online(self):
-        ClientRoutes._got_online(self)
+    def _got_online(self, url):
+        ClientRoutes._got_online(self, url)
         self._push_job.spawn(self._push)
 
-    def _got_offline(self, force=True):
+    def _got_offline(self):
         self._push_job.kill()
-        ClientRoutes._got_offline(self, force)
+        ClientRoutes._got_offline(self)
 
     def _push(self):
-        # TODO should work using regular pull/push
+        # TODO should work using regular diff
         return
 
 
@@ -384,14 +384,12 @@ class CachedClientRoutes(ClientRoutes):
 
             _logger.debug('Check %r local cache to push', res)
 
-            for guid, patch in volume[res].diff(self._push_seq, layer='local'):
+            for guid, patch in volume[res].diff(self._push_seq):
                 diff = {}
                 diff_seq = toolkit.Sequence()
                 post_requests = []
                 for prop, meta, seqno in patch:
                     value = meta['value']
-                    if prop == 'layer':
-                        value = list(set(value) - _LOCAL_LAYERS)
                     diff[prop] = value
                     diff_seq.include(seqno, seqno)
                 if not diff:
@@ -435,67 +433,6 @@ class _LocalRoutes(db.Routes, Router):
     def __init__(self, volume):
         db.Routes.__init__(self, volume)
         Router.__init__(self, self)
-
-    def on_create(self, request, props):
-        props['layer'] = tuple(props['layer']) + ('local',)
-        db.Routes.on_create(self, request, props)
-
-
-class _NodeRoutes(SlaveRoutes, Router):
-
-    def __init__(self, key_path, volume):
-        SlaveRoutes.__init__(self, key_path, volume)
-        Router.__init__(self, self)
-
-        self.api_url = 'http://127.0.0.1:%s' % node.port.value
-        self._mounts = toolkit.Pool()
-        self._jobs = coroutine.Pool()
-
-        mountpoints.connect(_SYNC_DIRNAME,
-                self.__found_mountcb, self.__lost_mount_cb)
-
-    def close(self):
-        self.volume.close()
-
-    def __repr__(self):
-        return '<LocalNode path=%s api_url=%s>' % \
-                (self.volume.root, self.api_url)
-
-    def _sync_mounts(self):
-        this.localcast({'event': 'sync_start'})
-
-        for mountpoint in self._mounts:
-            this.localcast({'event': 'sync_next', 'path': mountpoint})
-            try:
-                self._offline_session = self._offline_sync(
-                        join(mountpoint, _SYNC_DIRNAME),
-                        **(self._offline_session or {}))
-            except Exception, error:
-                _logger.exception('Failed to complete synchronization')
-                this.localcast({'event': 'sync_abort', 'error': str(error)})
-                self._offline_session = None
-                raise
-
-        if self._offline_session is None:
-            _logger.debug('Synchronization completed')
-            this.localcast({'event': 'sync_complete'})
-        else:
-            _logger.debug('Postpone synchronization with %r session',
-                    self._offline_session)
-            this.localcast({'event': 'sync_paused'})
-
-    def __found_mountcb(self, path):
-        self._mounts.add(path)
-        if self._jobs:
-            _logger.debug('Found %r sync mount, pool it', path)
-        else:
-            _logger.debug('Found %r sync mount, start synchronization', path)
-            self._jobs.spawn(self._sync_mounts)
-
-    def __lost_mount_cb(self, path):
-        if self._mounts.remove(path) == toolkit.Pool.ACTIVE:
-            _logger.warning('%r was unmounted, break synchronization', path)
-            self._jobs.kill()
 
 
 class _ResponseStream(object):

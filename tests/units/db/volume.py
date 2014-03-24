@@ -31,7 +31,7 @@ class VolumeTest(tests.Test):
 
     def setUp(self, fork_num=0):
         tests.Test.setUp(self, fork_num)
-        this.broadcast = lambda x: x
+        this.localcast = lambda x: x
 
     def test_diff(self):
 
@@ -322,6 +322,51 @@ class VolumeTest(tests.Test):
         self.assertEqual({'commit': [[1, 3]]}, patch.send(None))
         self.assertRaises(StopIteration, patch.next)
         self.assertEqual([[4, None]], r)
+
+    def test_clone(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+            @db.stored_property(db.Blob)
+            def prop3(self, value):
+                return value
+
+            @db.stored_property(db.Blob)
+            def prop4(self, value):
+                return value
+
+        volume = db.Volume('.', [Document])
+
+        volume['document'].create({
+            'guid': 'guid',
+            'prop1': '1',
+            'prop2': 2,
+            'prop3': volume.blobs.post('333', '3/3').digest,
+            'prop4': volume.blobs.post('4444', '4/4').digest,
+            })
+        self.utime('db/document/gu/guid', 1)
+
+        self.assertEqual([
+            {'content-type': '3/3', 'content-length': '3', 'x-seqno': '1'},
+            {'content-type': '4/4', 'content-length': '4', 'x-seqno': '2'},
+            {'resource': 'document'},
+            {'guid': 'guid', 'patch': {
+                'guid': {'value': 'guid', 'mtime': 1},
+                'prop1': {'value': '1', 'mtime': 1},
+                'prop2': {'value': 2, 'mtime': 1},
+                'prop3': {'value': hashlib.sha1('333').hexdigest(), 'mtime': 1},
+                'prop4': {'value': hashlib.sha1('4444').hexdigest(), 'mtime': 1},
+                }},
+            ],
+            [dict(i) for i in volume.clone('document', 'guid')])
 
     def test_patch_New(self):
 
@@ -735,7 +780,7 @@ class VolumeTest(tests.Test):
             def prop(self, value):
                 return value + 1
 
-        directory = Directory('document', Document, IndexWriter, _SessionSeqno())
+        directory = Directory('document', Document, IndexWriter, _SessionSeqno(), this.localcast)
 
         directory.patch('1', {
             'guid': {'mtime': 1, 'value': '1'},
@@ -772,7 +817,7 @@ class VolumeTest(tests.Test):
 
         patch = generator()
         self.assertEqual((101, [[1, 3]]), volume.patch(patch))
-        assert volume['document'].exists('1')
+        assert volume['document']['1'].exists
 
 
 class _SessionSeqno(object):
