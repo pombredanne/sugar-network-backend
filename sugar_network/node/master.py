@@ -58,8 +58,8 @@ class MasterRoutes(NodeRoutes):
 
     @route('PUT', ['context', None], cmd='presolve',
             acl=ACL.AUTH, mime_type='application/json')
-    def presolve(self, request):
-        aliases = this.volume['context'].get(request.guid)['aliases']
+    def presolve(self):
+        aliases = this.volume['context'].get(this.request.guid)['aliases']
         enforce(aliases, http.BadRequest, 'Nothing to presolve')
         return obs.presolve(None, aliases, this.volume.blobs.path('packages'))
 

@@ -170,7 +170,7 @@ class RoutesTest(tests.Test):
         router = Router(db.Routes(volume))
 
         guid = this.call(method='POST', path=['testdocument'], content={})
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content='blob1')
         self.assertEqual('blob1', file(this.call(method='GET', path=['testdocument', guid, 'blob']).path).read())
@@ -179,7 +179,7 @@ class RoutesTest(tests.Test):
         self.assertEqual('blob2', file(this.call(method='GET', path=['testdocument', guid, 'blob']).path).read())
 
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content=None)
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
     def test_CreateBLOBsWithMeta(self):
 
@@ -195,16 +195,16 @@ class RoutesTest(tests.Test):
 
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
                 content={}, content_type='application/json')
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
                 content={'location': 'foo'}, content_type='application/json')
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
                 content={'location': 'url', 'digest': 'digest', 'foo': 'bar', 'content-type': 'foo/bar'},
                 content_type='application/json')
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
     def test_UpdateBLOBsWithMeta(self):
 
@@ -224,7 +224,7 @@ class RoutesTest(tests.Test):
             'content-length': '4',
             'x-seqno': '1',
             },
-            dict(blob))
+            blob.meta)
         self.assertEqual('blob', file(blob.path).read())
 
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
@@ -235,7 +235,7 @@ class RoutesTest(tests.Test):
             'content-length': '4',
             'x-seqno': '1',
             },
-            dict(blob))
+            blob.meta)
         self.assertEqual('blob', file(blob.path).read())
 
     def test_RemoveBLOBs(self):
@@ -253,7 +253,7 @@ class RoutesTest(tests.Test):
         self.assertEqual('blob', file(this.call(method='GET', path=['testdocument', guid, 'blob']).path).read())
 
         this.call(method='PUT', path=['testdocument', guid, 'blob'])
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
     def test_ReuploadBLOBs(self):
 
@@ -294,10 +294,10 @@ class RoutesTest(tests.Test):
         router = Router(db.Routes(volume))
 
         guid = this.call(method='POST', path=['testdocument'], content={})
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
         self.assertRaises(RuntimeError, this.call, method='PUT', path=['testdocument', guid, 'blob'], content='probe')
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
         assert not exists('blobs/%s' % hashlib.sha1('probe').hexdigest())
 
     def test_SetBLOBsWithMimeType(self):
@@ -380,7 +380,7 @@ class RoutesTest(tests.Test):
         router = Router(db.Routes(volume))
         guid1 = this.call(method='POST', path=['testdocument'], content={})
 
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid1, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid1, 'blob']) is File.AWAY
         self.assertEqual(
                 {'blob': ''},
                 this.call(method='GET', path=['testdocument', guid1], reply=['blob'], environ={'HTTP_HOST': '127.0.0.1'}))
@@ -431,7 +431,7 @@ class RoutesTest(tests.Test):
         router = Router(db.Routes(volume))
 
         guid = this.call(method='POST', path=['testdocument'], content={})
-        self.assertRaises(http.NotFound, this.call, method='GET', path=['testdocument', guid, 'blob'])
+        assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
         self.assertEqual(
                 {'blob': ''},
                 this.call(method='GET', path=['testdocument', guid], reply=['blob'], environ={'HTTP_HOST': 'localhost'}))
@@ -719,22 +719,15 @@ class RoutesTest(tests.Test):
         this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'})
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
 
-    def __test_DoNotPassGuidsForCreate(self):
+    def test_DoNotPassGuidsForCreate(self):
 
         class TestDocument(db.Resource):
-
-            @db.indexed_property(slot=1, default='')
-            def prop(self, value):
-                return value
-
-            @db.indexed_property(db.Localized, prefix='L', default={})
-            def localized_prop(self, value):
-                return value
+            pass
 
         volume = db.Volume(tests.tmpdir, [TestDocument])
         router = Router(db.Routes(volume))
 
-        self.assertRaises(http.Forbidden, this.call, method='POST', path=['testdocument'], content={'guid': 'foo'})
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['testdocument'], content={'guid': 'foo'})
         guid = this.call(method='POST', path=['testdocument'], content={})
         assert guid
 
@@ -905,20 +898,19 @@ class RoutesTest(tests.Test):
                 return -1
 
             @db.stored_property(db.Blob)
-            def blob(self, meta):
-                meta['blob'] = 'new-blob'
-                return meta
+            def blob(self, blob):
+                blob.meta['foo'] = 'bar'
+                return blob
 
         volume = db.Volume(tests.tmpdir, [TestDocument])
         router = Router(db.Routes(volume))
 
         guid = this.call(method='POST', path=['testdocument'], content={})
-        self.touch(('new-blob', 'new-blob'))
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content='old-blob')
 
         self.assertEqual(
-                'new-blob',
-                this.call(method='GET', path=['testdocument', guid, 'blob'])['blob'])
+                'bar',
+                this.call(method='GET', path=['testdocument', guid, 'blob']).meta['foo'])
         self.assertEqual(
                 '1',
                 this.call(method='GET', path=['testdocument', guid, 'prop1']))
@@ -1122,8 +1114,9 @@ class RoutesTest(tests.Test):
 
         volume = db.Volume(tests.tmpdir, [User, Document])
         router = Router(db.Routes(volume))
+        this.principal = 'user'
 
-        guid = this.call(method='POST', path=['document'], content={}, principal='user')
+        guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual(
                 [{'name': 'user', 'role': 2}],
                 this.call(method='GET', path=['document', guid, 'author']))
@@ -1133,7 +1126,7 @@ class RoutesTest(tests.Test):
 
         volume['user'].create({'guid': 'user', 'pubkey': '', 'name': 'User'})
 
-        guid = this.call(method='POST', path=['document'], content={}, principal='user')
+        guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual(
                 [{'guid': 'user', 'name': 'User', 'role': 3}],
                 this.call(method='GET', path=['document', guid, 'author']))
@@ -1163,9 +1156,12 @@ class RoutesTest(tests.Test):
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User Name2'})
         volume['user'].create({'guid': 'user3', 'pubkey': '', 'name': 'User Name 3'})
 
-        guid1 = this.call(method='POST', path=['document'], content={}, principal='user1')
-        guid2 = this.call(method='POST', path=['document'], content={}, principal='user2')
-        guid3 = this.call(method='POST', path=['document'], content={}, principal='user3')
+        this.principal = 'user1'
+        guid1 = this.call(method='POST', path=['document'], content={})
+        this.principal = 'user2'
+        guid2 = this.call(method='POST', path=['document'], content={})
+        this.principal = 'user2'
+        guid3 = this.call(method='POST', path=['document'], content={})
 
         self.assertEqual(sorted([
             {'guid': guid1},
@@ -1210,7 +1206,8 @@ class RoutesTest(tests.Test):
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
         volume['user'].create({'guid': 'user3', 'pubkey': '', 'name': 'User3'})
 
-        guid = this.call(method='POST', path=['document'], content={}, principal='user1')
+        this.principal = 'user1'
+        guid = this.call(method='POST', path=['document'], content={})
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=0)
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user3', role=0)
 
@@ -1227,7 +1224,8 @@ class RoutesTest(tests.Test):
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user2', principal='user1')
+        this.principal = 'user1'
+        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user2')
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=0)
 
         self.assertEqual([
@@ -1243,7 +1241,8 @@ class RoutesTest(tests.Test):
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user2', principal='user1')
+        this.principal = 'user1'
+        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user2')
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=0)
 
         self.assertEqual([
@@ -1259,7 +1258,8 @@ class RoutesTest(tests.Test):
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user3', principal='user1')
+        this.principal = 'user1'
+        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user3')
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user3', role=0)
 
         self.assertEqual([
@@ -1296,7 +1296,8 @@ class RoutesTest(tests.Test):
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
 
-        guid = this.call(method='POST', path=['document'], content={}, principal='user1')
+        this.principal = 'user1'
+        guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual([
             {'guid': 'user1', 'name': 'User1', 'role': 3},
             ],
@@ -1367,7 +1368,8 @@ class RoutesTest(tests.Test):
         router = Router(db.Routes(volume))
 
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
-        guid = this.call(method='POST', path=['document'], content={}, principal='user1')
+        this.principal = 'user1'
+        guid = this.call(method='POST', path=['document'], content={})
 
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='User2', role=0)
         self.assertEqual([
@@ -1425,7 +1427,8 @@ class RoutesTest(tests.Test):
 
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
-        guid = this.call(method='POST', path=['document'], content={}, principal='user1')
+        this.principal = 'user1'
+        guid = this.call(method='POST', path=['document'], content={})
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2')
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='User3')
         self.assertEqual([
@@ -1442,10 +1445,13 @@ class RoutesTest(tests.Test):
             volume['document'].get(guid)['author'])
 
         # Do not remove yourself
-        self.assertRaises(RuntimeError, this.call, method='PUT', path=['document', guid], cmd='userdel', user='user1', principal='user1')
-        self.assertRaises(RuntimeError, this.call, method='PUT', path=['document', guid], cmd='userdel', user='user2', principal='user2')
+        this.principal = 'user1'
+        self.assertRaises(RuntimeError, this.call, method='PUT', path=['document', guid], cmd='userdel', user='user1')
+        this.principal = 'user2'
+        self.assertRaises(RuntimeError, this.call, method='PUT', path=['document', guid], cmd='userdel', user='user2')
 
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user1', principal='user2')
+        this.principal = 'user2'
+        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user1')
         self.assertEqual([
             {'guid': 'user2', 'name': 'User2', 'role': 1},
             {'name': 'User3', 'role': 0},
@@ -1457,7 +1463,8 @@ class RoutesTest(tests.Test):
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='User3', principal='user2')
+        this.principal = 'user2'
+        this.call(method='PUT', path=['document', guid], cmd='userdel', user='User3')
         self.assertEqual([
             {'guid': 'user2', 'name': 'User2', 'role': 1},
             ],
@@ -1508,7 +1515,7 @@ class RoutesTest(tests.Test):
             def prop1(self, value):
                 return value
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT)
             def prop3(self, value):
                 return value
 
@@ -1562,11 +1569,11 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT)
             def prop1(self, value):
                 return value
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT | ACL.REMOVE)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT | ACL.REMOVE)
             def prop2(self, value):
                 return value
 
@@ -1604,11 +1611,82 @@ class RoutesTest(tests.Test):
             ],
             events)
 
+    def test_NoDirectWriteToAggprops(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Aggregated)
+            def prop(self, value):
+                return value
+
+        volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes(volume))
+        guid = this.call(method='POST', path=['document'], content={})
+
+        self.assertRaises(http.Forbidden, this.call, method='POST', path=['document'], content={'prop': {}})
+        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['document', guid], content={'prop': {}})
+
+    def test_AggpropSubtypeCasts(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Aggregated)
+            def props(self, value):
+                return value
+
+            @db.stored_property(db.Aggregated, db.Blob())
+            def blobs(self, value):
+                return value
+
+        volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes(volume))
+        guid = this.call(method='POST', path=['document'], content={})
+
+        agg1 = this.call(method='POST', path=['document', guid, 'props'], content=-1)
+        agg2 = this.call(method='POST', path=['document', guid, 'props'], content=None)
+        agg3 = this.call(method='POST', path=['document', guid, 'props'], content={'foo': 'bar'})
+
+        self.assertEqual({
+            agg1: {'seqno': 2, 'value': -1},
+            agg2: {'seqno': 3, 'value': None},
+            agg3: {'seqno': 4, 'value': {'foo': 'bar'}},
+            },
+            volume['document'][guid]['props'])
+        self.assertEqual({
+            agg1: -1,
+            agg2: None,
+            agg3: {'foo': 'bar'},
+            },
+            dict(this.call(method='GET', path=['document', guid, 'props'])))
+        self.assertEqual({
+            agg1: -1,
+            agg2: None,
+            agg3: {'foo': 'bar'},
+            },
+            dict(this.call(method='GET', path=['document', guid], reply=['props'])['props']))
+        self.assertEqual({
+            agg1: -1,
+            agg2: None,
+            agg3: {'foo': 'bar'},
+            },
+            dict(this.call(method='GET', path=['document'], reply=['props'])['result'][0]['props']))
+
+        agg1 = this.call(method='POST', path=['document', guid, 'blobs'], content='1')
+        agg2 = this.call(method='POST', path=['document', guid, 'blobs'], content='2')
+        agg3 = this.call(method='POST', path=['document', guid, 'blobs'], content='3')
+
+        self.assertEqual({
+            agg1: 'http://localhost/blobs/' + hashlib.sha1('1').hexdigest(),
+            agg2: 'http://localhost/blobs/' + hashlib.sha1('2').hexdigest(),
+            agg3: 'http://localhost/blobs/' + hashlib.sha1('3').hexdigest(),
+            },
+            dict(this.call(method='GET', path=['document', guid, 'blobs'], environ={'HTTP_HOST': 'localhost'})))
+
     def test_FailOnAbsentAggprops(self):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
             def prop(self, value):
                 return value
 
@@ -1627,11 +1705,11 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated)
+            @db.stored_property(db.Aggregated, db.Property())
             def prop1(self, value):
                 return value
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
             def prop2(self, value):
                 return value
 
@@ -1674,7 +1752,7 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
             def prop(self, value):
                 return value
 
@@ -1701,7 +1779,7 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated, acl=ACL.INSERT | ACL.REMOVE)
+            @db.stored_property(db.Aggregated, db.Property(), acl=ACL.INSERT | ACL.REMOVE)
             def prop(self, value):
                 return value
 
@@ -1710,18 +1788,22 @@ class RoutesTest(tests.Test):
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
 
-        guid = this.call(method='POST', path=['document'], content={}, principal=tests.UID)
+        this.principal = tests.UID
+        guid = this.call(method='POST', path=['document'], content={})
         assert ACL.ORIGINAL & volume['document'][guid]['author'][tests.UID]['role']
 
-        agg_guid1 = this.call(method='POST', path=['document', guid, 'prop'], content=1, principal=tests.UID)
+        this.principal = tests.UID
+        agg_guid1 = this.call(method='POST', path=['document', guid, 'prop'], content=1)
         assert tests.UID2 not in volume['document'][guid]['prop'][agg_guid1]['author']
         assert ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid1]['author'][tests.UID]['role']
 
-        agg_guid2 = this.call(method='POST', path=['document', guid, 'prop'], content=1, principal=tests.UID2)
+        this.principal = tests.UID2
+        agg_guid2 = this.call(method='POST', path=['document', guid, 'prop'], content=1)
         assert tests.UID not in volume['document'][guid]['prop'][agg_guid2]['author']
         assert not (ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
 
-        this.call(method='DELETE', path=['document', guid, 'prop', agg_guid2], principal=tests.UID2)
+        this.principal = tests.UID2
+        this.call(method='DELETE', path=['document', guid, 'prop', agg_guid2])
         assert tests.UID not in volume['document'][guid]['prop'][agg_guid2]['author']
         assert not (ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
 
@@ -1729,7 +1811,7 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated, subtype=db.Blob())
+            @db.stored_property(db.Aggregated, db.Blob())
             def blobs(self, value):
                 return value
 
@@ -1789,7 +1871,7 @@ class RoutesTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.indexed_property(db.Aggregated, prefix='A', full_text=True)
+            @db.indexed_property(db.Aggregated, db.Property(), prefix='A', full_text=True)
             def comments(self, value):
                 return value
 
@@ -1851,7 +1933,8 @@ class RoutesTest(tests.Test):
 
         events = []
         this.localcast = lambda x: events.append(x)
-        this.call(method='DELETE', path=['document', guid], principal=tests.UID)
+        this.principal = tests.UID
+        this.call(method='DELETE', path=['document', guid])
 
         self.assertRaises(http.NotFound, this.call, method='GET', path=['document', guid])
         self.assertEqual('deleted', volume['document'][guid]['state'])

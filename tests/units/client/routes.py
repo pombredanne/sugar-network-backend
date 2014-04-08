@@ -13,9 +13,10 @@ from __init__ import tests
 
 from sugar_network import db, client, toolkit
 from sugar_network.client import journal, IPCConnection, cache_limit, cache_lifetime, api, injector, routes
-from sugar_network.client.model import RESOURCES
+from sugar_network.client.model import Volume
 from sugar_network.client.injector import Injector
-from sugar_network.client.routes import ClientRoutes, CachedClientRoutes
+from sugar_network.client.routes import ClientRoutes
+from sugar_network.client.auth import SugarCreds
 from sugar_network.node.model import User
 from sugar_network.node.master import MasterRoutes
 from sugar_network.toolkit.router import Router, Request, Response, route
@@ -28,8 +29,8 @@ import requests
 class RoutesTest(tests.Test):
 
     def test_Hub(self):
-        volume = db.Volume('db', RESOURCES)
-        cp = ClientRoutes(volume)
+        volume = Volume('db')
+        cp = ClientRoutes(volume, SugarCreds(client.keyfile.value))
         server = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(cp))
         coroutine.spawn(server.serve_forever)
@@ -353,7 +354,6 @@ class RoutesTest(tests.Test):
         ipc = IPCConnection()
 
         guid1 = ipc.post(['context'], {
-            'guid': 'context1',
             'type': 'activity',
             'title': '1',
             'summary': 'summary',
@@ -382,20 +382,19 @@ class RoutesTest(tests.Test):
             ]]), cmd='submit', initial=True)
         guid3 = 'context3'
         guid4 = ipc.post(['context'], {
-            'guid': 'context4',
             'type': 'activity',
             'title': '4',
             'summary': 'summary',
             'description': 'description',
             })
 
-        self.assertEqual([
+        self.assertEqual(sorted([
             {'guid': guid1, 'title': '1', 'pins': []},
             {'guid': guid2, 'title': '2', 'pins': []},
             {'guid': guid3, 'title': '3', 'pins': []},
             {'guid': guid4, 'title': '4', 'pins': []},
-            ],
-            ipc.get(['context'], reply=['guid', 'title', 'pins'])['result'])
+            ]),
+            sorted(ipc.get(['context'], reply=['guid', 'title', 'pins'])['result']))
         self.assertEqual([
             ],
             ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result'])
@@ -421,13 +420,13 @@ class RoutesTest(tests.Test):
         home_volume['context'].update(guid2, {'title': {i18n.default_lang(): '2_'}})
         home_volume['context'].update(guid3, {'title': {i18n.default_lang(): '3_'}})
 
-        self.assertEqual([
+        self.assertEqual(sorted([
             {'guid': guid1, 'title': '1', 'pins': ['favorite']},
             {'guid': guid2, 'title': '2', 'pins': ['checkin', 'favorite']},
             {'guid': guid3, 'title': '3', 'pins': ['checkin']},
             {'guid': guid4, 'title': '4', 'pins': []},
-            ],
-            ipc.get(['context'], reply=['guid', 'title', 'pins'])['result'])
+            ]),
+            sorted(ipc.get(['context'], reply=['guid', 'title', 'pins'])['result']))
         self.assertEqual([
             {'guid': guid1, 'title': '1_'},
             {'guid': guid2, 'title': '2_'},
@@ -442,13 +441,13 @@ class RoutesTest(tests.Test):
         ipc.delete(['context', guid1], cmd='favorite')
         ipc.delete(['context', guid2], cmd='checkin')
 
-        self.assertEqual([
+        self.assertEqual(sorted([
             {'guid': guid1, 'pins': []},
             {'guid': guid2, 'pins': ['favorite']},
             {'guid': guid3, 'pins': ['checkin']},
             {'guid': guid4, 'pins': []},
-            ],
-            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+            ]),
+            sorted(ipc.get(['context'], reply=['guid', 'pins'])['result']))
         self.assertEqual([
             {'guid': guid2, 'pins': ['favorite']},
             ],
@@ -873,7 +872,7 @@ class RoutesTest(tests.Test):
             'content2',
             'content3',
             ]),
-            sorted([ipc.get(['report', guid, 'logs', i]) for i in ipc.get(['report', guid, 'logs']).keys()]))
+            sorted([''.join(ipc.download(i[1])) for i in ipc.get(['report', guid, 'logs'])]))
         assert not home_volume['report'][guid].exists
 
         self.stop_master()
@@ -897,14 +896,14 @@ class RoutesTest(tests.Test):
             'content2',
             'content3',
             ]),
-            sorted([ipc.get(['report', guid, 'logs', i]) for i in ipc.get(['report', guid, 'logs']).keys()]))
+            sorted([''.join(ipc.download(i[1])) for i in ipc.get(['report', guid, 'logs'])]))
         assert home_volume['report'][guid].exists
 
     def test_inline(self):
         routes._RECONNECT_TIMEOUT = 2
 
         this.injector = Injector('client')
-        cp = ClientRoutes(db.Volume('client', RESOURCES))
+        cp = ClientRoutes(Volume('client'), SugarCreds(client.keyfile.value))
         cp.connect(client.api.value)
         assert not cp.inline()
 
@@ -1064,7 +1063,7 @@ class RoutesTest(tests.Test):
 
             subscribe_tries = 0
 
-            def __init__(self, volume, *args):
+            def __init__(self, volume, auth, *args):
                 pass
 
             @route('GET', cmd='status', mime_type='application/json')

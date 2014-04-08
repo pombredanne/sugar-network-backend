@@ -16,7 +16,6 @@
 import os
 import cgi
 import json
-import time
 import types
 import logging
 import calendar
@@ -33,7 +32,6 @@ from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import i18n, http, coroutine, enforce
 
 
-_SIGNATURE_LIFETIME = 600
 _NOT_SET = object()
 
 _logger = logging.getLogger('router')
@@ -106,15 +104,6 @@ class ACL(object):
             }
 
 
-class Unauthorized(http.Unauthorized):
-
-    def __init__(self, message, nonce=None):
-        http.Unauthorized.__init__(self, message)
-        if not nonce:
-            nonce = int(time.time()) + _SIGNATURE_LIFETIME
-        self.headers = {'www-authenticate': 'Sugar nonce="%s"' % nonce}
-
-
 class Request(dict):
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
@@ -133,7 +122,6 @@ class Request(dict):
         self._accept_language = _NOT_SET
         self._content_stream = content_stream or _NOT_SET
         self._content_type = content_type or _NOT_SET
-        self._authorization = _NOT_SET
 
         if environ:
             url = environ.get('PATH_INFO', '').strip('/')
@@ -299,28 +287,6 @@ class Request(dict):
             self._dirty_query = False
         return self.environ.get('QUERY_STRING')
 
-    @property
-    def authorization(self):
-        if self._authorization is _NOT_SET:
-            auth = self.environ.get('HTTP_AUTHORIZATION')
-            if not auth:
-                self._authorization = None
-            else:
-                auth = self._authorization = _Authorization(auth)
-                auth.scheme, creds = auth.strip().split(' ', 1)
-                auth.scheme = auth.scheme.lower()
-                if auth.scheme == 'basic':
-                    auth.login, auth.password = b64decode(creds).split(':')
-                elif auth.scheme == 'sugar':
-                    from urllib2 import parse_http_list, parse_keqv_list
-                    creds = parse_keqv_list(parse_http_list(creds))
-                    auth.login = creds['username']
-                    auth.signature = creds['signature']
-                    auth.nonce = int(creds['nonce'])
-                else:
-                    raise http.BadRequest('Unsupported authentication scheme')
-        return self._authorization
-
     def add(self, key, *values):
         existing_value = self.get(key)
         for value in values:
@@ -418,18 +384,29 @@ class Response(CaseInsensitiveDict):
         return '<Response %r>' % items
 
 
-class File(CaseInsensitiveDict):
+class File(str):
 
     AWAY = None
 
     class Digest(str):
         pass
 
-    def __init__(self, path, digest=None, meta=None):
-        CaseInsensitiveDict.__init__(self, meta or [])
+    def __new__(cls, path=None, digest=None, meta=None):
+        meta = CaseInsensitiveDict(meta or [])
+
+        url = ''
+        if meta:
+            url = meta.get('location')
+        if not url and digest:
+            url = '%s/blobs/%s' % (this.request.static_prefix, digest)
+        self = str.__new__(cls, url)
+
+        self.meta = meta
         self.path = path
         self.digest = File.Digest(digest) if digest else None
-        self._stat = None
+        self.stat = None
+
+        return self
 
     @property
     def exists(self):
@@ -437,47 +414,37 @@ class File(CaseInsensitiveDict):
 
     @property
     def size(self):
-        if self._stat is None:
+        if self.stat is None:
             if not self.exists:
-                size = self.get('content-length', 0)
+                size = self.meta.get('content-length', 0)
                 return int(size) if size else 0
-            self._stat = os.stat(self.path)
-        return self._stat.st_size
+            self.stat = os.stat(self.path)
+        return self.stat.st_size
 
     @property
     def mtime(self):
-        if self._stat is None:
-            self._stat = os.stat(self.path)
-        return int(self._stat.st_mtime)
-
-    @property
-    def url(self):
-        if self is File.AWAY:
-            return ''
-        return self.get('location') or \
-               '%s/blobs/%s' % (this.request.static_prefix, self.digest)
+        if self.stat is None:
+            self.stat = os.stat(self.path)
+        return int(self.stat.st_mtime)
 
     @property
     def name(self):
         if self.path:
             return basename(self.path)
 
-    def __repr__(self):
-        return '<File %r>' % self.url
-
     def iter_content(self):
         if self.path:
             return self._iter_content()
-        url = self.get('location')
+        url = self.meta.get('location')
         enforce(url, http.NotFound, 'No location')
         blob = this.http.request('GET', url, allow_redirects=True,
                 # Request for uncompressed data
                 headers={'accept-encoding': ''})
-        self.clear()
+        self.meta.clear()
         for tag in ('content-length', 'content-type', 'content-disposition'):
             value = blob.headers.get(tag)
             if value:
-                self[tag] = value
+                self.meta[tag] = value
         return blob.iter_content(toolkit.BUFFER_SIZE)
 
     def _iter_content(self):
@@ -544,8 +511,7 @@ class Router(object):
 
         this.call = self.call
 
-    def call(self, request=None, response=None, environ=None, principal=None,
-            **kwargs):
+    def call(self, request=None, response=None, environ=None, **kwargs):
         if request is None:
             if this.request is not None:
                 if not environ:
@@ -558,9 +524,7 @@ class Router(object):
                                 ):
                         if key in this.request.environ:
                             environ[key] = this.request.environ[key]
-                if not principal:
-                    principal = this.request.principal
-            request = Request(environ=environ, principal=principal, **kwargs)
+            request = Request(environ=environ, **kwargs)
         if response is None:
             response = Response()
 
@@ -583,15 +547,10 @@ class Router(object):
                         'Cannot typecast %r argument: %s' % (arg, error))
         kwargs = {}
         for arg in route_.kwarg_names:
-            if arg == 'request':
-                kwargs[arg] = request
-            elif arg == 'response':
-                kwargs[arg] = response
-            elif arg not in kwargs:
-                kwargs[arg] = request.get(arg)
+            kwargs[arg] = request.get(arg)
 
         for i in self._preroutes:
-            i(route_, request, response)
+            i(route_)
         result = None
         exception = None
         try:
@@ -609,7 +568,7 @@ class Router(object):
             raise
         finally:
             for i in self._postroutes:
-                i(request, response, result, exception)
+                i(result, exception)
 
         return result
 
@@ -638,9 +597,10 @@ class Router(object):
             result = self.call(request, response)
 
             if isinstance(result, File):
-                response.update(result)
-                if 'location' in result:
-                    raise http.Redirect(result['location'])
+                enforce(result is not File.AWAY, http.NotFound, 'No such file')
+                response.update(result.meta)
+                if 'location' in result.meta:
+                    raise http.Redirect(result.meta['location'])
                 enforce(isfile(result.path), 'No such file')
                 if request.if_modified_since and \
                         result.mtime <= request.if_modified_since:
@@ -663,7 +623,7 @@ class Router(object):
             if error.headers:
                 response.update(error.headers)
         except Exception, error:
-            toolkit.exception('Error while processing %r request', request.url)
+            _logger.exception('Error while processing %r request', request.url)
             if isinstance(error, http.Status):
                 response.status = error.status
                 response.update(error.headers or {})
@@ -946,21 +906,13 @@ class _Route(object):
         if hasattr(callback, 'func_code'):
             code = callback.func_code
             # `1:` is for skipping the first, `self` or `cls`, argument
-            self.kwarg_names = code.co_varnames[1:code.co_argcount]
+            self.kwarg_names = set(code.co_varnames[1:code.co_argcount])
 
     def __repr__(self):
         path = '/'.join(['*' if i is None else i for i in self.path])
         if self.cmd:
             path += ('?cmd=%s' % self.cmd)
         return '%s /%s (%s)' % (self.method, path, self.callback.__name__)
-
-
-class _Authorization(str):
-    scheme = None
-    login = None
-    password = None
-    signature = None
-    nonce = None
 
 
 File.AWAY = File(None)

@@ -18,10 +18,12 @@ from __init__ import tests
 from sugar_network import db, node, model, client
 from sugar_network.client import Connection, keyfile, api
 from sugar_network.toolkit import http, coroutine
+from sugar_network.client.auth import SugarCreds
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.node.master import MasterRoutes
 from sugar_network.model.context import Context
 from sugar_network.node.model import User
+from sugar_network.node.auth import Principal
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, route
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http
@@ -31,9 +33,9 @@ class NodeTest(tests.Test):
 
     def test_RegisterUser(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        guid = this.call(method='POST', path=['user'], principal=tests.UID2, content={
+        guid = this.call(method='POST', path=['user'], environ=auth_env(tests.UID2), content={
             'name': 'user',
             'pubkey': tests.PUBKEY,
             })
@@ -59,14 +61,14 @@ class NodeTest(tests.Test):
             pass
 
         volume = self.start_master([Document, User], Routes)
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
-        guid = this.call(method='POST', path=['document'], principal=tests.UID, content={})
+        guid = this.call(method='POST', path=['document'], environ=auth_env(tests.UID), content={})
 
         this.request = Request()
         self.assertRaises(http.Unauthorized, this.call, method='GET', cmd='probe1', path=['document', guid])
         this.request = Request()
-        this.call(method='GET', cmd='probe1', path=['document', guid], principal=tests.UID)
+        this.call(method='GET', cmd='probe1', path=['document', guid], environ=auth_env(tests.UID))
         this.request = Request()
         this.call(method='GET', cmd='probe2', path=['document', guid])
 
@@ -89,24 +91,24 @@ class NodeTest(tests.Test):
             pass
 
         volume = self.start_master([Document, User], Routes)
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
 
-        guid = this.call(method='POST', path=['document'], principal=tests.UID, content={})
+        guid = this.call(method='POST', path=['document'], environ=auth_env(tests.UID), content={})
 
-        self.assertRaises(http.Forbidden, this.call, method='GET', cmd='probe1', path=['document', guid], principal=tests.UID2)
-        this.call(method='GET', cmd='probe1', path=['document', guid], principal=tests.UID)
+        self.assertRaises(http.Forbidden, this.call, method='GET', cmd='probe1', path=['document', guid], environ=auth_env(tests.UID2))
+        this.call(method='GET', cmd='probe1', path=['document', guid], environ=auth_env(tests.UID))
 
-        this.call(method='GET', cmd='probe2', path=['document', guid], principal=tests.UID2)
+        this.call(method='GET', cmd='probe2', path=['document', guid], environ=auth_env(tests.UID2))
         this.call(method='GET', cmd='probe2', path=['document', guid])
 
     def test_ForbiddenCommandsForUserResource(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        this.call(method='POST', path=['user'], principal=tests.UID2, content={
+        this.call(method='POST', path=['user'], environ=auth_env(tests.UID2), content={
             'name': 'user1',
             'pubkey': tests.PUBKEY,
             })
@@ -115,16 +117,16 @@ class NodeTest(tests.Test):
         this.request = Request()
         self.assertRaises(http.Unauthorized, this.call, method='PUT', path=['user', tests.UID], content={'name': 'user2'})
         this.request = Request()
-        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['user', tests.UID], principal=tests.UID2, content={'name': 'user2'})
+        self.assertRaises(http.Unauthorized, this.call, method='PUT', path=['user', tests.UID], environ=auth_env(tests.UID2), content={'name': 'user2'})
         this.request = Request()
-        this.call(method='PUT', path=['user', tests.UID], principal=tests.UID, content={'name': 'user2'})
+        this.call(method='PUT', path=['user', tests.UID], environ=auth_env(tests.UID), content={'name': 'user2'})
         this.request = Request()
         self.assertEqual('user2', this.call(method='GET', path=['user', tests.UID, 'name']))
 
     def test_authorize_Config(self):
-        self.touch(('authorization.conf', [
-            '[%s]' % tests.UID,
-            'root = True',
+        self.touch(('master/etc/authorization.conf', [
+            '[permissions]',
+            '%s = admin' % tests.UID,
             ]))
 
         class Routes(NodeRoutes):
@@ -137,13 +139,13 @@ class NodeTest(tests.Test):
                 return 'ok'
 
         volume = self.start_master([User], Routes)
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'test', 'pubkey': tests.PUBKEY2})
 
-        self.assertRaises(http.Forbidden, this.call, method='PROBE')
-        self.assertRaises(http.Forbidden, this.call, method='PROBE', principal=tests.UID2)
-        self.assertEqual('ok', this.call(method='PROBE', principal=tests.UID))
+        self.assertRaises(http.Unauthorized, this.call, method='PROBE')
+        self.assertRaises(http.Forbidden, this.call, method='PROBE', environ=auth_env(tests.UID2))
+        self.assertEqual('ok', this.call(method='PROBE', environ=auth_env(tests.UID)))
 
     def test_authorize_OnlyAuthros(self):
 
@@ -154,18 +156,18 @@ class NodeTest(tests.Test):
                 return value
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user', 'pubkey': tests.PUBKEY2})
 
-        guid = this.call(method='POST', path=['document'], principal=tests.UID, content={'prop': '1'})
-        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['document', guid], content={'prop': '2'}, principal=tests.UID2)
+        guid = this.call(method='POST', path=['document'], environ=auth_env(tests.UID), content={'prop': '1'})
+        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['document', guid], content={'prop': '2'}, environ=auth_env(tests.UID2))
         self.assertEqual('1', volume['document'].get(guid)['prop'])
 
     def test_authorize_FullWriteForRoot(self):
-        self.touch(('authorization.conf', [
-            '[%s]' % tests.UID2,
-            'root = True',
+        self.touch(('master/etc/authorization.conf', [
+            '[permissions]',
+            '%s = admin' % tests.UID2,
             ]))
 
         class Document(db.Resource):
@@ -175,16 +177,16 @@ class NodeTest(tests.Test):
                 return value
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user', 'pubkey': tests.PUBKEY2})
 
-        guid = this.call(method='POST', path=['document'], principal=tests.UID, content={'prop': '1'})
+        guid = this.call(method='POST', path=['document'], environ=auth_env(tests.UID), content={'prop': '1'})
 
-        this.call(method='PUT', path=['document', guid], content={'prop': '2'}, principal=tests.UID)
+        this.call(method='PUT', path=['document', guid], content={'prop': '2'}, environ=auth_env(tests.UID))
         self.assertEqual('2', volume['document'].get(guid)['prop'])
 
-        this.call(method='PUT', path=['document', guid], content={'prop': '3'}, principal=tests.UID2)
+        this.call(method='PUT', path=['document', guid], content={'prop': '3'}, environ=auth_env(tests.UID2))
         self.assertEqual('3', volume['document'].get(guid)['prop'])
 
     def test_authorize_LiveConfigUpdates(self):
@@ -199,15 +201,16 @@ class NodeTest(tests.Test):
                 pass
 
         volume = self.start_master([User], Routes)
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
 
-        self.assertRaises(http.Forbidden, this.call, method='PROBE', principal=tests.UID)
-        self.touch(('authorization.conf', [
-            '[%s]' % tests.UID,
-            'root = True',
+        self.assertRaises(http.Forbidden, this.call, method='PROBE', environ=auth_env(tests.UID))
+        self.touch(('master/etc/authorization.conf', [
+            '[permissions]',
+            '%s = admin' % tests.UID,
             ]))
-        this.call(method='PROBE', principal=tests.UID)
+        self.node_routes._auth.reload()
+        this.call(method='PROBE', environ=auth_env(tests.UID))
 
     def test_authorize_Anonymous(self):
 
@@ -225,25 +228,41 @@ class NodeTest(tests.Test):
                 pass
 
         volume = self.start_master([User], Routes)
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         self.assertRaises(http.Unauthorized, this.call, method='PROBE1')
-        self.assertRaises(http.Forbidden, this.call, method='PROBE2')
+        self.assertRaises(http.Unauthorized, this.call, method='PROBE2')
 
-        self.touch(('authorization.conf', [
-            '[anonymous]',
-            'user = True',
-            'root = True',
+    def test_authorize_DefaultPermissions(self):
+
+        class Routes(NodeRoutes):
+
+            def __init__(self, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
+
+            @route('PROBE', acl=ACL.SUPERUSER)
+            def probe(self, request):
+                pass
+
+        volume = self.start_master([User], Routes)
+        conn = Connection(creds=SugarCreds(keyfile.value))
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
+
+        self.assertRaises(http.Forbidden, this.call, method='PROBE', environ=auth_env(tests.UID))
+
+        self.touch(('master/etc/authorization.conf', [
+            '[permissions]',
+            'default = admin',
             ]))
-        this.call(method='PROBE1')
-        this.call(method='PROBE2')
+        self.node_routes._auth.reload()
+        this.call(method='PROBE', environ=auth_env(tests.UID))
 
     def test_SetUser(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
 
-        guid = this.call(method='POST', path=['context'], principal=tests.UID, content={
+        guid = this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
@@ -255,22 +274,22 @@ class NodeTest(tests.Test):
 
     def test_find_MaxLimit(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
 
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'type': 'activity',
             'title': 'title1',
             'summary': 'summary',
             'description': 'description',
             })
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'type': 'activity',
             'title': 'title2',
             'summary': 'summary',
             'description': 'description',
             })
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'type': 'activity',
             'title': 'title3',
             'summary': 'summary',
@@ -286,10 +305,10 @@ class NodeTest(tests.Test):
 
     def test_DeletedDocuments(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
 
-        guid = this.call(method='POST', path=['context'], principal=tests.UID, content={
+        guid = this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'type': 'activity',
             'title': 'title1',
             'summary': 'summary',
@@ -310,55 +329,55 @@ class NodeTest(tests.Test):
     def test_CreateGUID(self):
         # TODO Temporal security hole, see TODO
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'guid': 'foo',
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            })
+            }, principal=Admin('admin'))
         self.assertEqual(
                 {'guid': 'foo', 'title': 'title'},
                 this.call(method='GET', path=['context', 'foo'], reply=['guid', 'title']))
 
     def test_CreateMalformedGUID(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
 
-        self.assertRaises(http.BadRequest, this.call, method='POST', path=['context'], principal=tests.UID, content={
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'guid': '!?',
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            })
+            }, principal=Admin('admin'))
 
     def test_FailOnExistedGUID(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
 
-        guid = this.call(method='POST', path=['context'], principal=tests.UID, content={
+        guid = this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
             })
 
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['context'], principal=tests.UID, content={
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'guid': guid,
             'type': 'activity',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            })
+            }, principal=Admin('admin'))
 
     def test_PackagesRoute(self):
         volume = self.start_master()
-        client = Connection(auth=http.SugarAuth(keyfile.value))
+        client = Connection(creds=SugarCreds(keyfile.value))
 
         self.touch(('master/files/packages/repo/arch/package', 'file'))
         volume.blobs.populate()
@@ -370,7 +389,7 @@ class NodeTest(tests.Test):
 
     def test_PackageUpdatesRoute(self):
         volume = self.start_master()
-        ipc = Connection(auth=http.SugarAuth(keyfile.value))
+        ipc = Connection(creds=SugarCreds(keyfile.value))
 
         self.touch('master/files/packages/repo/1', 'master/files/packages/repo/1.1')
         volume.blobs.populate()
@@ -407,7 +426,7 @@ class NodeTest(tests.Test):
 
     def test_release(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         activity_info = '\n'.join([
             '[Activity]',
@@ -429,8 +448,8 @@ class NodeTest(tests.Test):
 
         self.assertEqual({
             release: {
-                'seqno': 9,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 8,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': announce,
@@ -441,7 +460,7 @@ class NodeTest(tests.Test):
                     'stability': 'developer',
                     },
                 },
-            }, conn.get(['context', 'bundle_id', 'releases']))
+            }, volume['context']['bundle_id']['releases'])
 
         post = volume['post'][announce]
         assert tests.UID in post['author']
@@ -457,7 +476,7 @@ class NodeTest(tests.Test):
 
     def test_Solve(self):
         volume = self.start_master()
-        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, SugarCreds(keyfile.value))
 
         activity_unpack = '\n'.join([
             '[Activity]',
@@ -484,13 +503,13 @@ class NodeTest(tests.Test):
         dep_pack = self.zips(('topdir/activity/activity.info', dep_unpack))
         dep_blob = json.load(conn.request('POST', ['context'], dep_pack, params={'cmd': 'submit', 'initial': True}).raw)
 
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'guid': 'package',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            })
+            }, principal=Admin('admin'))
         conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         self.assertEqual({
@@ -520,7 +539,7 @@ class NodeTest(tests.Test):
 
     def test_SolveWithArguments(self):
         volume = self.start_master()
-        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, SugarCreds(keyfile.value))
 
         activity_unpack = '\n'.join([
             '[Activity]',
@@ -560,13 +579,13 @@ class NodeTest(tests.Test):
         dep_pack = self.zips(('topdir/activity/activity.info', dep_unpack))
         dep_blob = json.load(conn.request('POST', ['context'], dep_pack, params={'cmd': 'submit', 'initial': True}).raw)
 
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'guid': 'package',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            })
+            }, principal=Admin('admin'))
         volume['context'].update('package', {'releases': {
             'resolves': {
                 'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['package.bin']},
@@ -601,7 +620,7 @@ class NodeTest(tests.Test):
 
     def test_Resolve(self):
         volume = self.start_master()
-        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, SugarCreds(keyfile.value))
 
         activity_info = '\n'.join([
             '[Activity]',
@@ -626,13 +645,13 @@ class NodeTest(tests.Test):
                 'license = Public Domain',
                 ]))),
             params={'cmd': 'submit', 'initial': True}).raw)
-        this.call(method='POST', path=['context'], principal=tests.UID, content={
+        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
             'guid': 'package',
             'type': 'package',
             'title': 'title',
             'summary': 'summary',
             'description': 'description',
-            })
+            }, principal=Admin('admin'))
         conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         response = Response()
@@ -652,27 +671,27 @@ class NodeTest(tests.Test):
                 return value
 
         volume = self.start_master([Document, User])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user1', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
 
-        guid = this.call(method='POST', path=['document'], principal=tests.UID, content={})
+        guid = this.call(method='POST', path=['document'], environ=auth_env(tests.UID), content={})
         self.override(time, 'time', lambda: 0)
 
-        agg1 = this.call(method='POST', path=['document', guid, 'prop1'], principal=tests.UID)
-        agg2 = this.call(method='POST', path=['document', guid, 'prop1'], principal=tests.UID2)
+        agg1 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID))
+        agg2 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID2))
         self.assertEqual({
             agg1: {'seqno': 4, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}, 'value': None},
             agg2: {'seqno': 5, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 1}}, 'value': None},
             },
-            this.call(method='GET', path=['document', guid, 'prop1']))
+            volume['document'][guid]['prop1'])
 
-        agg3 = this.call(method='POST', path=['document', guid, 'prop2'], principal=tests.UID)
-        self.assertRaises(http. Forbidden, this.call, method='POST', path=['document', guid, 'prop2'], principal=tests.UID2)
+        agg3 = this.call(method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID))
+        self.assertRaises(http. Forbidden, this.call, method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID2))
         self.assertEqual({
             agg3: {'seqno': 6, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}, 'value': None},
             },
-            this.call(method='GET', path=['document', guid, 'prop2']))
+            volume['document'][guid]['prop2'])
 
     def test_AggpropRemoveAccess(self):
 
@@ -687,57 +706,72 @@ class NodeTest(tests.Test):
                 return value
 
         volume = self.start_master([Document, User])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         volume['user'].create({'guid': tests.UID, 'name': 'user1', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
 
-        guid = this.call(method='POST', path=['document'], principal=tests.UID, content={})
+        guid = this.call(method='POST', path=['document'], environ=auth_env(tests.UID), content={})
         self.override(time, 'time', lambda: 0)
 
-        agg1 = this.call(method='POST', path=['document', guid, 'prop1'], principal=tests.UID, content=True)
-        agg2 = this.call(method='POST', path=['document', guid, 'prop1'], principal=tests.UID2, content=True)
+        agg1 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID), content=True)
+        agg2 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID2), content=True)
         self.assertEqual({
             agg1: {'seqno': 4, 'value': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 1}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop1']))
-        self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg1], principal=tests.UID2)
-        self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg2], principal=tests.UID)
+            volume['document'][guid]['prop1'])
+        self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg1], environ=auth_env(tests.UID2))
+        self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg2], environ=auth_env(tests.UID))
         self.assertEqual({
             agg1: {'seqno': 4, 'value': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 1}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop1']))
+            volume['document'][guid]['prop1'])
 
-        this.call(method='DELETE', path=['document', guid, 'prop1', agg1], principal=tests.UID)
+        this.call(method='DELETE', path=['document', guid, 'prop1', agg1], environ=auth_env(tests.UID))
         self.assertEqual({
             agg1: {'seqno': 6, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 1}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop1']))
-        this.call(method='DELETE', path=['document', guid, 'prop1', agg2], principal=tests.UID2)
+            volume['document'][guid]['prop1'])
+        this.call(method='DELETE', path=['document', guid, 'prop1', agg2], environ=auth_env(tests.UID2))
         self.assertEqual({
             agg1: {'seqno': 6, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             agg2: {'seqno': 7, 'author': {tests.UID2: {'name': 'user2', 'order': 0, 'role': 1}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop1']))
+            volume['document'][guid]['prop1'])
 
-        agg3 = this.call(method='POST', path=['document', guid, 'prop2'], principal=tests.UID, content=True)
+        agg3 = this.call(method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID), content=True)
         self.assertEqual({
             agg3: {'seqno': 8, 'value': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop2']))
+            volume['document'][guid]['prop2'])
 
-        self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop2', agg3], principal=tests.UID2)
+        self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop2', agg3], environ=auth_env(tests.UID2))
         self.assertEqual({
             agg3: {'seqno': 8, 'value': True, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop2']))
-        this.call(method='DELETE', path=['document', guid, 'prop2', agg3], principal=tests.UID)
+            volume['document'][guid]['prop2'])
+        this.call(method='DELETE', path=['document', guid, 'prop2', agg3], environ=auth_env(tests.UID))
         self.assertEqual({
             agg3: {'seqno': 9, 'author': {tests.UID: {'name': 'user1', 'order': 0, 'role': 3}}},
             },
-            this.call(method='GET', path=['document', guid, 'prop2']))
+            volume['document'][guid]['prop2'])
+
+
+def auth_env(uid):
+    key = RSA.load_key(join(tests.root, 'data', uid))
+    nonce = int(time.time() + 2)
+    data = hashlib.sha1('%s:%s' % (uid, nonce)).digest()
+    signature = key.sign(data).encode('hex')
+    authorization = 'Sugar username="%s",nonce="%s",signature="%s"' % \
+            (uid, nonce, signature)
+    return {'HTTP_AUTHORIZATION': authorization}
+
+
+class Admin(Principal):
+
+    admin = True
 
 
 if __name__ == '__main__':

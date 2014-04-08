@@ -430,8 +430,8 @@ class RouterTest(tests.Test):
         class Routes(object):
 
             @fallbackroute('PROBE', ['static'])
-            def fallback(self, request):
-                return '/'.join(request.path)
+            def fallback(self):
+                return '/'.join(this.request.path)
 
         router = Router(Routes())
         status = []
@@ -504,30 +504,30 @@ class RouterTest(tests.Test):
         class A(object):
 
             @route('PROBE')
-            def ok(self, request, response):
-                return request['probe']
+            def ok(self):
+                return this.request['probe']
 
             @preroute
-            def _(self, op, request, response):
-                request['probe'] = '_'
+            def _(self, op):
+                this.request['probe'] = '_'
 
         class B1(A):
 
             @preroute
-            def z(self, op, request, response):
-                request['probe'] += 'z'
+            def z(self, op):
+                this.request['probe'] += 'z'
 
         class B2(object):
 
             @preroute
-            def f(self, op, request, response):
-                request['probe'] += 'f'
+            def f(self, op):
+                this.request['probe'] += 'f'
 
         class C(B1, B2):
 
             @preroute
-            def a(self, op, request, response):
-                request['probe'] += 'a'
+            def a(self, op):
+                this.request['probe'] += 'a'
 
         router = Router(C())
 
@@ -545,30 +545,29 @@ class RouterTest(tests.Test):
                 return 'ok'
 
             @route('FAIL')
-            def fail(self, request, response):
+            def fail(self):
                 raise Exception('fail')
 
             @postroute
-            def _(self, request, response, result, exception):
-                print exception
+            def _(self, result, exception):
                 postroutes.append(('_', result, str(exception)))
 
         class B1(A):
 
             @postroute
-            def z(self, request, response, result, exception):
+            def z(self, result, exception):
                 postroutes.append(('z', result, str(exception)))
 
         class B2(object):
 
             @postroute
-            def f(self, request, response, result, exception):
+            def f(self, result, exception):
                 postroutes.append(('f', result, str(exception)))
 
         class C(B1, B2):
 
             @postroute
-            def a(self, request, response, result, exception):
+            def a(self, result, exception):
                 postroutes.append(('a', result, str(exception)))
 
         router = Router(C())
@@ -883,7 +882,7 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('GET')
-            def get_stream(self, response):
+            def get_stream(self):
                 return StringIO('stream')
 
         router = Router(CommandsProcessor())
@@ -900,15 +899,15 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('GET', [], '1', mime_type='application/octet-stream')
-            def get_binary(self, response):
+            def get_binary(self):
                 pass
 
             @route('GET', [], '2', mime_type='application/json')
-            def get_json(self, response):
+            def get_json(self):
                 pass
 
             @route('GET', [], '3')
-            def no_get(self, response):
+            def no_get(self):
                 pass
 
         router = Router(CommandsProcessor())
@@ -946,7 +945,7 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('GET')
-            def get(self, response):
+            def get(self):
                 raise Status('Status-Error')
 
         router = Router(CommandsProcessor())
@@ -973,7 +972,7 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('HEAD')
-            def get(self, response):
+            def get(self):
                 raise Status('Status-Error')
 
         router = Router(CommandsProcessor())
@@ -1001,7 +1000,7 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('GET')
-            def get(self, response):
+            def get(self):
                 raise StatusPass('Status-Error')
 
         router = Router(CommandsProcessor())
@@ -1026,7 +1025,7 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('GET')
-            def get(self, response):
+            def get(self):
                 return File(None, meta=[('location', URL)])
 
         router = Router(CommandsProcessor())
@@ -1045,13 +1044,36 @@ class RouterTest(tests.Test):
             ],
             response)
 
+    def test_MissedFiles(self):
+
+        class CommandsProcessor(object):
+
+            @route('GET')
+            def get(self):
+                return File.AWAY
+
+        router = Router(CommandsProcessor())
+
+        response = []
+        reply = router({
+            'PATH_INFO': '/',
+            'REQUEST_METHOD': 'GET',
+            },
+            lambda status, headers: response.extend([status, dict(headers)]))
+        self.assertEqual({
+            'request': '/',
+            'error': 'No such file',
+            },
+            json.loads(''.join([i for i in reply])))
+        self.assertEqual('404 Not Found', response[0])
+
     def test_LastModified(self):
 
         class CommandsProcessor(object):
 
             @route('GET')
-            def get(self, request, response):
-                response.last_modified = 10
+            def get(self):
+                this.response.last_modified = 10
                 return 'ok'
 
         router = Router(CommandsProcessor())
@@ -1075,8 +1097,8 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('GET')
-            def get(self, request):
-                if not request.if_modified_since or request.if_modified_since >= 10:
+            def get(self):
+                if not this.request.if_modified_since or this.request.if_modified_since >= 10:
                     return 'ok'
                 else:
                     raise http.NotModified()
@@ -1256,8 +1278,8 @@ class RouterTest(tests.Test):
         class CommandsProcessor(object):
 
             @route('HEAD', [])
-            def head(self, request, response):
-                response.content_length = 100
+            def head(self):
+                this.response.content_length = 100
 
         router = Router(CommandsProcessor())
 
@@ -1368,9 +1390,9 @@ class RouterTest(tests.Test):
         class Routes(object):
 
             @route('GET', mime_type='text/event-stream')
-            def get(self, request):
+            def get(self):
                 yield {'event': 'probe'}
-                yield {'event': 'probe', 'request': request.content}
+                yield {'event': 'probe', 'request': this.request.content}
 
         events = []
         def localcast(event):
@@ -1400,9 +1422,9 @@ class RouterTest(tests.Test):
         class Routes(object):
 
             @route('HEAD')
-            def probe(self, request, response):
-                response['фоо'] = 'бар'
-                response[u'йцу'] = u'кен'
+            def probe(self):
+                this.response['фоо'] = 'бар'
+                this.response[u'йцу'] = u'кен'
 
         server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
         coroutine.spawn(server.serve_forever)
@@ -1447,7 +1469,7 @@ class RouterTest(tests.Test):
             'content-type': 'foo/bar',
             'content-disposition': 'attachment; filename="foo"',
             },
-            dict(blob))
+            blob.meta)
 
     def test_SetCookie(self):
 

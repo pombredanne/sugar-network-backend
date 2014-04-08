@@ -30,7 +30,8 @@ import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
 from sugar_network.client.routes import CachedClientRoutes
 from sugar_network.client.injector import Injector
-from sugar_network.client.model import RESOURCES
+from sugar_network.client.model import Volume
+from sugar_network.client.auth import BasicCreds, SugarCreds
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import mountpoints, printf, application
@@ -68,7 +69,7 @@ class Application(application.Daemon):
 
         printf.info('Index database in %r', client.local_root.value)
 
-        volume = db.Volume(client.path('db'), RESOURCES)
+        volume = Volume(client.path())
         try:
             volume.populate()
         finally:
@@ -104,8 +105,14 @@ class Application(application.Daemon):
         this.injector = Injector(client.path('cache'),
                 client.cache_lifetime.value, client.cache_limit.value,
                 client.cache_limit_percent.value)
-        volume = db.Volume(client.path('db'), RESOURCES)
-        routes = CachedClientRoutes(volume)
+        volume = Volume(client.path())
+        if client.login.value and client.password.value:
+            creds = BasicCreds(client.login.value, client.password.value)
+        elif client.keyfile.value:
+            creds = SugarCreds(client.keyfile.value)
+        else:
+            raise RuntimeError('No credentials specified')
+        routes = CachedClientRoutes(volume, creds)
         router = Router(routes, allow_spawn=True)
 
         logging.info('Listening for IPC requests on %s port',

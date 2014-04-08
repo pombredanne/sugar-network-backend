@@ -41,9 +41,17 @@ _logger = logging.getLogger('node.slave')
 class SlaveRoutes(NodeRoutes):
 
     def __init__(self, volume, **kwargs):
-        self._creds = http.SugarAuth(
-                join(volume.root, 'etc', 'private', 'node'))
-        NodeRoutes.__init__(self, self._creds.login, volume=volume, **kwargs)
+        guid_path = join(volume.root, 'etc', 'node')
+        if exists(guid_path):
+            with file(guid_path) as f:
+                guid = f.read().strip()
+        else:
+            guid = toolkit.uuid()
+            if not exists(dirname(guid_path)):
+                os.makedirs(dirname(guid_path))
+            with file(guid_path, 'w') as f:
+                f.write(guid)
+        NodeRoutes.__init__(self, guid, volume=volume, **kwargs)
         vardir = join(volume.root, 'var')
         self._push_r = toolkit.Bin(join(vardir, 'push.ranges'), [[1, None]])
         self._pull_r = toolkit.Bin(join(vardir, 'pull.ranges'), [[1, None]])

@@ -22,7 +22,7 @@ from sugar_network.db import storage, index
 from sugar_network.db import directory as directory_
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
-from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, ranges
 
@@ -78,7 +78,7 @@ class VolumeTest(tests.Test):
             {'content-type': 'application/octet-stream', 'content-length': '2', 'path': 'foo/2'},
             {'commit': [[1, 5]]},
             ],
-            [dict(i) for i in volume.diff(r, files=['foo'])])
+            [i.meta if isinstance(i, File) else i for i in volume.diff(r, files=['foo'])])
         self.assertEqual([[6, None]], r)
 
         r = [[2, 2]]
@@ -126,7 +126,7 @@ class VolumeTest(tests.Test):
             {'content-type': 'application/octet-stream', 'content-length': '3', 'path': 'bar/3'},
             {'commit': [[7, 9]]},
             ],
-            [dict(i) for i in volume.diff(r, files=['foo', 'bar'])])
+            [i.meta if isinstance(i, File) else i for i in volume.diff(r, files=['foo', 'bar'])])
         self.assertEqual([[10, None]], r)
 
     def test_diff_SyncUsecase(self):
@@ -366,7 +366,7 @@ class VolumeTest(tests.Test):
                 'prop4': {'value': hashlib.sha1('4444').hexdigest(), 'mtime': 1},
                 }},
             ],
-            [dict(i) for i in volume.clone('document', 'guid')])
+            [i.meta if isinstance(i, File) else i for i in volume.clone('document', 'guid')])
 
     def test_patch_New(self):
 
@@ -425,7 +425,7 @@ class VolumeTest(tests.Test):
             'content-length': '1',
             'content-type': 'application/octet-stream',
             },
-            blob)
+            blob.meta)
         self.assertEqual('1', file(blob.path).read())
 
         blob = volume2.blobs.get('foo/2')
@@ -434,7 +434,7 @@ class VolumeTest(tests.Test):
             'content-length': '2',
             'content-type': 'application/octet-stream',
             },
-            blob)
+            blob.meta)
         self.assertEqual('22', file(blob.path).read())
 
         assert volume2.blobs.get('bar/3') is None
@@ -513,7 +513,7 @@ class VolumeTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated)
+            @db.stored_property(db.Aggregated, db.Property())
             def prop(self, value):
                 return value
 
@@ -662,7 +662,7 @@ class VolumeTest(tests.Test):
 
         class Document(db.Resource):
 
-            @db.stored_property(db.Aggregated)
+            @db.stored_property(db.Aggregated, db.Property())
             def prop(self, value):
                 return value
 
@@ -798,7 +798,7 @@ class VolumeTest(tests.Test):
             def prop(self, value):
                 return value
 
-        self.touch(('var/db.seqno', '100'))
+        self.touch(('var/seqno', '100'))
         volume = db.Volume('.', [Document])
 
         def generator():
@@ -818,6 +818,160 @@ class VolumeTest(tests.Test):
         patch = generator()
         self.assertEqual((101, [[1, 3]]), volume.patch(patch))
         assert volume['document']['1'].exists
+
+    def test_EditLocalProps(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property(acl=ACL.PUBLIC | ACL.LOCAL)
+            def prop2(self, value):
+                return value
+
+            @db.stored_property()
+            def prop3(self, value):
+                return value
+
+        directory = db.Volume('.', [Document])['document']
+
+        directory.create({'guid': '1', 'prop1': '1', 'prop2': '1', 'prop3': '1', 'ctime': 1, 'mtime': 1})
+        self.utime('db/document', 0)
+
+        self.assertEqual(
+                {'seqno': 1, 'value': 1, 'mtime': 0},
+                directory['1'].meta('seqno'))
+        self.assertEqual(
+                {'seqno': 1, 'value': '1', 'mtime': 0},
+                directory['1'].meta('prop1'))
+        self.assertEqual(
+                {'value': '1', 'mtime': 0},
+                directory['1'].meta('prop2'))
+        self.assertEqual(
+                {'seqno': 1, 'value': '1', 'mtime': 0},
+                directory['1'].meta('prop3'))
+
+        directory.update('1', {'prop1': '2'})
+        self.utime('db/document', 0)
+
+        self.assertEqual(
+                {'seqno': 2, 'value': 2, 'mtime': 0},
+                directory['1'].meta('seqno'))
+        self.assertEqual(
+                {'seqno': 2, 'value': '2', 'mtime': 0},
+                directory['1'].meta('prop1'))
+        self.assertEqual(
+                {'value': '1', 'mtime': 0},
+                directory['1'].meta('prop2'))
+        self.assertEqual(
+                {'seqno': 1, 'value': '1', 'mtime': 0},
+                directory['1'].meta('prop3'))
+
+        directory.update('1', {'prop2': '3'})
+        self.utime('db/document', 0)
+
+        self.assertEqual(
+                {'seqno': 2, 'value': 2, 'mtime': 0},
+                directory['1'].meta('seqno'))
+        self.assertEqual(
+                {'seqno': 2, 'value': '2', 'mtime': 0},
+                directory['1'].meta('prop1'))
+        self.assertEqual(
+                {'value': '3', 'mtime': 0},
+                directory['1'].meta('prop2'))
+        self.assertEqual(
+                {'seqno': 1, 'value': '1', 'mtime': 0},
+                directory['1'].meta('prop3'))
+
+        directory.update('1', {'prop1': '4', 'prop2': '4', 'prop3': '4'})
+        self.utime('db/document', 0)
+
+        self.assertEqual(
+                {'seqno': 3, 'value': 3, 'mtime': 0},
+                directory['1'].meta('seqno'))
+        self.assertEqual(
+                {'seqno': 3, 'value': '4', 'mtime': 0},
+                directory['1'].meta('prop1'))
+        self.assertEqual(
+                {'value': '4', 'mtime': 0},
+                directory['1'].meta('prop2'))
+        self.assertEqual(
+                {'seqno': 3, 'value': '4', 'mtime': 0},
+                directory['1'].meta('prop3'))
+
+    def test_DiffLocalProps(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property(acl=ACL.PUBLIC | ACL.LOCAL)
+            def prop2(self, value):
+                return value
+
+            @db.stored_property()
+            def prop3(self, value):
+                return value
+
+        volume = db.Volume('.', [Document])
+
+        volume['document'].create({'guid': '1', 'prop1': '1', 'prop2': '1', 'prop3': '1', 'ctime': 1, 'mtime': 1})
+        self.utime('db/document/1/1', 0)
+
+        r = [[1, None]]
+        self.assertEqual([
+            {'resource': 'document'},
+            {'guid': '1', 'patch': {
+                'guid': {'value': '1', 'mtime': 0},
+                'ctime': {'value': 1, 'mtime': 0},
+                'prop1': {'value': '1', 'mtime': 0},
+                'prop3': {'value': '1', 'mtime': 0},
+                'mtime': {'value': 1, 'mtime': 0},
+                }},
+            {'commit': [[1, 1]]},
+            ],
+            [dict(i) for i in volume.diff(r, files=['foo'])])
+        self.assertEqual([[2, None]], r)
+
+        volume['document'].update('1', {'prop1': '2'})
+        self.utime('db/document', 0)
+
+        self.assertEqual([
+            {'resource': 'document'},
+            {'guid': '1', 'patch': {
+                'prop1': {'value': '2', 'mtime': 0},
+                }},
+            {'commit': [[2, 2]]},
+            ],
+            [dict(i) for i in volume.diff(r, files=['foo'])])
+        self.assertEqual([[3, None]], r)
+
+        volume['document'].update('1', {'prop2': '3'})
+        self.utime('db/document', 0)
+
+        self.assertEqual([
+            {'resource': 'document'},
+            ],
+            [dict(i) for i in volume.diff(r, files=['foo'])])
+        self.assertEqual([[3, None]], r)
+
+        volume['document'].update('1', {'prop1': '4', 'prop2': '4', 'prop3': '4'})
+        self.utime('db/document', 0)
+
+        self.assertEqual([
+            {'resource': 'document'},
+            {'guid': '1', 'patch': {
+                'prop1': {'value': '4', 'mtime': 0},
+                'prop3': {'value': '4', 'mtime': 0},
+                }},
+            {'commit': [[3, 3]]},
+            ],
+            [dict(i) for i in volume.diff(r, files=['foo'])])
+        self.assertEqual([[4, None]], r)
 
 
 class _SessionSeqno(object):

@@ -31,6 +31,6 @@ class User(db.Resource):
     def birthday(self, value):
         return value
 
-    @db.stored_property(db.Blob, acl=ACL.CREATE, mime_type='text/plain')
+    @db.stored_property(acl=ACL.READ | ACL.CREATE)
     def pubkey(self, value):
         return value

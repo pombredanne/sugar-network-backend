@@ -28,7 +28,7 @@ from sugar_network.toolkit.spec import EMPTY_LICENSE
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit import i18n, http, svg_to_png, exception, enforce
+from sugar_network.toolkit import i18n, http, svg_to_png, enforce
 
 
 CONTEXT_TYPES = [
@@ -86,6 +86,9 @@ class Release(object):
                     this.volume.blobs.post(release, this.request.content_type),
                     context=this.request.guid)
         return release['bundles']['*-*']['blob'], release
+
+    def reprcast(self, release):
+        return this.volume.blobs.get(release['bundles']['*-*']['blob'])
 
     def teardown(self, release):
         if this.resource.exists and \
@@ -180,19 +183,21 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
                     'unpack_size': unpack_size,
                     },
                 }
-        blob['content-type'] = 'application/vnd.olpc-sugar'
+        blob.meta['content-type'] = 'application/vnd.olpc-sugar'
 
     enforce(context, http.BadRequest, 'Context is not specified')
     enforce(version, http.BadRequest, 'Version is not specified')
     release['version'] = parse_version(version)
 
     doc = this.volume['context'][context]
-    if initial:
-        if not doc.exists:
-            enforce(context_meta, http.BadRequest, 'No way to initate context')
-            context_meta['guid'] = context
-            context_meta['type'] = [context_type]
-            this.call(method='POST', path=['context'], content=context_meta)
+    if initial and not doc.exists:
+        enforce(context_meta, http.BadRequest, 'No way to initate context')
+        context_meta['guid'] = context
+        context_meta['type'] = [context_type]
+        with this.principal as principal:
+            principal.admin = True
+            this.call(method='POST', path=['context'], content=context_meta,
+                    principal=principal)
     else:
         enforce(doc.exists, http.NotFound, 'No context')
         enforce(context_type in doc['type'],
@@ -207,10 +212,11 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
 
     _logger.debug('Load %r release: %r', context, release)
 
-    if this.request.principal in doc['author']:
+    if this.principal in doc['author']:
         patch = doc.format_patch(context_meta)
         if patch:
-            this.call(method='PUT', path=['context', context], content=patch)
+            this.call(method='PUT', path=['context', context], content=patch,
+                    principal=this.principal)
             doc.posts.update(patch)
         # TRANS: Release notes title
         title = i18n._('%(name)s %(version)s release')
@@ -227,13 +233,13 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
                     ),
                 'message': release_notes or '',
                 },
-            content_type='application/json')
+            content_type='application/json', principal=this.principal)
 
-    blob['content-disposition'] = 'attachment; filename="%s-%s%s"' % (
-            ''.join(i18n.decode(doc['title']).split()),
-            version, mimetypes.guess_extension(blob.get('content-type')) or '',
+    blob.meta['content-disposition'] = 'attachment; filename="%s-%s%s"' % (
+            ''.join(i18n.decode(doc['title']).split()), version,
+            mimetypes.guess_extension(blob.meta.get('content-type')) or '',
             )
-    this.volume.blobs.update(blob.digest, blob)
+    this.volume.blobs.update(blob.digest, blob.meta)
 
     return context, release
 
@@ -261,7 +267,7 @@ def _load_context_metadata(bundle, spec):
 
         icon_file.close()
     except Exception:
-        exception(_logger, 'Failed to load icon')
+        _logger.exception('Failed to load icon')
 
     msgids = {}
     for prop, confname in [
@@ -289,6 +295,6 @@ def _load_context_metadata(bundle, spec):
                     if lang == 'en' or msgstr != value:
                         result[prop][lang] = msgstr
             except Exception:
-                exception(_logger, 'Gettext failed to read %r', mo_path[-1])
+                _logger.exception('Gettext failed to read %r', mo_path[-1])
 
     return result

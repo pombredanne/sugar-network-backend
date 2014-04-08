@@ -15,17 +15,16 @@
 
 import os
 import logging
-from base64 import b64encode
 from httplib import IncompleteRead
 from os.path import join
 
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.client import journal
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit.router import ACL, Request, Response, Router
+from sugar_network.toolkit.router import Request, Router, File
 from sugar_network.toolkit.router import route, fallbackroute
 from sugar_network.toolkit import netlink, zeroconf, coroutine, http, parcel
-from sugar_network.toolkit import lsb_release, exception, enforce
+from sugar_network.toolkit import ranges, lsb_release, enforce
 
 
 # Flag file to recognize a directory as a synchronization directory
@@ -37,20 +36,24 @@ _logger = logging.getLogger('client.routes')
 
 class ClientRoutes(model.FrontRoutes, journal.Routes):
 
-    def __init__(self, home_volume, no_subscription=False):
+    def __init__(self, home_volume, creds, no_subscription=False):
         model.FrontRoutes.__init__(self)
         journal.Routes.__init__(self)
 
         this.localcast = this.broadcast
 
         self._local = _LocalRoutes(home_volume)
+        self._creds = creds
         self._inline = coroutine.Event()
         self._inline_job = coroutine.Pool()
         self._remote_urls = []
         self._node = None
         self._connect_jobs = coroutine.Pool()
         self._no_subscription = no_subscription
-        self._auth = _Auth()
+        self._push_r = toolkit.Bin(
+                join(home_volume.root, 'var', 'push'),
+                [[1, None]])
+        self._push_job = coroutine.Pool()
 
     def connect(self, api=None):
         if self._connect_jobs:
@@ -68,36 +71,36 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         self._local.volume.close()
 
     @fallbackroute('GET', ['hub'])
-    def hub(self, request, response):
+    def hub(self):
         """Serve Hub via HTTP instead of file:// for IPC users.
 
         Since SSE doesn't support CORS for now.
 
         """
-        if request.environ['PATH_INFO'] == '/hub':
+        if this.request.environ['PATH_INFO'] == '/hub':
             raise http.Redirect('/hub/')
 
-        path = request.path[1:]
+        path = this.request.path[1:]
         if not path:
             path = ['index.html']
         path = join(client.hub_root.value, *path)
 
         mtime = int(os.stat(path).st_mtime)
-        if request.if_modified_since >= mtime:
+        if this.request.if_modified_since >= mtime:
             raise http.NotModified()
 
         if path.endswith('.js'):
-            response.content_type = 'text/javascript'
+            this.response.content_type = 'text/javascript'
         if path.endswith('.css'):
-            response.content_type = 'text/css'
-        response.last_modified = mtime
+            this.response.content_type = 'text/css'
+        this.response.last_modified = mtime
 
         return file(path, 'rb')
 
     @fallbackroute('GET', ['packages'])
-    def route_packages(self, request, response):
+    def route_packages(self):
         if self._inline.is_set():
-            return self.fallback(request, response)
+            return self.fallback()
         else:
             # Let caller know that we are in offline and
             # no way to process specified request on the node
@@ -109,30 +112,31 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         return self._inline.is_set()
 
     @route('GET', cmd='whoami', mime_type='application/json')
-    def whoami(self, request, response):
+    def whoami(self):
         if self._inline.is_set():
-            result = self.fallback(request, response)
+            result = self.fallback()
             result['route'] = 'proxy'
         else:
             result = {'roles': [], 'route': 'offline'}
-        result['guid'] = self._auth.login
+        result['guid'] = self._creds.login
         return result
 
     @route('GET', [None],
             arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
             mime_type='application/json')
-    def find(self, request, response):
+    def find(self):
+        request = this.request
         if not self._inline.is_set() or 'pins' in request:
-            return self._local.call(request, response)
+            return self._local.call(request, this.response)
 
         reply = request.setdefault('reply', ['guid'])
         if 'pins' not in reply:
-            return self.fallback(request, response)
+            return self.fallback()
 
         if 'guid' not in reply:
             # Otherwise there is no way to mixin `pins`
             reply.append('guid')
-        result = self.fallback(request, response)
+        result = self.fallback()
 
         directory = self._local.volume[request.resource]
         for item in result['result']:
@@ -143,18 +147,20 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         return result
 
     @route('GET', [None, None], mime_type='application/json')
-    def get(self, request, response):
+    def get(self):
+        request = this.request
         if self._local.volume[request.resource][request.guid].exists:
-            return self._local.call(request, response)
+            return self._local.call(request, this.response)
         else:
-            return self.fallback(request, response)
+            return self.fallback()
 
     @route('GET', [None, None, None], mime_type='application/json')
-    def get_prop(self, request, response):
+    def get_prop(self):
+        request = this.request
         if self._local.volume[request.resource][request.guid].exists:
-            return self._local.call(request, response)
+            return self._local.call(request, this.response)
         else:
-            return self.fallback(request, response)
+            return self.fallback()
 
     @route('POST', ['report'], cmd='submit', mime_type='text/event-stream')
     def submit_report(self):
@@ -186,16 +192,16 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
             yield event
 
     @route('DELETE', ['context', None], cmd='checkin')
-    def delete_checkin(self, request):
+    def delete_checkin(self):
         this.injector.checkout(this.request.guid)
         self._checkout_context()
 
     @route('PUT', ['context', None], cmd='favorite')
-    def put_favorite(self, request):
+    def put_favorite(self):
         self._checkin_context('favorite')
 
     @route('DELETE', ['context', None], cmd='favorite')
-    def delete_favorite(self, request):
+    def delete_favorite(self):
         self._checkout_context('favorite')
 
     @route('GET', cmd='recycle')
@@ -205,14 +211,13 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
     @fallbackroute()
     def fallback(self, request=None, response=None, **kwargs):
         if request is None:
-            request = Request(**kwargs)
+            request = Request(**kwargs) if kwargs else this.request
         if response is None:
-            response = Response()
+            response = this.response
 
         if not self._inline.is_set():
             return self._local.call(request, response)
 
-        request.principal = self._auth.login
         try:
             reply = self._node.call(request, response)
             if hasattr(reply, 'read'):
@@ -235,6 +240,7 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         self._local.volume.mute = True
         this.injector.api = url
         this.localcast({'event': 'inline', 'state': 'online'})
+        self._push_job.spawn(self._push)
 
     def _got_offline(self):
         if self._node is not None:
@@ -245,6 +251,7 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
             self._local.volume.mute = False
             this.injector.api = None
             this.localcast({'event': 'inline', 'state': 'offline'})
+        self._push_job.kill()
 
     def _restart_online(self):
         _logger.debug('Lost %r connection, try to reconnect in %s seconds',
@@ -275,9 +282,8 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
 
         def handshake(url):
             _logger.debug('Connecting to %r node', url)
-            self._node = client.Connection(url, auth=self._auth)
+            self._node = client.Connection(url, creds=self._creds)
             status = self._node.get(cmd='status')
-            self._auth.allow_basic_auth = (status.get('level') == 'master')
             seqno = status.get('seqno')
             if seqno and 'releases' in seqno:
                 this.injector.seqno = seqno['releases']
@@ -302,7 +308,7 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
                             _logger.debug('Retry %r on gateway error', url)
                             continue
                         except Exception:
-                            exception(_logger, 'Connection to %r failed', url)
+                            _logger.exception('Connection to %r failed', url)
                         break
                 self._got_offline()
                 if not timeout:
@@ -323,7 +329,9 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
             _logger.debug('Checkin %r context', context.guid)
             clone = self.fallback(
                     method='GET', path=['context', context.guid], cmd='clone')
-            this.volume.patch(next(parcel.decode(clone)))
+            seqno, __ = this.volume.patch(next(parcel.decode(clone)))
+            if seqno:
+                ranges.exclude(self._push_r.value, seqno, seqno)
         pins = context['pins']
         if pin and pin not in pins:
             this.volume['context'].update(context.guid, {'pins': pins + [pin]})
@@ -342,90 +350,52 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         else:
             directory.delete(context.guid)
 
-
-class CachedClientRoutes(ClientRoutes):
-
-    def __init__(self, home_volume, api_url=None, no_subscription=False):
-        self._push_seq = toolkit.PersistentSequence(
-                join(home_volume.root, 'push.sequence'), [1, None])
-        self._push_job = coroutine.Pool()
-        ClientRoutes.__init__(self, home_volume, api_url, no_subscription)
-
-    def _got_online(self, url):
-        ClientRoutes._got_online(self, url)
-        self._push_job.spawn(self._push)
-
-    def _got_offline(self):
-        self._push_job.kill()
-        ClientRoutes._got_offline(self)
-
     def _push(self):
-        # TODO should work using regular diff
         return
+        resource = None
+        metadata = None
 
-
-
-        pushed_seq = toolkit.Sequence()
-        skiped_seq = toolkit.Sequence()
-        volume = self._local.volume
-
-        def push(request, seq):
-            try:
-                self.fallback(request)
-            except Exception:
-                _logger.exception('Cannot push %r, will postpone', request)
-                skiped_seq.include(seq)
+        for diff in self._local.volume.diff(self._push_r.value, blobs=False):
+            if 'resource' in diff:
+                resource = diff['resource']
+                metadata = self._local.volume[resource]
+            elif 'commit' in diff:
+                ranges.exclude(self._push_r.value, diff['commit'])
+                self._push_r.commit()
+                # No reasons to keep failure reports after pushing
+                self._local.volume['report'].wipe()
             else:
-                pushed_seq.include(seq)
+                props = {}
+                blobs = []
+                for prop, meta in diff['patch'].items():
+                    if isinstance(metadata[prop], db.Blob):
+                        blobs.application
 
-        for res in volume.resources:
-            if volume.mtime(res) <= self._push_seq.mtime:
-                continue
 
-            _logger.debug('Check %r local cache to push', res)
 
-            for guid, patch in volume[res].diff(self._push_seq):
-                diff = {}
-                diff_seq = toolkit.Sequence()
-                post_requests = []
-                for prop, meta, seqno in patch:
-                    value = meta['value']
-                    diff[prop] = value
-                    diff_seq.include(seqno, seqno)
-                if not diff:
-                    continue
-                if 'guid' in diff:
-                    request = Request(method='POST', path=[res])
-                    access = ACL.CREATE | ACL.WRITE
+                    props[prop] = meta['value']
+
+
+
+            if isinstance(diff, File):
+                with file(diff.path, 'rb') as f:
+                    self.fallback(method='POST')
+
+
+
+
+
+
+                pass
+
+
+                if 'guid' in props:
+                    request = Request(method='POST', path=[resource])
                 else:
-                    request = Request(method='PUT', path=[res, guid])
-                    access = ACL.WRITE
-                for name in diff.keys():
-                    if not (volume[res].metadata[name].acl & access):
-                        del diff[name]
+                    request = Request(method='PUT', path=[resource, guid])
                 request.content_type = 'application/json'
-                request.content = diff
-                push(request, diff_seq)
-                for request, seqno in post_requests:
-                    push(request, [[seqno, seqno]])
-
-        if not pushed_seq:
-            if not self._push_seq.mtime:
-                self._push_seq.commit()
-            return
-
-        _logger.info('Pushed %r local cache', pushed_seq)
-
-        self._push_seq.exclude(pushed_seq)
-        if not skiped_seq:
-            self._push_seq.stretch()
-            if 'report' in volume:
-                # No any decent reasons to keep fail reports after uploding.
-                # TODO The entire offlile synchronization should be improved,
-                # for now, it is possible to have a race here
-                volume['report'].wipe()
-
-        self._push_seq.commit()
+                request.content = props
+                self.fallback(request)
 
 
 class _LocalRoutes(db.Routes, Router):
@@ -453,28 +423,3 @@ class _ResponseStream(object):
         except (http.ConnectionError, IncompleteRead):
             self._on_fail_cb()
             raise
-
-
-class _Auth(http.SugarAuth):
-
-    def __init__(self):
-        http.SugarAuth.__init__(self, client.keyfile.value)
-        if client.login.value:
-            self._login = client.login.value
-        self.allow_basic_auth = False
-
-    def profile(self):
-        if self.allow_basic_auth and \
-                client.login.value and client.password.value:
-            return None
-        import gconf
-        conf = gconf.client_get_default()
-        self._profile['name'] = conf.get_string('/desktop/sugar/user/nick')
-        return http.SugarAuth.profile(self)
-
-    def __call__(self, nonce):
-        if not self.allow_basic_auth or \
-                not client.login.value or not client.password.value:
-            return http.SugarAuth.__call__(self, nonce)
-        auth = b64encode('%s:%s' % (client.login.value, client.password.value))
-        return 'Basic %s' % auth

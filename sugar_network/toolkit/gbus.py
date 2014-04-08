@@ -19,7 +19,7 @@ import json
 import struct
 import logging
 
-from sugar_network.toolkit import coroutine, exception
+from sugar_network.toolkit import coroutine
 
 
 _logger = logging.getLogger('gbus')
@@ -65,7 +65,7 @@ def pipe(op, *args, **kwargs):
         try:
             op(feedback, *args, **kwargs)
         except Exception:
-            exception('Failed to call %r(%r, %r)', op, args, kwargs)
+            _logger.exception('Failed to call %r(%r, %r)', op, args, kwargs)
             os.close(fd_w)
 
     _logger.trace('Pipe %s(%r, %r)', op, args, kwargs)

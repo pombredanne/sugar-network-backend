@@ -3,6 +3,7 @@
 
 import os
 import time
+from cStringIO import StringIO
 
 from __init__ import tests
 
@@ -11,8 +12,9 @@ from sugar_network.client import Connection, keyfile, api
 from sugar_network.model.post import Post
 from sugar_network.model.context import Context
 from sugar_network.node import model, obs
-from sugar_network.node.model import User
+from sugar_network.node.model import User, Volume
 from sugar_network.node.routes import NodeRoutes
+from sugar_network.client.auth import SugarCreds
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import Request, Router
 from sugar_network.toolkit import spec, i18n, http, coroutine, enforce
@@ -20,27 +22,193 @@ from sugar_network.toolkit import spec, i18n, http, coroutine, enforce
 
 class ModelTest(tests.Test):
 
-    def test_IncrementReleasesSeqno(self):
+    def test_IncrementReleasesSeqnoOnNewReleases(self):
         events = []
-        volume = self.start_master([User, model.Context, Post])
+        volume = self.start_master()
         this.broadcast = lambda x: events.append(x)
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         context = conn.post(['context'], {
-            'type': 'group',
+            'type': 'activity',
             'title': 'Activity',
             'summary': 'summary',
             'description': 'description',
             })
         self.assertEqual([
             ], [i for i in events if i['event'] == 'release'])
-        self.assertEqual(0, volume.releases_seqno.value)
+        self.assertEqual(0, volume.release_seqno.value)
 
-        aggid = conn.post(['context', context, 'releases'], -1)
+        conn.put(['context', context], {
+            'summary': 'summary2',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.release_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 1',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
         self.assertEqual([
             {'event': 'release', 'seqno': 1},
             ], [i for i in events if i['event'] == 'release'])
-        self.assertEqual(1, volume.releases_seqno.value)
+        self.assertEqual(1, volume.release_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(2, volume.release_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            {'event': 'release', 'seqno': 3},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(3, volume.release_seqno.value)
+
+        conn.delete(['context', context, 'releases', release])
+        self.assertEqual([
+            {'event': 'release', 'seqno': 1},
+            {'event': 'release', 'seqno': 2},
+            {'event': 'release', 'seqno': 3},
+            {'event': 'release', 'seqno': 4},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(4, volume.release_seqno.value)
+
+    def test_IncrementReleasesSeqnoOnDependenciesChange(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(creds=SugarCreds(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.release_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'seqno': 1, 'event': 'release'}
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(1, volume.release_seqno.value)
+        del events[:]
+
+        conn.put(['context', context], {
+            'dependencies': 'dep',
+            })
+        self.assertEqual([
+            {'event': 'release', 'seqno': 2},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(2, volume.release_seqno.value)
+
+    def test_IncrementReleasesSeqnoOnDeletes(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(creds=SugarCreds(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            })
+        self.assertEqual([
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(0, volume.release_seqno.value)
+
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual([
+            {'seqno': 1, 'event': 'release'}
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(1, volume.release_seqno.value)
+        del events[:]
+
+        conn.delete(['context', context])
+        self.assertEqual([
+            {'event': 'release', 'seqno': 2},
+            ], [i for i in events if i['event'] == 'release'])
+        self.assertEqual(2, volume.release_seqno.value)
+        del events[:]
+
+    def test_RestoreReleasesSeqno(self):
+        events = []
+        volume = self.start_master()
+        this.broadcast = lambda x: events.append(x)
+        conn = Connection(creds=SugarCreds(keyfile.value))
+
+        context = conn.post(['context'], {
+            'type': 'activity',
+            'title': 'Activity',
+            'summary': 'summary',
+            'description': 'description',
+            'dependencies': 'dep',
+            })
+        bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
+            '[Activity]',
+            'name = Activity',
+            'bundle_id = %s' % context,
+            'exec = true',
+            'icon = icon',
+            'activity_version = 2',
+            'license = Public Domain',
+            ])))
+        release = conn.upload(['context', context, 'releases'], StringIO(bundle))
+        self.assertEqual(1, volume.release_seqno.value)
+
+        volume.close()
+        volume = Volume('master', [])
+        self.assertEqual(1, volume.release_seqno.value)
 
     def test_Packages(self):
         self.override(obs, 'get_repos', lambda: [
@@ -51,7 +219,7 @@ class ModelTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: {'version': '1.0'})
 
         volume = self.start_master([User, model.Context])
-        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, SugarCreds(keyfile.value))
 
         guid = conn.post(['context'], {
             'type': 'package',
@@ -65,8 +233,8 @@ class ModelTest(tests.Test):
             })
         self.assertEqual({
             '*': {
-                'seqno': 4,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 3,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 },
             'resolves': {
@@ -89,8 +257,8 @@ class ModelTest(tests.Test):
             })
         self.assertEqual({
             'Gentoo': {
-                'seqno': 6,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 5,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 },
             'resolves': {
@@ -111,8 +279,8 @@ class ModelTest(tests.Test):
             })
         self.assertEqual({
             'Debian-6.0': {
-                'seqno': 8,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 7,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 },
             'resolves': {
@@ -128,7 +296,7 @@ class ModelTest(tests.Test):
         self.override(obs, 'resolve', lambda repo, arch, names: enforce(False, 'resolve failed'))
 
         volume = self.start_master([User, model.Context])
-        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, SugarCreds(keyfile.value))
 
         guid = conn.post(['context'], {
             'type': 'package',
@@ -142,8 +310,8 @@ class ModelTest(tests.Test):
             })
         self.assertEqual({
             '*': {
-                'seqno': 4,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 3,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 },
             'resolves': {
@@ -160,7 +328,7 @@ class ModelTest(tests.Test):
             ])
 
         volume = self.start_master([User, model.Context])
-        conn = http.Connection(api.value, http.SugarAuth(keyfile.value))
+        conn = http.Connection(api.value, SugarCreds(keyfile.value))
         guid = conn.post(['context'], {
             'type': 'package',
             'title': 'title',
@@ -172,8 +340,8 @@ class ModelTest(tests.Test):
         conn.put(['context', guid, 'releases', '*'], {'binary': '1'})
         self.assertEqual({
             '*': {
-                'seqno': 4,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 3,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
                 },
             'resolves': {
@@ -188,13 +356,13 @@ class ModelTest(tests.Test):
         conn.put(['context', guid, 'releases', 'Debian'], {'binary': '2'})
         self.assertEqual({
             '*': {
-                'seqno': 4,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 3,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
                 },
             'Debian': {
-                'seqno': 5,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 4,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['2']},
                 },
             'resolves': {
@@ -209,18 +377,18 @@ class ModelTest(tests.Test):
         conn.put(['context', guid, 'releases', 'Debian-6.0'], {'binary': '3'})
         self.assertEqual({
             '*': {
-                'seqno': 4,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 3,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
                 },
             'Debian': {
-                'seqno': 5,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 4,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['2']},
                 },
             'Debian-6.0': {
-                'seqno': 6,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 5,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['3']},
                 },
             'resolves': {
@@ -235,18 +403,18 @@ class ModelTest(tests.Test):
         conn.put(['context', guid, 'releases', 'Debian'], {'binary': '4'})
         self.assertEqual({
             '*': {
-                'seqno': 4,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 3,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
                 },
             'Debian': {
-                'seqno': 7,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 6,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['4']},
                 },
             'Debian-6.0': {
-                'seqno': 6,
-                'author': {tests.UID: {'name': tests.UID, 'order': 0, 'role': 3}},
+                'seqno': 5,
+                'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['3']},
                 },
             'resolves': {

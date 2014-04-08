@@ -381,7 +381,10 @@ class Aggregated(Composite):
         self._subtype.teardown(value)
 
     def typecast(self, value):
-        return dict(value)
+        raise RuntimeError('Aggregated properties cannot be set directly')
+
+    def reprcast(self, value):
+        return [(i, self.subreprcast(j['value'])) for i, j in value.items()]
 
     def encode(self, items):
         for agg in items.values():

@@ -16,10 +16,10 @@
 import bisect
 import hashlib
 import logging
+from os.path import join
 
-from sugar_network import db
+from sugar_network import db, toolkit
 from sugar_network.model import Release, context as _context, user as _user
-
 from sugar_network.node import obs
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
@@ -33,8 +33,7 @@ _presolve_queue = None
 class User(_user.User):
 
     def created(self):
-        with file(this.volume.blobs.get(self['pubkey']).path) as f:
-            self.posts['guid'] = str(hashlib.sha1(f.read()).hexdigest())
+        self.posts['guid'] = str(hashlib.sha1(self['pubkey']).hexdigest())
 
 
 class _Release(Release):
@@ -106,6 +105,34 @@ class Context(_context.Context):
             acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
     def releases(self, value):
         return value
+
+    def created(self):
+        _context.Context.created(self)
+        self._invalidate_solutions()
+
+    def updated(self):
+        _context.Context.updated(self)
+        self._invalidate_solutions()
+
+    def _invalidate_solutions(self):
+        if self['releases'] and \
+                [i for i in ('state', 'releases', 'dependencies')
+                    if i in self.posts and self.posts[i] != self.orig(i)]:
+            this.broadcast({
+                'event': 'release',
+                'seqno': this.volume.release_seqno.next(),
+                })
+
+
+class Volume(db.Volume):
+
+    def __init__(self, root, resources, **kwargs):
+        db.Volume.__init__(self, root, resources, **kwargs)
+        self.release_seqno = toolkit.Seqno(join(root, 'var', 'seqno-release'))
+
+    def close(self):
+        db.Volume.close(self)
+        self.release_seqno.commit()
 
 
 def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
@@ -199,7 +226,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                 blob = volume.blobs.get(digest)
                 if blob is not None:
                     release_info['size'] = blob.size
-                    release_info['content-type'] = blob['content-type']
+                    release_info['content-type'] = blob.meta['content-type']
                 unpack_size = release['bundles']['*-*'].get('unpack_size')
                 if unpack_size is not None:
                     release_info['unpack_size'] = unpack_size

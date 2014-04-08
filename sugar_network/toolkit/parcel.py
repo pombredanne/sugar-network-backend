@@ -99,7 +99,10 @@ def encode(packets, limit=None, header=None, compresslevel=None,
                 blob_len = 0
                 if isinstance(record, File):
                     blob_len = record.size
-                chunk = ostream.write_record(record,
+                    chunk = record.meta
+                else:
+                    chunk = record
+                chunk = ostream.write_record(chunk,
                         None if finalizing else limit - blob_len)
                 if chunk is None:
                     _logger.debug('Reach the encoding limit')

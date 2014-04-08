@@ -21,6 +21,7 @@ from tempfile import NamedTemporaryFile
 
 from sugar_network import client
 from sugar_network.toolkit.router import route, Request, File
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import enforce
 
 
@@ -63,11 +64,12 @@ class Routes(object):
             'reply': ('uid', 'title', 'description', 'preview'),
             'order_by': list,
             })
-    def journal_find(self, request, response):
+    def journal_find(self):
         enforce(self._ds is not None, 'Journal is inaccessible')
 
         import dbus
 
+        request = this.request
         reply = request.pop('reply')
         if 'preview' in reply:
             reply.remove('preview')
@@ -95,8 +97,8 @@ class Routes(object):
         return {'result': result, 'total': int(total)}
 
     @route('GET', ['journal', None], mime_type='application/json')
-    def journal_get(self, request, response):
-        guid = request.guid
+    def journal_get(self):
+        guid = this.request.guid
         return {'guid': guid,
                 'title': get(guid, 'title'),
                 'description': get(guid, 'description'),
@@ -104,49 +106,49 @@ class Routes(object):
                 }
 
     @route('GET', ['journal', None, 'preview'])
-    def journal_get_preview(self, request, response):
-        return File(_prop_path(request.guid, 'preview'), meta={
+    def journal_get_preview(self):
+        return File(_prop_path(this.request.guid, 'preview'), meta={
             'content-type': 'image/png',
             })
 
     @route('GET', ['journal', None, 'data'])
-    def journal_get_data(self, request, response):
-        return File(_ds_path(request.guid, 'data'), meta={
-            'content-type': get(request.guid, 'mime_type') or
+    def journal_get_data(self):
+        return File(_ds_path(this.request.guid, 'data'), meta={
+            'content-type': get(this.request.guid, 'mime_type') or
                     'application/octet',
             })
 
     @route('GET', ['journal', None, None], mime_type='application/json')
-    def journal_get_prop(self, request, response):
-        return get(request.guid, request.prop)
+    def journal_get_prop(self):
+        return get(this.request.guid, this.request.prop)
 
     @route('PUT', ['journal', None], cmd='share')
-    def journal_share(self, request, response):
+    def journal_share(self):
         enforce(self._ds is not None, 'Journal is inaccessible')
 
-        guid = request.guid
+        guid = this.request.guid
         preview_path = _prop_path(guid, 'preview')
         enforce(os.access(preview_path, os.R_OK), 'No preview')
         data_path = _ds_path(guid, 'data')
         enforce(os.access(data_path, os.R_OK), 'No data')
 
         subrequest = Request(method='POST', document='artifact')
-        subrequest.content = request.content
+        subrequest.content = this.request.content
         subrequest.content_type = 'application/json'
         # pylint: disable-msg=E1101
-        subguid = self.fallback(subrequest, response)
+        subguid = self.fallback(subrequest)
 
         subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='preview')
         subrequest.content_type = 'image/png'
         with file(preview_path, 'rb') as subrequest.content_stream:
-            self.fallback(subrequest, response)
+            self.fallback(subrequest)
 
         subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='data')
         subrequest.content_type = get(guid, 'mime_type') or 'application/octet'
         with file(data_path, 'rb') as subrequest.content_stream:
-            self.fallback(subrequest, response)
+            self.fallback(subrequest)
 
     def journal_update(self, guid, data=None, **kwargs):
         enforce(self._ds is not None, 'Journal is inaccessible')

@@ -190,8 +190,8 @@ class Blobs(object):
                 break
 
     def patch(self, patch, seqno):
-        if 'path' in patch:
-            path = self.path(patch.pop('path'))
+        if 'path' in patch.meta:
+            path = self.path(patch.meta.pop('path'))
         else:
             path = self._blob_path(patch.digest)
         if not patch.size:
@@ -202,9 +202,9 @@ class Blobs(object):
         os.rename(patch.path, path)
         if exists(path + _META_SUFFIX):
             meta = _read_meta(path)
-            meta.update(patch)
+            meta.update(patch.meta)
         else:
-            meta = patch
+            meta = patch.meta
         meta['x-seqno'] = str(seqno)
         _write_meta(path, meta, seqno)
         os.utime(path, (seqno, seqno))

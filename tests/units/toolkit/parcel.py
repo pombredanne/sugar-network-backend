@@ -191,13 +191,13 @@ class ParcelTest(tests.Test):
                 (1, hashlib.sha1('a').hexdigest(), 'a'),
                 (2, hashlib.sha1('bb').hexdigest(), 'bb'),
                 ],
-                [(i['num'], i.digest, file(i.path).read()) for i in packet])
+                [(i.meta['num'], i.digest, file(i.path).read()) for i in packet])
         with next(packets_iter) as packet:
             self.assertEqual(2, packet.name)
             self.assertEqual([
                 (3, hashlib.sha1('ccc').hexdigest(), 'ccc'),
                 ],
-                [(i['num'], i.digest, file(i.path).read()) for i in packet])
+                [(i.meta['num'], i.digest, file(i.path).read()) for i in packet])
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
@@ -221,13 +221,13 @@ class ParcelTest(tests.Test):
                 (1, 'a'),
                 (2, ''),
                 ],
-                [(i['num'], file(i.path).read()) for i in packet])
+                [(i.meta['num'], file(i.path).read()) for i in packet])
         with next(packets_iter) as packet:
             self.assertEqual(2, packet.name)
             self.assertEqual([
                 (3, 'ccc'),
                 ],
-                [(i['num'], file(i.path).read()) for i in packet])
+                [(i.meta['num'], file(i.path).read()) for i in packet])
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
@@ -247,10 +247,10 @@ class ParcelTest(tests.Test):
         packets_iter = parcel.decode(stream)
         with next(packets_iter) as packet:
             self.assertEqual(1, packet.name)
-            self.assertEqual([1, 2], [i['num'] for i in packet])
+            self.assertEqual([1, 2], [i.meta['num'] for i in packet])
         with next(packets_iter) as packet:
             self.assertEqual(2, packet.name)
-            self.assertEqual([3], [i['num'] for i in packet])
+            self.assertEqual([3], [i.meta['num'] for i in packet])
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
@@ -693,7 +693,7 @@ class ParcelTest(tests.Test):
             self.assertEqual({'packet': 2}, packet.header)
             items = iter(packet)
             blob = next(items)
-            self.assertEqual({'num': 2, 'content-length': '8'}, blob)
+            self.assertEqual({'num': 2, 'content-length': '8'}, blob.meta)
             self.assertEqual('content2', file(blob.path).read())
             self.assertEqual({'payload': 3}, next(items))
             self.assertRaises(StopIteration, items.next)
@@ -703,7 +703,7 @@ class ParcelTest(tests.Test):
             items = iter(packet)
             self.assertEqual({'payload': 1}, next(items))
             blob = next(items)
-            self.assertEqual({'num': 1, 'content-length': '8'}, blob)
+            self.assertEqual({'num': 1, 'content-length': '8'}, blob.meta)
             self.assertEqual('content1', file(blob.path).read())
             self.assertEqual({'payload': 2}, next(items))
             self.assertRaises(StopIteration, items.next)

@@ -14,6 +14,7 @@ from __init__ import tests
 from sugar_network import db, client
 from sugar_network.client import Connection, keyfile, api, packagekit, injector as injector_, model
 from sugar_network.client.injector import _PreemptivePool, Injector
+from sugar_network.client.auth import SugarCreds
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, lsb_release
 
@@ -349,7 +350,7 @@ class InjectorTest(tests.Test):
 
     def test_solve(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -382,7 +383,7 @@ class InjectorTest(tests.Test):
 
     def test_solve_FailInOffline(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = None
         injector.seqno = 0
@@ -403,7 +404,7 @@ class InjectorTest(tests.Test):
 
     def test_solve_ReuseCachedSolution(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -426,7 +427,7 @@ class InjectorTest(tests.Test):
 
     def test_solve_InvalidateCachedSolution(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = 'http://127.0.0.1:7777'
         injector.seqno = 1
@@ -492,7 +493,7 @@ class InjectorTest(tests.Test):
 
     def test_solve_ForceUsingStaleCachedSolutionInOffline(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -519,7 +520,7 @@ class InjectorTest(tests.Test):
 
     def test_download_SetExecPermissions(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -552,7 +553,7 @@ class InjectorTest(tests.Test):
 
     def test_checkin(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -603,7 +604,7 @@ class InjectorTest(tests.Test):
 
     def test_checkin_PreemptivePool(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -660,7 +661,7 @@ class InjectorTest(tests.Test):
 
     def test_checkin_Refresh(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -694,7 +695,7 @@ class InjectorTest(tests.Test):
 
     def test_launch(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -742,7 +743,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_PreemptivePool(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -783,7 +784,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_DonntAcquireCheckins(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -810,7 +811,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_RefreshCheckins(self):
         self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
@@ -862,7 +863,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_InstallDeps(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
@@ -902,7 +903,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_Document(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
@@ -936,7 +937,7 @@ class InjectorTest(tests.Test):
 
     def test_launch_DocumentWithDetectingAppByMIMEType(self):
         volume = self.start_master()
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1

@@ -487,7 +487,7 @@ def _exec(context, release, path, args, environ):
 
         os.execvpe(args[0], args, env)
     except BaseException:
-        logging.exception('Failed to execute %r args=%r', release, args)
+        _logger.exception('Failed to execute %r args=%r', release, args)
     finally:
         os._exit(1)
 

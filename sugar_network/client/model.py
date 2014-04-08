@@ -19,18 +19,25 @@ from sugar_network import db
 from sugar_network.model.user import User
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
-from sugar_network.model import context as base_context
+from sugar_network.model.context import Context as _Context
 from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit.router import ACL
 
 
 _logger = logging.getLogger('client.model')
 
 
-class Context(base_context.Context):
+class Context(_Context):
 
-    @db.indexed_property(db.List, prefix='RP', default=[])
+    @db.indexed_property(db.List, prefix='RP', default=[],
+            acl=ACL.READ | ACL.LOCAL)
     def pins(self, value):
         return value + this.injector.pins(self.guid)
 
 
-RESOURCES = (User, Context, Post, Report)
+class Volume(db.Volume):
+
+    def __init__(self, root):
+        db.Volume.__init__(self, root, [User, Context, Post, Report])
+        for resource in ('user', 'context', 'post'):
+            self[resource].metadata['author'].acl |= ACL.LOCAL

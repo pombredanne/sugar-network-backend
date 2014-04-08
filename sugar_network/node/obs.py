@@ -84,7 +84,7 @@ def presolve(repo_name, packages, dst_path):
                             to_download.append((url, path))
                         files.setdefault(arch, []).append(binary)
             except Exception:
-                toolkit.exception(_logger, 'Failed to presolve %r on %s',
+                _logger.exception('Failed to presolve %r on %s',
                         packages, repo['name'])
                 continue
 

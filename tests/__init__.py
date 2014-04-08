@@ -3,6 +3,7 @@
 import os
 import sys
 import json
+import gconf
 import signal
 import shutil
 import hashlib
@@ -20,16 +21,19 @@ from sugar_network.toolkit import coroutine
 coroutine.inject()
 
 from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, parcel
-from sugar_network.toolkit.router import Router, Request
+from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
 from sugar_network.client import IPCConnection, journal, routes as client_routes, model as client_model
 from sugar_network.client.injector import Injector
-from sugar_network.client.routes import ClientRoutes, _Auth
+from sugar_network.client.routes import ClientRoutes
+from sugar_network.client.auth import SugarCreds
 from sugar_network import db, client, node, toolkit, model
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.node.model import Context as MasterContext
 from sugar_network.node.model import User as MasterUser
+from sugar_network.node.model import Volume as NodeVolume
+from sugar_network.node.auth import SugarAuth
 from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node import obs, slave, master
@@ -116,11 +120,15 @@ class Test(unittest.TestCase):
                 'sugar_network.model.report',
                 ]
 
-        if tmp_root is None:
-            self.override(_Auth, 'profile', lambda self: {
-                'name': 'test',
-                'pubkey': PUBKEY,
-                })
+        class GConf(object):
+
+            def get_string(self, key):
+                if key == '/desktop/sugar/user/nick':
+                    return 'test'
+                else:
+                    return key
+
+        self.override(gconf, 'client_get_default', lambda: GConf())
 
         os.makedirs('tmp')
 
@@ -134,6 +142,7 @@ class Test(unittest.TestCase):
         this.call = None
         this.broadcast = lambda x: x
         this.injector = None
+        this.principal = None
 
     def tearDown(self):
         self.stop_nodes()
@@ -268,8 +277,8 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = master.RESOURCES
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
-        self.node_volume = db.Volume('master', classes)
-        self.node_routes = routes(volume=self.node_volume)
+        self.node_volume = NodeVolume('master', classes)
+        self.node_routes = routes(volume=self.node_volume, auth=SugarAuth('master'))
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
@@ -283,19 +292,17 @@ class Test(unittest.TestCase):
             classes = master.RESOURCES
 
         def node():
-            volume = db.Volume('master', classes)
-            node = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(volume=volume)))
+            volume = NodeVolume('master', classes)
+            node = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(volume=volume, auth=SugarAuth('master'))))
             node.serve_forever()
 
         pid = self.fork(node)
         coroutine.sleep(.1)
         return pid
 
-    def start_client(self, classes=None, routes=None):
-        if routes is None:
-            routes = ClientRoutes
-        volume = db.Volume('client', classes or client_model.RESOURCES)
-        self.client_routes = routes(volume)
+    def start_client(self):
+        volume = client_model.Volume('client')
+        self.client_routes = ClientRoutes(volume, SugarCreds(client.keyfile.value))
         self.client_routes.connect(client.api.value)
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
@@ -307,8 +314,11 @@ class Test(unittest.TestCase):
     def start_online_client(self, classes=None):
         self.fork_master(classes)
         this.injector = Injector('client/cache')
-        home_volume = db.Volume('client', classes or client_model.RESOURCES)
-        self.client_routes = ClientRoutes(home_volume)
+        if classes:
+            home_volume = db.Volume('client', classes)
+        else:
+            home_volume = client_model.Volume('client')
+        self.client_routes = ClientRoutes(home_volume, SugarCreds(client.keyfile.value))
         self.client_routes.connect(client.api.value)
         self.wait_for_events(self.client_routes, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
@@ -318,10 +328,10 @@ class Test(unittest.TestCase):
         this.volume = home_volume
         return home_volume
 
-    def start_offline_client(self, resources=None):
+    def start_offline_client(self):
         this.injector = Injector('client/cache')
-        home_volume = db.Volume('client', resources or client_model.RESOURCES)
-        self.client_routes = ClientRoutes(home_volume)
+        home_volume = client_model.Volume('client')
+        self.client_routes = ClientRoutes(home_volume, SugarCreds(client.keyfile.value))
         server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
@@ -336,6 +346,7 @@ class Test(unittest.TestCase):
         trigger = coroutine.AsyncResult()
 
         def waiter(trigger):
+            this.response = Response()
             for event in cp.subscribe():
                 if isinstance(event, basestring) and event.startswith('data: '):
                     event = json.loads(event[6:])

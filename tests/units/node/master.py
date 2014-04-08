@@ -19,6 +19,7 @@ from __init__ import tests
 from sugar_network.client import Connection, keyfile, api
 from sugar_network.db.directory import Directory
 from sugar_network import db, node, toolkit
+from sugar_network.client.auth import SugarCreds
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
@@ -44,7 +45,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         self.touch(('blob1', '1'))
         self.touch(('blob2', '2'))
 
@@ -94,7 +95,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         patch = ''.join(parcel.encode([
             ('push', None, [
@@ -141,7 +142,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         self.touch(('blob', 'blob'))
 
         patch = ''.join(parcel.encode([
@@ -194,7 +195,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
         self.touch(('blob', 'blob'))
 
         patch = ''.join(parcel.encode([
@@ -221,7 +222,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['document'].create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/gu/guid', 1)
@@ -246,7 +247,7 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 3]]},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
                     'id': 1,
@@ -266,7 +267,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/1/1', 1)
@@ -306,7 +307,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/1/1', 1)
@@ -327,7 +328,7 @@ class MasterTest(tests.Test):
         self.assertEqual([
             ({'from': '127.0.0.1:7777', 'packet': 'push'}, [{'resource': 'document'}]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
 
         response = conn.request('GET', [], params={'cmd': 'pull'}, headers={
             'cookie': 'sugar_network_node=%s' % b64encode(json.dumps({
@@ -349,7 +350,7 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 1]]},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
 
         response = conn.request('GET', [], params={'cmd': 'pull'}, headers={
             'cookie': 'sugar_network_node=%s' % b64encode(json.dumps({
@@ -367,7 +368,7 @@ class MasterTest(tests.Test):
                 {'commit': [[4, 4]]},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
 
     def test_pull_ExcludeAckRequests(self):
 
@@ -375,7 +376,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/1/1', 1)
@@ -398,7 +399,7 @@ class MasterTest(tests.Test):
             ({'from': '127.0.0.1:7777', 'to': 'node2', 'packet': 'ack', 'ack': [[1, 2]]}, []),
             ({'from': '127.0.0.1:7777', 'packet': 'push'}, [{'resource': 'document'}]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in reply])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in reply])
 
     def test_pull_Limitted(self):
         RECORD = 1024 * 1024
@@ -410,7 +411,7 @@ class MasterTest(tests.Test):
                 pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1, 'prop': '.' * RECORD})
         self.utime('master/db/document/1/1', 1)
@@ -429,7 +430,7 @@ class MasterTest(tests.Test):
                 {'resource': 'document'},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
                     'id': 1,
@@ -452,7 +453,7 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 1]]},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
                     'id': 1,
@@ -481,7 +482,7 @@ class MasterTest(tests.Test):
                 {'commit': [[2, 3]]},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
                     'id': 1,
@@ -503,7 +504,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         volume['document'].create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/gu/guid', 1)
@@ -539,7 +540,7 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 2]]},
                 ]),
             ],
-            [(packet.header, [dict(record) for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
 
         assert volume['document']['2'].exists
         self.assertEqual('ccc', ''.join(blob2.iter_content()))

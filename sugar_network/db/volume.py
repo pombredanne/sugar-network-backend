@@ -23,6 +23,7 @@ from sugar_network.db.metadata import Blob
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.db.blobs import Blobs
+from sugar_network.toolkit.router import File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, coroutine, ranges, enforce
 
@@ -34,7 +35,7 @@ class Volume(dict):
 
     _flush_pool = []
 
-    def __init__(self, root, documents, index_class=None):
+    def __init__(self, root, resources, index_class=None):
         Volume._flush_pool.append(self)
         self.resources = {}
         self.mute = False
@@ -49,12 +50,10 @@ class Volume(dict):
         if not exists(root):
             os.makedirs(root)
         self._index_class = index_class
-        self.seqno = toolkit.Seqno(join(self._root, 'var', 'db.seqno'))
-        self.releases_seqno = toolkit.Seqno(
-                join(self._root, 'var', 'releases.seqno'))
+        self.seqno = toolkit.Seqno(join(self._root, 'var', 'seqno'))
         self.blobs = Blobs(root, self.seqno)
 
-        for document in documents:
+        for document in resources:
             if isinstance(document, basestring):
                 name = document.split('.')[-1]
             else:
@@ -72,14 +71,13 @@ class Volume(dict):
         while self:
             __, cls = self.popitem()
             cls.close()
-        self.releases_seqno.commit()
 
     def populate(self):
         for cls in self.values():
             for __ in cls.populate():
                 coroutine.dispatch()
 
-    def diff(self, r, exclude=None, files=None, one_way=False):
+    def diff(self, r, exclude=None, files=None, blobs=True, one_way=False):
         if exclude:
             include = deepcopy(r)
             ranges.exclude(include, exclude)
@@ -105,14 +103,15 @@ class Volume(dict):
                             yield {'guid': doc.guid, 'patch': patch}
                             found = True
                         last_seqno = max(last_seqno, doc['seqno'])
-            for blob in self.blobs.diff(include):
-                seqno = int(blob.pop('x-seqno'))
-                yield blob
-                found = True
-                last_seqno = max(last_seqno, seqno)
+            if blobs:
+                for blob in self.blobs.diff(include):
+                    seqno = int(blob.meta.pop('x-seqno'))
+                    yield blob
+                    found = True
+                    last_seqno = max(last_seqno, seqno)
             for dirpath in files or []:
                 for blob in self.blobs.diff(include, dirpath):
-                    seqno = int(blob.pop('x-seqno'))
+                    seqno = int(blob.meta.pop('x-seqno'))
                     yield blob
                     found = True
                     last_seqno = max(last_seqno, seqno)
@@ -142,25 +141,24 @@ class Volume(dict):
         seqno = None
 
         for record in records:
-            resource_ = record.get('resource')
-            if resource_:
-                directory = self[resource_]
-                continue
-
-            if 'guid' in record:
-                seqno = directory.patch(record['guid'], record['patch'], seqno)
-                continue
-
-            if 'content-length' in record:
+            if isinstance(record, File):
                 if seqno is None:
                     seqno = self.seqno.next()
                 self.blobs.patch(record, seqno)
                 continue
-
+            resource = record.get('resource')
+            if resource:
+                directory = self[resource]
+                continue
+            guid = record.get('guid')
+            if guid is not None:
+                seqno = directory.patch(guid, record['patch'], seqno)
+                continue
             commit = record.get('commit')
             if commit is not None:
                 ranges.include(committed, commit)
                 continue
+            raise http.BadRequest('Malformed patch')
 
         return seqno, committed
 

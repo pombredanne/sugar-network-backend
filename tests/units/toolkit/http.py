@@ -8,6 +8,7 @@ from __init__ import tests
 
 from sugar_network import client as local
 from sugar_network.toolkit.router import route, Router, Request, Response
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine, http
 
 
@@ -59,8 +60,8 @@ class HTTPTest(tests.Test):
         class Commands(object):
 
             @route('FOO', [None, None], cmd='f1', mime_type='application/json')
-            def f1(self, request):
-                return request.path
+            def f1(self):
+                return this.request.path
 
         self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Commands()))
         coroutine.spawn(self.server.serve_forever)

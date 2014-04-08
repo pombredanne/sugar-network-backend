@@ -35,7 +35,7 @@ class BlobsTest(tests.Test):
             'content-length': str(len(content)),
             'x-seqno': '1',
             },
-            blob)
+            blob.meta)
 
         self.assertEqual(
                 content,
@@ -70,7 +70,7 @@ class BlobsTest(tests.Test):
             'content-length': str(len(content)),
             'x-seqno': '1',
             },
-            blob)
+            blob.meta)
 
         self.assertEqual(
                 content,
@@ -108,7 +108,7 @@ class BlobsTest(tests.Test):
             'content-length': '0',
             'x-seqno': '1',
             },
-            blob)
+            blob.meta)
 
         self.assertEqual(
                 '',
@@ -138,7 +138,7 @@ class BlobsTest(tests.Test):
             'content-length': str(len('probe')),
             'x-seqno': '1',
             },
-            blob)
+            blob.meta)
 
         blobs.update(blob.digest, {'foo': 'bar'})
         self.assertEqual({
@@ -147,7 +147,7 @@ class BlobsTest(tests.Test):
             'x-seqno': '1',
             'foo': 'bar',
             },
-            blobs.get(blob.digest))
+            blobs.get(blob.digest).meta)
 
     def test_delete(self):
         blobs = Blobs('.', Seqno())
@@ -160,7 +160,7 @@ class BlobsTest(tests.Test):
             'content-type': 'application/octet-stream',
             'x-seqno': '1',
             },
-            dict(blobs.get(blob.digest)))
+            blobs.get(blob.digest).meta)
 
         blobs.delete(blob.digest)
         assert not exists(blob.path)
@@ -171,7 +171,7 @@ class BlobsTest(tests.Test):
             'status': '410 Gone',
             'x-seqno': '2',
             },
-            dict(blobs.get(blob.digest)))
+            blobs.get(blob.digest).meta)
 
     def test_diff_Blobs(self):
         blobs = Blobs('.', Seqno())
@@ -195,10 +195,10 @@ class BlobsTest(tests.Test):
             ('1000000000000000000000000000000000000002', {'n': '2', 'x-seqno': '2'}),
             ('1000000000000000000000000000000000000001', {'n': '1', 'x-seqno': '1'}),
             ],
-            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+            [(i.digest, i.meta) for i in  blobs.diff([[1, None]])])
         self.assertEqual([
             ],
-            [(i.digest, dict(i)) for i in  blobs.diff([[4, None]])])
+            [(i.digest, i.meta) for i in  blobs.diff([[4, None]])])
 
         self.touch('blobs/200/2000000000000000000000000000000000000004',
                   ('blobs/200/2000000000000000000000000000000000000004.meta', 'n: 4\nx-seqno: 4'))
@@ -213,7 +213,7 @@ class BlobsTest(tests.Test):
             ('3000000000000000000000000000000000000005', {'n': '5', 'x-seqno': '5'}),
             ('2000000000000000000000000000000000000004', {'n': '4', 'x-seqno': '4'}),
             ],
-            [(i.digest, dict(i)) for i in  blobs.diff([[4, None]])])
+            [(i.digest, i.meta) for i in  blobs.diff([[4, None]])])
         self.assertEqual([
             ],
             [i for i in  blobs.diff([[6, None]])])
@@ -225,7 +225,7 @@ class BlobsTest(tests.Test):
             ('1000000000000000000000000000000000000002', {'n': '2', 'x-seqno': '2'}),
             ('1000000000000000000000000000000000000001', {'n': '1', 'x-seqno': '1'}),
             ],
-            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+            [(i.digest, i.meta) for i in  blobs.diff([[1, None]])])
 
     def test_diff_Files(self):
         blobs = Blobs('.', Seqno())
@@ -254,31 +254,31 @@ class BlobsTest(tests.Test):
 
         self.assertEqual(sorted([
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]])]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]])]))
         self.assertEqual(sorted([
             ('1', {'n': '1', 'path': '1', 'x-seqno': '1'}),
             ('2/3', {'n': '2', 'path': '2/3', 'x-seqno': '2'}),
             ('2/4/5', {'n': '3', 'path': '2/4/5', 'x-seqno': '3'}),
             ('6', {'n': '4', 'path': '6', 'x-seqno': '4'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '')]))
         self.assertEqual(sorted([
             ('2/3', {'n': '2', 'path': '2/3', 'x-seqno': '2'}),
             ('2/4/5', {'n': '3', 'path': '2/4/5', 'x-seqno': '3'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '2')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '2')]))
         self.assertEqual(sorted([
             ('2/4/5', {'n': '3', 'path': '2/4/5', 'x-seqno': '3'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '2/4')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '2/4')]))
         self.assertEqual(sorted([
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], 'foo')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], 'foo')]))
         self.assertEqual(sorted([
             ('1', {'n': '1', 'path': '1', 'x-seqno': '1'}),
             ('6', {'n': '4', 'path': '6', 'x-seqno': '4'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '', False)]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '', False)]))
 
     def test_diff_FailOnRelativePaths(self):
         blobs = Blobs('.', Seqno())
@@ -306,7 +306,7 @@ class BlobsTest(tests.Test):
             ('2/4/5.svg', {'content-type': 'image/svg+xml', 'content-length': '3', 'x-seqno': '1', 'path': '2/4/5.svg'}),
             ('6.png', {'content-type': 'image/png', 'content-length': '4', 'x-seqno': '1', 'path': '6.png'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '')]))
         self.assertEqual(1, blobs._seqno.value)
 
         self.assertEqual(sorted([
@@ -315,7 +315,7 @@ class BlobsTest(tests.Test):
             ('2/4/5.svg', {'content-type': 'image/svg+xml', 'content-length': '3', 'x-seqno': '1', 'path': '2/4/5.svg'}),
             ('6.png', {'content-type': 'image/png', 'content-length': '4', 'x-seqno': '1', 'path': '6.png'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '')]))
         self.assertEqual(1, blobs._seqno.value)
 
     def test_diff_HandleUpdates(self):
@@ -335,23 +335,23 @@ class BlobsTest(tests.Test):
         self.assertEqual([
             ('0000000000000000000000000000000000000001', {'n': '1', 'content-length': '50', 'x-seqno': '11'}),
             ],
-            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+            [(i.digest, i.meta) for i in  blobs.diff([[1, None]])])
         self.assertEqual(11, blobs._seqno.value)
         self.assertEqual([
             ('0000000000000000000000000000000000000001', {'n': '1', 'content-length': '50', 'x-seqno': '11'}),
             ],
-            [(i.digest, dict(i)) for i in  blobs.diff([[1, None]])])
+            [(i.digest, i.meta) for i in  blobs.diff([[1, None]])])
         self.assertEqual(11, blobs._seqno.value)
 
         self.assertEqual(sorted([
             ('2', {'n': '2', 'path': '2', 'content-length': '7', 'x-seqno': '12'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '')]))
         self.assertEqual(12, blobs._seqno.value)
         self.assertEqual(sorted([
             ('2', {'n': '2', 'path': '2', 'content-length': '7', 'x-seqno': '12'}),
             ]),
-            sorted([(i.digest, dict(i)) for i in  blobs.diff([[1, None]], '')]))
+            sorted([(i.digest, i.meta) for i in  blobs.diff([[1, None]], '')]))
         self.assertEqual(12, blobs._seqno.value)
 
     def test_patch_Blob(self):
@@ -363,7 +363,7 @@ class BlobsTest(tests.Test):
         self.assertEqual(tests.tmpdir + '/blobs/000/0000000000000000000000000000000000000001', blob.path)
         self.assertEqual('0000000000000000000000000000000000000001', blob.digest)
         self.assertEqual('1', file(blob.path).read())
-        self.assertEqual({'x-seqno': '-1', 'n': '1'}, blob)
+        self.assertEqual({'x-seqno': '-1', 'n': '1'}, blob.meta)
         assert not exists('blob')
 
         blobs.patch(File('./fake', '0000000000000000000000000000000000000002', {'n': 2, 'content-length': '0'}), -2)
@@ -372,7 +372,7 @@ class BlobsTest(tests.Test):
         blobs.patch(File('./fake', '0000000000000000000000000000000000000001', {'n': 3, 'content-length': '0'}), -3)
         blob = blobs.get('0000000000000000000000000000000000000001')
         assert not exists(blob.path)
-        self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, dict(blob))
+        self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, blob.meta)
 
     def test_patch_File(self):
         blobs = Blobs('.', Seqno())
@@ -381,7 +381,7 @@ class BlobsTest(tests.Test):
         blobs.patch(File('./file', '1', {'n': 1, 'path': 'foo/bar'}), -1)
         blob = blobs.get('foo/bar')
         self.assertEqual('1', file(blob.path).read())
-        self.assertEqual({'x-seqno': '-1', 'n': '1'}, blob)
+        self.assertEqual({'x-seqno': '-1', 'n': '1'}, blob.meta)
         assert not exists('file')
 
         blobs.patch(File('./fake', 'bar/foo', {'n': 2, 'content-length': '0'}), -2)
@@ -390,7 +390,7 @@ class BlobsTest(tests.Test):
         blobs.patch(File('./fake', 'foo/bar', {'n': 3, 'content-length': '0', 'path': 'foo/bar'}), -3)
         blob = blobs.get('foo/bar')
         assert not exists(blob.path)
-        self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, dict(blob))
+        self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, blob.meta)
 
 
 class Seqno(object):

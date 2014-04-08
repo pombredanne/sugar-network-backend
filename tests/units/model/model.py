@@ -12,7 +12,9 @@ from sugar_network.model import load_bundle
 from sugar_network.model.post import Post
 from sugar_network.model.context import Context
 from sugar_network.node.model import User
+from sugar_network.node.auth import Principal as _Principal
 from sugar_network.client import IPCConnection, Connection, keyfile
+from sugar_network.client.auth import SugarCreds
 from sugar_network.toolkit.router import Request
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import i18n, http, coroutine, enforce
@@ -43,10 +45,9 @@ class ModelTest(tests.Test):
     def test_load_bundle_Activity(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'activity',
             'title': 'Activity',
             'summary': 'summary',
@@ -55,7 +56,7 @@ class ModelTest(tests.Test):
         activity_info = '\n'.join([
             '[Activity]',
             'name = Activity',
-            'bundle_id = bundle_id',
+            'bundle_id = %s' % bundle_id,
             'exec = true',
             'icon = icon',
             'activity_version = 1',
@@ -70,16 +71,17 @@ class ModelTest(tests.Test):
                 )
         blob = blobs.post(bundle)
 
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob, bundle_id)
 
         self.assertEqual({
             'content-type': 'application/vnd.olpc-sugar',
             'content-disposition': 'attachment; filename="Activity-1%s"' % (mimetypes.guess_extension('application/vnd.olpc-sugar') or ''),
             'content-length': str(len(bundle)),
-            'x-seqno': '7',
-            }, dict(blobs.get(blob.digest)))
-        self.assertEqual('bundle_id', context)
+            'x-seqno': '6',
+            }, blobs.get(blob.digest).meta)
+        self.assertEqual(bundle_id, context)
         self.assertEqual([[1], 0], release['version'])
         self.assertEqual('developer', release['stability'])
         self.assertEqual(['Public Domain'], release['license'])
@@ -112,10 +114,9 @@ class ModelTest(tests.Test):
     def test_load_bundle_NonActivity(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'book',
             'title': 'NonActivity',
             'summary': 'summary',
@@ -123,18 +124,19 @@ class ModelTest(tests.Test):
             })
         bundle = 'non-activity'
         blob = blobs.post(bundle)
-        blob['content-type'] = 'application/pdf'
+        blob.meta['content-type'] = 'application/pdf'
 
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='2', license='GPL')
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id], version='2', license='GPL')
+        context, release = load_bundle(blob, bundle_id)
 
         self.assertEqual({
             'content-type': 'application/pdf',
             'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
             'content-length': str(len(bundle)),
-            'x-seqno': '7',
-            }, dict(blobs.get(blob.digest)))
-        self.assertEqual('bundle_id', context)
+            'x-seqno': '6',
+            }, blobs.get(blob.digest).meta)
+        self.assertEqual(bundle_id, context)
         self.assertEqual([[2], 0], release['version'])
         self.assertEqual(['GPL'], release['license'])
 
@@ -153,10 +155,9 @@ class ModelTest(tests.Test):
     def test_load_bundle_ReuseActivityLicense(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'activity',
             'title': 'Activity',
             'summary': 'summary',
@@ -166,46 +167,48 @@ class ModelTest(tests.Test):
         activity_info_wo_license = '\n'.join([
             '[Activity]',
             'name = Activity',
-            'bundle_id = bundle_id',
+            'bundle_id = %s' % bundle_id,
             'exec = true',
             'icon = icon',
             'activity_version = 1',
             ])
         bundle = self.zips(('topdir/activity/activity.info', activity_info_wo_license))
         blob_wo_license = blobs.post(bundle)
-        self.assertRaises(http.BadRequest, load_bundle, blob_wo_license, 'bundle_id')
+        self.assertRaises(http.BadRequest, load_bundle, blob_wo_license, bundle_id)
 
-        volume['context'].update('bundle_id', {'releases': {
+        volume['context'].update(bundle_id, {'releases': {
             'new': {'value': {'release': 2, 'license': ['New']}},
             }})
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
-        context, release = load_bundle(blob_wo_license, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob_wo_license, bundle_id)
         self.assertEqual(['New'], release['license'])
 
-        volume['context'].update('bundle_id', {'releases': {
+        volume['context'].update(bundle_id, {'releases': {
             'new': {'value': {'release': 2, 'license': ['New']}},
             'old': {'value': {'release': 1, 'license': ['Old']}},
             }})
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
-        context, release = load_bundle(blob_wo_license, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob_wo_license, bundle_id)
         self.assertEqual(['New'], release['license'])
 
-        volume['context'].update('bundle_id', {'releases': {
+        volume['context'].update(bundle_id, {'releases': {
             'new': {'value': {'release': 2, 'license': ['New']}},
             'old': {'value': {'release': 1, 'license': ['Old']}},
             'newest': {'value': {'release': 3, 'license': ['Newest']}},
             }})
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
-        context, release = load_bundle(blob_wo_license, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob_wo_license, bundle_id)
         self.assertEqual(['Newest'], release['license'])
 
     def test_load_bundle_ReuseNonActivityLicense(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'book',
             'title': 'Activity',
             'summary': 'summary',
@@ -213,40 +216,43 @@ class ModelTest(tests.Test):
             })
 
         blob = blobs.post('non-activity')
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
-        self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id], version='1')
+        self.assertRaises(http.BadRequest, load_bundle, blob, bundle_id)
 
-        volume['context'].update('bundle_id', {'releases': {
+        volume['context'].update(bundle_id, {'releases': {
             'new': {'value': {'release': 2, 'license': ['New']}},
             }})
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id], version='1')
+        context, release = load_bundle(blob, bundle_id)
         self.assertEqual(['New'], release['license'])
 
-        volume['context'].update('bundle_id', {'releases': {
+        volume['context'].update(bundle_id, {'releases': {
             'new': {'value': {'release': 2, 'license': ['New']}},
             'old': {'value': {'release': 1, 'license': ['Old']}},
             }})
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id], version='1')
+        context, release = load_bundle(blob, bundle_id)
         self.assertEqual(['New'], release['license'])
 
-        volume['context'].update('bundle_id', {'releases': {
+        volume['context'].update(bundle_id, {'releases': {
             'new': {'value': {'release': 2, 'license': ['New']}},
             'old': {'value': {'release': 1, 'license': ['Old']}},
             'newest': {'value': {'release': 3, 'license': ['Newest']}},
             }})
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='1')
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id], version='1')
+        context, release = load_bundle(blob, bundle_id)
         self.assertEqual(['Newest'], release['license'])
 
     def test_load_bundle_WrontContextType(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'group',
             'title': 'NonActivity',
             'summary': 'summary',
@@ -254,13 +260,14 @@ class ModelTest(tests.Test):
             })
 
         blob = blobs.post('non-activity')
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID, version='2', license='GPL')
-        self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id], version='2', license='GPL')
+        self.assertRaises(http.BadRequest, load_bundle, blob, bundle_id)
 
         activity_info = '\n'.join([
             '[Activity]',
             'name = Activity',
-            'bundle_id = bundle_id',
+            'bundle_id = %s' % bundle_id,
             'exec = true',
             'icon = icon',
             'activity_version = 1',
@@ -274,13 +281,13 @@ class ModelTest(tests.Test):
                 ('topdir/CHANGELOG', changelog),
                 )
         blob = blobs.post(bundle)
-        self.assertRaises(http.BadRequest, load_bundle, blob, 'bundle_id')
+        self.assertRaises(http.BadRequest, load_bundle, blob, bundle_id)
 
     def test_load_bundle_MissedContext(self):
         volume = self.start_master()
         blobs = volume.blobs
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
             '[Activity]',
@@ -295,14 +302,15 @@ class ModelTest(tests.Test):
             ])))
         blob = blobs.post(bundle)
 
-        this.request = Request(principal=tests.UID)
+        this.principal = Principal(tests.UID)
+        this.request = Request()
         self.assertRaises(http.NotFound, load_bundle, blob, initial=False)
 
     def test_load_bundle_CreateContext(self):
         volume = self.start_master()
         blobs = volume.blobs
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         bundle = self.zips(
                 ('ImageViewer.activity/activity/activity.info', '\n'.join([
@@ -322,7 +330,8 @@ class ModelTest(tests.Test):
                 )
         blob = blobs.post(bundle)
 
-        this.request = Request(principal=tests.UID)
+        this.principal = Principal(tests.UID)
+        this.request = Request()
         context, release = load_bundle(blob, initial=True)
         self.assertEqual('org.laptop.ImageViewerActivity', context)
 
@@ -348,7 +357,11 @@ class ModelTest(tests.Test):
     def test_load_bundle_UpdateContext(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
+        self.touch(('master/etc/authorization.conf', [
+            '[permissions]',
+            '%s = admin' % tests.UID,
+            ]))
 
         conn.post(['context'], {
             'guid': 'org.laptop.ImageViewerActivity',
@@ -395,7 +408,8 @@ class ModelTest(tests.Test):
                 )
 
         blob = blobs.post(bundle)
-        this.request = Request(method='POST', path=['context', 'org.laptop.ImageViewerActivity'], principal=tests.UID)
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', 'org.laptop.ImageViewerActivity'])
         context, release = load_bundle(blob, initial=True)
 
         context = volume['context'].get('org.laptop.ImageViewerActivity')
@@ -423,10 +437,9 @@ class ModelTest(tests.Test):
         volume = self.start_master()
         blobs = volume.blobs
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'activity',
             'title': 'Activity',
             'summary': 'summary',
@@ -436,7 +449,7 @@ class ModelTest(tests.Test):
         bundle = self.zips(('topdir/activity/activity.info', '\n'.join([
             '[Activity]',
             'name = Activity2',
-            'bundle_id = bundle_id',
+            'bundle_id = %s' % bundle_id,
             'exec = true',
             'icon = icon',
             'activity_version = 1',
@@ -444,12 +457,13 @@ class ModelTest(tests.Test):
             'stability = developer',
             ])))
         blob = blobs.post(bundle)
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID2)
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID2)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob, bundle_id)
 
-        assert tests.UID in volume['context']['bundle_id']['author']
-        assert tests.UID2 not in volume['context']['bundle_id']['author']
-        self.assertEqual({'en': 'Activity'}, volume['context']['bundle_id']['title'])
+        assert tests.UID in volume['context'][bundle_id]['author']
+        assert tests.UID2 not in volume['context'][bundle_id]['author']
+        self.assertEqual({'en': 'Activity'}, volume['context'][bundle_id]['title'])
 
         post = volume['post'][release['announce']]
         assert tests.UID not in post['author']
@@ -463,12 +477,13 @@ class ModelTest(tests.Test):
 
         blobs.delete(blob.digest)
         blob = blobs.post(bundle)
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob, bundle_id)
 
-        assert tests.UID in volume['context']['bundle_id']['author']
-        assert tests.UID2 not in volume['context']['bundle_id']['author']
-        self.assertEqual({'en': 'Activity2'}, volume['context']['bundle_id']['title'])
+        assert tests.UID in volume['context'][bundle_id]['author']
+        assert tests.UID2 not in volume['context'][bundle_id]['author']
+        self.assertEqual({'en': 'Activity2'}, volume['context'][bundle_id]['title'])
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
@@ -483,10 +498,9 @@ class ModelTest(tests.Test):
     def test_load_bundle_PopulateRequires(self):
         volume = self.start_master()
         blobs = volume.blobs
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
-        conn.post(['context'], {
-            'guid': 'bundle_id',
+        bundle_id = conn.post(['context'], {
             'type': 'activity',
             'title': 'Activity',
             'summary': 'summary',
@@ -495,7 +509,7 @@ class ModelTest(tests.Test):
         bundle = self.zips(
                 ('ImageViewer.activity/activity/activity.info', '\n'.join([
                     '[Activity]',
-                    'bundle_id = bundle_id',
+                    'bundle_id = %s' % bundle_id,
                     'name      = Image Viewer',
                     'activity_version = 22',
                     'license   = GPLv2+',
@@ -506,8 +520,9 @@ class ModelTest(tests.Test):
                 ('ImageViewer.activity/activity/activity-imageviewer.svg', ''),
                 )
         blob = blobs.post(bundle)
-        this.request = Request(method='POST', path=['context', 'bundle_id'], principal=tests.UID)
-        context, release = load_bundle(blob, 'bundle_id')
+        this.principal = Principal(tests.UID)
+        this.request = Request(method='POST', path=['context', bundle_id])
+        context, release = load_bundle(blob, bundle_id)
 
         self.assertEqual({
             'dep5': [([1, 0], [[40], 0])],
@@ -522,7 +537,7 @@ class ModelTest(tests.Test):
 
     def test_load_bundle_IgnoreNotSupportedContextTypes(self):
         volume = self.start_master([User, Context])
-        conn = Connection(auth=http.SugarAuth(keyfile.value))
+        conn = Connection(creds=SugarCreds(keyfile.value))
 
         context = conn.post(['context'], {
             'type': 'package',
@@ -533,8 +548,13 @@ class ModelTest(tests.Test):
         this.request = Request(method='POST', path=['context', context])
         aggid = conn.post(['context', context, 'releases'], {})
         self.assertEqual({
-            aggid: {'seqno': 4, 'value': {}, 'author': {tests.UID: {'role': 3, 'name': tests.UID, 'order': 0}}},
+            aggid: {'seqno': 3, 'value': {}, 'author': {tests.UID: {'role': 3, 'name': 'test', 'order': 0}}},
             }, volume['context'][context]['releases'])
+
+
+class Principal(_Principal):
+
+    admin = True
 
 
 if __name__ == '__main__':

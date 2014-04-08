@@ -11,9 +11,11 @@ from __init__ import tests
 
 from sugar_network import db, toolkit
 from sugar_network.client import Connection, keyfile
+from sugar_network.client.auth import SugarCreds
 from sugar_network.node import master_api
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
+from sugar_network.node.auth import SugarAuth
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
 from sugar_network.toolkit.router import Router, File
@@ -49,15 +51,15 @@ class SlaveTest(tests.Test):
 
         self.Document = Document
         self.slave_volume = Volume('slave', [User, Document])
-        self.slave_routes = SlaveRoutes(volume=self.slave_volume)
+        self.slave_routes = SlaveRoutes(volume=self.slave_volume, auth=SugarAuth('slave'))
         self.slave_server = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.slave_routes))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()
 
     def test_online_sync_Push(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', auth=http.SugarAuth(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
@@ -73,7 +75,7 @@ class SlaveTest(tests.Test):
             ],
             master.get(['document'], reply=['guid', 'message'])['result'])
         self.assertEqual([[2, None]], json.load(file('slave/var/pull.ranges')))
-        self.assertEqual([[5, None]], json.load(file('slave/var/push.ranges')))
+        self.assertEqual([[4, None]], json.load(file('slave/var/push.ranges')))
 
         guid3 = slave.post(['document'], {'message': '3', 'title': ''})
         slave.post(cmd='online_sync')
@@ -84,14 +86,14 @@ class SlaveTest(tests.Test):
             ],
             master.get(['document'], reply=['guid', 'message'])['result'])
         self.assertEqual([[3, None]], json.load(file('slave/var/pull.ranges')))
-        self.assertEqual([[6, None]], json.load(file('slave/var/push.ranges')))
+        self.assertEqual([[5, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
         slave.put(['document', guid2], {'message': '22'})
         slave.post(cmd='online_sync')
         self.assertEqual('22', master.get(['document', guid2, 'message']))
         self.assertEqual([[4, None]], json.load(file('slave/var/pull.ranges')))
-        self.assertEqual([[7, None]], json.load(file('slave/var/push.ranges')))
+        self.assertEqual([[6, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
         slave.delete(['document', guid1])
@@ -102,7 +104,7 @@ class SlaveTest(tests.Test):
             ],
             master.get(['document'], reply=['guid', 'message'])['result'])
         self.assertEqual([[5, None]], json.load(file('slave/var/pull.ranges')))
-        self.assertEqual([[8, None]], json.load(file('slave/var/push.ranges')))
+        self.assertEqual([[7, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
         slave.put(['document', guid1], {'message': 'a'})
@@ -111,18 +113,18 @@ class SlaveTest(tests.Test):
         guid4 = slave.post(['document'], {'message': 'd', 'title': ''})
         slave.delete(['document', guid2])
         slave.post(cmd='online_sync')
-        self.assertEqual([
+        self.assertEqual(sorted([
             {'guid': guid3, 'message': 'c'},
             {'guid': guid4, 'message': 'd'},
-            ],
-            master.get(['document'], reply=['guid', 'message'])['result'])
+            ]),
+            sorted(master.get(['document'], reply=['guid', 'message'])['result']))
         self.assertEqual([[6, None]], json.load(file('slave/var/pull.ranges')))
-        self.assertEqual([[13, None]], json.load(file('slave/var/push.ranges')))
+        self.assertEqual([[12, None]], json.load(file('slave/var/push.ranges')))
 
     def test_online_sync_Pull(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', auth=http.SugarAuth(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
@@ -137,7 +139,7 @@ class SlaveTest(tests.Test):
             {'guid': guid2, 'message': '2'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[5, None]], json.load(file('slave/var/pull.ranges')))
+        self.assertEqual([[4, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[2, None]], json.load(file('slave/var/push.ranges')))
 
         guid3 = master.post(['document'], {'message': '3', 'title': ''})
@@ -148,14 +150,14 @@ class SlaveTest(tests.Test):
             {'guid': guid3, 'message': '3'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[6, None]], json.load(file('slave/var/pull.ranges')))
+        self.assertEqual([[5, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[3, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
         master.put(['document', guid2], {'message': '22'})
         slave.post(cmd='online_sync')
         self.assertEqual('22', slave.get(['document', guid2, 'message']))
-        self.assertEqual([[7, None]], json.load(file('slave/var/pull.ranges')))
+        self.assertEqual([[6, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[4, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
@@ -166,7 +168,7 @@ class SlaveTest(tests.Test):
             {'guid': guid3, 'message': '3'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[8, None]], json.load(file('slave/var/pull.ranges')))
+        self.assertEqual([[7, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[5, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
@@ -181,13 +183,13 @@ class SlaveTest(tests.Test):
             {'guid': guid4, 'message': 'd'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[13, None]], json.load(file('slave/var/pull.ranges')))
+        self.assertEqual([[12, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[6, None]], json.load(file('slave/var/push.ranges')))
 
     def test_online_sync_PullBlobs(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', auth=http.SugarAuth(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
@@ -203,8 +205,8 @@ class SlaveTest(tests.Test):
 
     def test_online_sync_PullFromPreviouslyMergedRecord(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', auth=http.SugarAuth(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
@@ -224,7 +226,7 @@ class SlaveTest(tests.Test):
         self.assertEqual('1_', slave.get(['document', guid, 'title']))
 
     def test_offline_sync_Import(self):
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         self.touch(('blob1', 'a'))
         self.touch(('blob2', 'bb'))
@@ -276,10 +278,10 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[3, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
     def test_offline_sync_ImportPush(self):
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         self.touch(('blob1', 'a'))
         self.touch(('blob2', 'bb'))
@@ -328,10 +330,10 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[3, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [dict(i) for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
     def test_offline_sync_ImportAck(self):
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         parcel.encode_dir([
             ('ack', {'ack': [[101, 103]], 'ranges': [[1, 3]], 'from': '127.0.0.1:7777', 'to': self.slave_routes.guid}, []),
@@ -351,10 +353,10 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
     def test_offline_sync_GenerateRequestAfterImport(self):
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         parcel.encode_dir([
             ('push', {'from': 'another-slave'}, [
@@ -397,10 +399,10 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
     def test_offline_sync_Export(self):
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         class statvfs(object):
 
@@ -436,10 +438,10 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
     def test_offline_sync_ContinuousExport(self):
-        slave = Connection('http://127.0.0.1:8888', auth=http.SugarAuth(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
 
         class statvfs(object):
 
@@ -473,7 +475,7 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
         slave.post(cmd='offline_sync', path=tests.tmpdir + '/sync')
         self.assertEqual(
@@ -500,7 +502,7 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
         slave.post(cmd='offline_sync', path=tests.tmpdir + '/sync')
         self.assertEqual(
@@ -533,7 +535,7 @@ class SlaveTest(tests.Test):
                     ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
 
 
 if __name__ == '__main__':

@@ -79,41 +79,6 @@ def enforce(condition, error=None, *args):
     raise exception_class(error)
 
 
-def exception(*args):
-    """Log about exception on low log level.
-
-    That might be useful for non-critial exception. Input arguments are the
-    same as for `logging.exception` function.
-
-    :param args:
-        optional arguments to pass to logging function;
-        the first argument might be a `logging.Logger` to use instead of
-        using direct `logging` calls
-
-    """
-    if args and isinstance(args[0], logging.Logger):
-        logger = args[0]
-        args = args[1:]
-    else:
-        logger = logging
-
-    klass, error, tb = sys.exc_info()
-
-    import traceback
-    tb = [i.rstrip() for i in traceback.format_exception(klass, error, tb)]
-
-    error_message = str(error) or '%s exception' % type(error).__name__
-    if args:
-        if len(args) == 1:
-            message = args[0]
-        else:
-            message = args[0] % args[1:]
-        error_message = '%s: %s' % (message, error_message)
-
-    logger.error(error_message)
-    logger.debug('\n'.join(tb))
-
-
 def ascii(value):
     if not isinstance(value, basestring):
         return str(value)
@@ -159,15 +124,6 @@ def init_logging(debug_level=None, **kwargs):
         else:
             logging_level = 8
 
-    def disable_logger(loggers):
-        for log_name in loggers:
-            logger = logging.getLogger(log_name)
-            logger.propagate = False
-            logger.addHandler(_NullHandler())
-
-    logging.Logger.trace = lambda self, message, *args, **kwargs: None
-    logging.Logger.heartbeat = lambda self, message, *args, **kwargs: None
-
     if logging_level <= 8:
         logging.Logger.trace = lambda self, message, *args, **kwargs: \
                 self._log(9, message, args, **kwargs)
@@ -176,18 +132,18 @@ def init_logging(debug_level=None, **kwargs):
     elif logging_level == 9:
         logging.Logger.trace = lambda self, message, *args, **kwargs: \
                 self._log(9, message, args, **kwargs)
-        disable_logger(['sugar_stats'])
     else:
-        disable_logger([
-            'requests.packages.urllib3.connectionpool',
-            'requests.packages.urllib3.poolmanager',
-            'requests.packages.urllib3.response',
-            'requests.packages.urllib3',
-            'inotify',
-            'netlink',
-            'sugar_stats',
-            '0install',
-            ])
+        for log_name in (
+                'requests.packages.urllib3.connectionpool',
+                'requests.packages.urllib3.poolmanager',
+                'requests.packages.urllib3.response',
+                'requests.packages.urllib3',
+                'inotify',
+                'netlink',
+                ):
+            logger = logging.getLogger(log_name)
+            logger.propagate = False
+            logger.addHandler(_NullHandler())
 
     root_logger = logging.getLogger('')
     for i in root_logger.handlers:
@@ -195,6 +151,24 @@ def init_logging(debug_level=None, **kwargs):
     logging.basicConfig(level=logging_level,
             format='%(asctime)s %(levelname)s %(name)s: %(message)s',
             **kwargs)
+
+    def exception(self, *args):
+        from traceback import format_exception
+
+        klass, error, tb = sys.exc_info()
+        tb = [i.rstrip() for i in format_exception(klass, error, tb)]
+        error_message = str(error) or '%s exception' % type(error).__name__
+        if args:
+            if len(args) == 1:
+                message = args[0]
+            else:
+                message = args[0] % args[1:]
+            error_message = '%s: %s' % (message, error_message)
+
+        self.error(error_message)
+        self.debug('\n'.join(tb))
+
+    logging.Logger.exception = exception
 
 
 def iter_file(*path):
@@ -661,3 +635,7 @@ def _nb_read(stream):
         return ''
     finally:
         fcntl.fcntl(fd, fcntl.F_SETFL, orig_flags)
+
+
+logging.Logger.trace = lambda self, message, *args, **kwargs: None
+logging.Logger.heartbeat = lambda self, message, *args, **kwargs: None

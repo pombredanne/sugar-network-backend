@@ -20,7 +20,8 @@ from os.path import exists, join
 from sugar_network import toolkit
 from sugar_network.db.storage import Storage
 from sugar_network.db.metadata import Metadata, Guid
-from sugar_network.toolkit import exception, enforce
+from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit import enforce
 
 
 # To invalidate existed index on stcuture changes
@@ -173,7 +174,7 @@ class Directory(object):
                 self._index.store(guid, props)
                 yield
             except Exception:
-                exception('Cannot populate %r in %r, invalidate it',
+                _logger.exception('Cannot populate %r in %r, invalidate it',
                         guid, self.metadata.name)
                 record.invalidate()
 
@@ -227,8 +228,11 @@ class Directory(object):
 
     def _prestore(self, guid, changes, event):
         doc = self.resource(guid, self._storage.get(guid), posts=changes)
-        doc.post_seqno = self._seqno.next()
+        # It is important to iterate the `changes` by keys,
+        # values might be changed during iteration
         for prop in changes.keys():
+            if not doc.post_seqno and not doc.metadata[prop].acl & ACL.LOCAL:
+                doc.post_seqno = self._seqno.next()
             doc.post(prop, changes[prop])
         for prop in self.metadata.keys():
             enforce(doc[prop] is not None, 'Empty %r property', prop)

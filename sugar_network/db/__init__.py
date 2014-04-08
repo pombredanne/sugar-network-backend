@@ -235,8 +235,8 @@ The example code uses all mentioned above features::
             return self.volume[document].create(item.properties(['prop1', 'prop2']))
 
         @db.property_command(method='PUT', cmd='mutate')
-        def mutate(self, document, guid, prop, request):
-            self.volume[document].update(guid, {prop: request.content})
+        def mutate(self, document, guid, prop):
+            self.volume[document].update(guid, {prop: this.request.content})
 
     volume = db.Volume('db', [MyDocyment])
     cp = MyCommands(volume)

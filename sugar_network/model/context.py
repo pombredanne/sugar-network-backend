@@ -113,7 +113,7 @@ class Context(db.Resource):
     def rating(self, value):
         return value
 
-    @db.stored_property(default='', acl=ACL.PUBLIC | ACL.LOCAL)
+    @db.stored_property(default='', acl=ACL.PUBLIC)
     def dependencies(self, value):
         """Software dependencies.
 
@@ -122,20 +122,3 @@ class Context(db.Resource):
 
         """
         return value
-
-    def created(self):
-        db.Resource.created(self)
-        self._invalidate_solutions()
-
-    def updated(self):
-        db.Resource.updated(self)
-        self._invalidate_solutions()
-
-    def _invalidate_solutions(self):
-        if self['releases'] and \
-                [i for i in ('state', 'releases', 'dependencies')
-                    if i in self.posts and self.posts[i] != self.orig(i)]:
-            this.broadcast({
-                'event': 'release',
-                'seqno': this.volume.releases_seqno.next(),
-                })

@@ -23,7 +23,7 @@ from os.path import exists, join
 import xapian
 
 from sugar_network.db.metadata import GUID_PREFIX
-from sugar_network.toolkit import Option, coroutine, exception, enforce
+from sugar_network.toolkit import Option, coroutine, enforce
 
 
 index_flush_timeout = Option(
@@ -398,7 +398,7 @@ class IndexWriter(IndexReader):
                 self._db = xapian.WritableDatabase(self._path,
                         xapian.DB_CREATE_OR_OPEN)
             except xapian.DatabaseError:
-                exception('Cannot open Xapian index in %r, will rebuild it',
+                _logger.exception('Cannot open Xapian %r index, will rebuild',
                         self.metadata.name)
                 shutil.rmtree(self._path, ignore_errors=True)
                 self._db = xapian.WritableDatabase(self._path,

@@ -85,7 +85,7 @@ class Resource(object):
     def status(self, value):
         return value
 
-    @indexed_property(List, prefix='RP', default=[])
+    @indexed_property(List, prefix='RP', default=[], acl=ACL.READ)
     def pins(self, value):
         return value
 
@@ -163,7 +163,7 @@ class Resource(object):
     def diff(self, r):
         patch = {}
         for name, prop in self.metadata.items():
-            if name == 'seqno' or prop.acl & ACL.CALC:
+            if name == 'seqno' or prop.acl & (ACL.CALC | ACL.LOCAL):
                 continue
             meta = self.meta(name)
             if meta is None:
@@ -203,15 +203,18 @@ class Resource(object):
         prop = self.metadata[prop]
         if prop.on_set is not None:
             value = prop.on_set(self, value)
-        if isinstance(prop, Aggregated):
+        seqno = None
+        if not prop.acl & ACL.LOCAL:
+            seqno = meta['seqno'] = self.post_seqno
+        if seqno and isinstance(prop, Aggregated):
             for agg in value.values():
-                agg['seqno'] = self.post_seqno
+                agg['seqno'] = seqno
         if isinstance(prop, Composite):
             orig_value = self.orig(prop.name)
             if orig_value:
                 orig_value.update(value)
                 value = orig_value
-        self.record.set(prop.name, value=value, seqno=self.post_seqno, **meta)
+        self.record.set(prop.name, value=value, **meta)
         self.posts[prop.name] = value
 
     def __contains__(self, prop):

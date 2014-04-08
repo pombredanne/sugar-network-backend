@@ -20,7 +20,7 @@ from os.path import join, exists, dirname
 from ConfigParser import ConfigParser
 
 from sugar_network.toolkit.licenses import GOOD_LICENSES
-from sugar_network.toolkit import exception, enforce
+from sugar_network.toolkit import enforce
 
 
 EMPTY_LICENSE = 'License is not specified'
@@ -104,7 +104,6 @@ def parse_version(version_string, ignore_errors=False):
             else:
                 parts[x] = []  # (because ''.split('.') == [''], not [])
     except ValueError as error:
-        exception()
         raise ValueError('Invalid version format in "%s": %s' %
                 (version_string, error))
     except KeyError as error:

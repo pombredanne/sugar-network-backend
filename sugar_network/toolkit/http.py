@@ -13,13 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import sys
 import json
 import types
-import hashlib
 import logging
-from os.path import join, dirname, exists, expanduser, abspath
+from os.path import join, dirname
 
 from sugar_network import toolkit
 from sugar_network.toolkit import i18n, enforce
@@ -112,13 +110,12 @@ class Connection(object):
 
     _Session = None
 
-    def __init__(self, url='', auth=None, max_retries=0, **session_args):
+    def __init__(self, url='', creds=None, max_retries=0, **session_args):
         self.url = url
-        self.auth = auth
+        self.creds = creds
         self._max_retries = max_retries
         self._session_args = session_args
         self._session = None
-        self._nonce = None
 
     def __repr__(self):
         return '<Connection url=%s>' % self.url
@@ -185,8 +182,8 @@ class Connection(object):
                 f.close()
         return reply
 
-    def upload(self, path, data, **kwargs):
-        reply = self.request('POST', path, data, params=kwargs)
+    def upload(self, path_=None, data_=None, **kwargs):
+        reply = self.request('POST', path_, data_, params=kwargs)
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)
         else:
@@ -206,13 +203,21 @@ class Connection(object):
         self._session.cookies.clear()
 
         try_ = 0
+        challenge = None
         while True:
             try_ += 1
             reply = self._session.request(method, path, data=data,
                     headers=headers, params=params, **kwargs)
             if reply.status_code == Unauthorized.status_code:
-                enforce(self.auth is not None, Unauthorized, 'No credentials')
-                self._authenticate(reply.headers.get('www-authenticate'))
+                enforce(self.creds is not None, Unauthorized, 'No credentials')
+                challenge_ = reply.headers.get('www-authenticate')
+                if challenge and challenge == challenge_:
+                    profile = self.creds.profile
+                    enforce(profile, Unauthorized, 'No way to self-register')
+                    _logger.info('Register on the server')
+                    self.post(['user'], profile)
+                challenge = challenge_
+                self._session.headers.update(self.creds.logon(challenge))
                 try_ = 0
             elif reply.status_code == 200 or \
                     allowed and reply.status_code in allowed:
@@ -319,90 +324,6 @@ class Connection(object):
             setattr(self._session, arg, value)
         self._session.stream = True
 
-    def _authenticate(self, challenge):
-        from urllib2 import parse_http_list, parse_keqv_list
-
-        nonce = None
-        if challenge:
-            challenge = challenge.split(' ', 1)[-1]
-            nonce = parse_keqv_list(parse_http_list(challenge)).get('nonce')
-
-        if self._nonce and nonce == self._nonce:
-            enforce(self.auth.profile(), Unauthorized, 'Bad credentials')
-            _logger.info('Register on the server')
-            self.post(['user'], self.auth.profile())
-
-        self._session.headers['authorization'] = self.auth(nonce)
-        self._nonce = nonce
-
-
-class SugarAuth(object):
-
-    def __init__(self, key_path, profile=None):
-        self._key_path = abspath(expanduser(key_path))
-        self._profile = profile or {}
-        self._key = None
-        self._pubkey = None
-        self._login = None
-
-    @property
-    def pubkey(self):
-        if self._pubkey is None:
-            self.ensure_key()
-            from M2Crypto.BIO import MemoryBuffer
-            buf = MemoryBuffer()
-            self._key.save_pub_key_bio(buf)
-            self._pubkey = buf.getvalue()
-        return self._pubkey
-
-    @property
-    def login(self):
-        if self._login is None:
-            self._login = str(hashlib.sha1(self.pubkey).hexdigest())
-        return self._login
-
-    def profile(self):
-        if 'name' not in self._profile:
-            self._profile['name'] = self.login
-        self._profile['pubkey'] = self.pubkey
-        return self._profile
-
-    def __call__(self, nonce):
-        self.ensure_key()
-        data = hashlib.sha1('%s:%s' % (self.login, nonce)).digest()
-        signature = self._key.sign(data).encode('hex')
-        return 'Sugar username="%s",nonce="%s",signature="%s"' % \
-                (self.login, nonce, signature)
-
-    def ensure_key(self):
-        from M2Crypto import RSA
-        from base64 import b64encode
-
-        key_dir = dirname(self._key_path)
-        if exists(self._key_path):
-            if os.stat(key_dir).st_mode & 077:
-                os.chmod(key_dir, 0700)
-            self._key = RSA.load_key(self._key_path)
-            return
-
-        if not exists(key_dir):
-            os.makedirs(key_dir)
-        os.chmod(key_dir, 0700)
-
-        _logger.info('Generate RSA private key at %r', self._key_path)
-        self._key = RSA.gen_key(1024, 65537, lambda *args: None)
-        self._key.save_key(self._key_path, cipher=None)
-        os.chmod(self._key_path, 0600)
-
-        pub_key_path = self._key_path + '.pub'
-        with file(pub_key_path, 'w') as f:
-            f.write('ssh-rsa %s %s@%s' % (
-                b64encode('\x00\x00\x00\x07ssh-rsa%s%s' % self._key.pub()),
-                self.login,
-                os.uname()[1],
-                ))
-        _logger.info('Saved RSA public key at %r', pub_key_path)
-
 
 class _Subscription(object):
 
@@ -431,8 +352,9 @@ class _Subscription(object):
             except Exception:
                 if try_ == 0:
                     raise
-                toolkit.exception('Failed to read from %r subscription, '
-                        'will resubscribe', self._client.url)
+                _logger.exception(
+                        'Failed to read from %r subscription, resubscribe',
+                        self._client.url)
                 self._content = None
         return _parse_event(line)
 

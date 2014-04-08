@@ -35,50 +35,32 @@ class FrontRoutes(object):
         return _HELLO_HTML
 
     @route('OPTIONS')
-    def options(self, request, response):
-        if request.environ['HTTP_ORIGIN']:
+    def options(self):
+        response = this.response
+        environ = this.request.environ
+        if environ['HTTP_ORIGIN']:
             response['Access-Control-Allow-Methods'] = \
-                    request.environ['HTTP_ACCESS_CONTROL_REQUEST_METHOD']
+                    environ['HTTP_ACCESS_CONTROL_REQUEST_METHOD']
             response['Access-Control-Allow-Headers'] = \
-                    request.environ['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']
+                    environ['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']
         else:
             response['Allow'] = 'GET, HEAD, POST, PUT, DELETE'
         response.content_length = 0
 
     @route('GET', cmd='subscribe', mime_type='text/event-stream')
-    def subscribe(self, request=None, response=None, **condition):
+    def subscribe(self, **condition):
         """Subscribe to Server-Sent Events."""
-        if request is not None and not condition:
-            condition = request
-        if response is not None:
-            response.content_type = 'text/event-stream'
-            response['Cache-Control'] = 'no-cache'
-        return self._pull_events(request, condition)
+        this.response['Cache-Control'] = 'no-cache'
 
-    @route('GET', ['robots.txt'], mime_type='text/plain')
-    def robots(self, request, response):
-        return 'User-agent: *\nDisallow: /\n'
-
-    @route('GET', ['favicon.ico'])
-    def favicon(self):
-        return this.volume.blobs.get('favicon.ico')
-
-    def _broadcast(self, event):
-        _logger.debug('Broadcast event: %r', event)
-        self._spooler.notify_all(event)
-
-    def _pull_events(self, request, condition):
         _logger.debug('Start %s-nth subscription', self._spooler.waiters + 1)
 
         # Unblock `GET /?cmd=subscribe` call to let non-greenlet application
         # initiate a subscription and do not stuck in waiting for the 1st event
         yield {'event': 'pong'}
 
-        subscription = None
-        if request is not None:
-            subscription = request.content_stream
-            if subscription is not None:
-                coroutine.spawn(self._wait_for_closing, subscription)
+        subscription = this.request.content_stream
+        if subscription is not None:
+            coroutine.spawn(self._wait_for_closing, subscription)
 
         while True:
             event = self._spooler.wait()
@@ -97,6 +79,18 @@ class FrontRoutes(object):
                 yield event
 
         _logger.debug('Stop %s-nth subscription', self._spooler.waiters)
+
+    @route('GET', ['robots.txt'], mime_type='text/plain')
+    def robots(self):
+        return 'User-agent: *\nDisallow: /\n'
+
+    @route('GET', ['favicon.ico'])
+    def favicon(self):
+        return this.volume.blobs.get('favicon.ico')
+
+    def _broadcast(self, event):
+        _logger.debug('Broadcast event: %r', event)
+        self._spooler.notify_all(event)
 
     def _wait_for_closing(self, rfile):
         try:
