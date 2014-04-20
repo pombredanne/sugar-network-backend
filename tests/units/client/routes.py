@@ -12,7 +12,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db, client, toolkit
-from sugar_network.client import journal, IPCConnection, cache_limit, cache_lifetime, api, injector, routes
+from sugar_network.client import journal, Connection, IPCConnection, cache_limit, cache_lifetime, api, injector, routes
 from sugar_network.client.model import Volume
 from sugar_network.client.injector import Injector
 from sugar_network.client.routes import ClientRoutes
@@ -81,25 +81,19 @@ class RoutesTest(tests.Test):
                 ]),
             ], header={'to': '127.0.0.1:7777', 'from': 'slave'})), params={'cmd': 'push'})
 
-        self.assertEqual([
-            {'guid': '1'},
-            {'guid': '2'},
-            ],
-            ipc.get(['context'], query='йцу')['result'])
-        self.assertEqual([
-            {'guid': '1'},
-            {'guid': '2'},
-            ],
-            ipc.get(['context'], query='qwe')['result'])
+        self.assertEqual(
+                sorted(['1', '2']),
+                sorted([i['guid'] for i in ipc.get(['context'], query='йцу')['result']]))
+        self.assertEqual(
+                sorted(['1', '2']),
+                sorted([i['guid'] for i in ipc.get(['context'], query='qwe')['result']]))
 
-        self.assertEqual([
-            {'guid': '2'},
-            ],
-            ipc.get(['context'], query='йцукен')['result'])
-        self.assertEqual([
-            {'guid': '2'},
-            ],
-            ipc.get(['context'], query='qwerty')['result'])
+        self.assertEqual(
+                sorted(['2']),
+                sorted([i['guid'] for i in ipc.get(['context'], query='йцукен')['result']]))
+        self.assertEqual(
+                sorted(['2']),
+                sorted([i['guid'] for i in ipc.get(['context'], query='qwerty')['result']]))
 
     def test_LanguagesFallbackInRequests(self):
         self.start_online_client()
@@ -340,14 +334,12 @@ class RoutesTest(tests.Test):
         self.assertEqual(
                 blob,
                 ipc.request('GET', ['context', guid, 'logo']).content)
-        self.assertEqual({
-            'logo': 'http://127.0.0.1:7777/blobs/%s' % digest,
-            },
-            ipc.get(['context', guid], reply=['logo']))
-        self.assertEqual([{
-            'logo': 'http://127.0.0.1:7777/blobs/%s' % digest,
-            }],
-            ipc.get(['context'], reply=['logo'])['result'])
+        self.assertEqual(
+                'http://127.0.0.1:7777/blobs/%s' % digest,
+                ipc.get(['context', guid], reply=['logo'])['logo'])
+        self.assertEqual(
+                ['http://127.0.0.1:7777/blobs/%s' % digest],
+                [i['logo'] for i in ipc.get(['context'], reply=['logo'])['result']])
 
     def test_OnlinePins(self):
         home_volume = self.start_online_client()
@@ -388,13 +380,9 @@ class RoutesTest(tests.Test):
             'description': 'description',
             })
 
-        self.assertEqual(sorted([
-            {'guid': guid1, 'title': '1', 'pins': []},
-            {'guid': guid2, 'title': '2', 'pins': []},
-            {'guid': guid3, 'title': '3', 'pins': []},
-            {'guid': guid4, 'title': '4', 'pins': []},
-            ]),
-            sorted(ipc.get(['context'], reply=['guid', 'title', 'pins'])['result']))
+        self.assertEqual(
+                sorted([(guid1, []), (guid2, []), (guid3, []), (guid4, [])]),
+                sorted([(i['guid'], i['pins']) for i in ipc.get(['context'], reply=['pins'])['result']]))
         self.assertEqual([
             ],
             ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result'])
@@ -420,34 +408,25 @@ class RoutesTest(tests.Test):
         home_volume['context'].update(guid2, {'title': {i18n.default_lang(): '2_'}})
         home_volume['context'].update(guid3, {'title': {i18n.default_lang(): '3_'}})
 
-        self.assertEqual(sorted([
-            {'guid': guid1, 'title': '1', 'pins': ['favorite']},
-            {'guid': guid2, 'title': '2', 'pins': ['checkin', 'favorite']},
-            {'guid': guid3, 'title': '3', 'pins': ['checkin']},
-            {'guid': guid4, 'title': '4', 'pins': []},
-            ]),
-            sorted(ipc.get(['context'], reply=['guid', 'title', 'pins'])['result']))
+        self.assertEqual(
+                sorted([(guid1, ['favorite']), (guid2, ['checkin', 'favorite']), (guid3, ['checkin']), (guid4, [])]),
+                sorted([(i['guid'], i['pins']) for i in ipc.get(['context'], reply=['pins'])['result']]))
         self.assertEqual([
             {'guid': guid1, 'title': '1_'},
             {'guid': guid2, 'title': '2_'},
             ],
             ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result'])
-        self.assertEqual([
-            {'guid': guid2, 'title': '2_'},
-            {'guid': guid3, 'title': '3_'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], pins='checkin')['result'])
+
+        self.assertEqual(
+                sorted([(guid2, '2_'), (guid3, '3_')]),
+                sorted([(i['guid'], i['title']) for i in ipc.get(['context'], reply=['guid', 'title'], pins='checkin')['result']]))
 
         ipc.delete(['context', guid1], cmd='favorite')
         ipc.delete(['context', guid2], cmd='checkin')
 
-        self.assertEqual(sorted([
-            {'guid': guid1, 'pins': []},
-            {'guid': guid2, 'pins': ['favorite']},
-            {'guid': guid3, 'pins': ['checkin']},
-            {'guid': guid4, 'pins': []},
-            ]),
-            sorted(ipc.get(['context'], reply=['guid', 'pins'])['result']))
+        self.assertEqual(
+                sorted([(guid1, []), (guid2, ['favorite']), (guid3, ['checkin']), (guid4, [])]),
+                sorted([(i['guid'], i['pins']) for i in ipc.get(['context'], reply=['pins'])['result']]))
         self.assertEqual([
             {'guid': guid2, 'pins': ['favorite']},
             ],
@@ -496,12 +475,9 @@ class RoutesTest(tests.Test):
             {'event': 'checkin', 'state': 'ready'},
             ],
             [i for i in ipc.put(['context', '2'], None, cmd='checkin')])
-        self.assertEqual([
-            {'guid': '1', 'pins': ['favorite']},
-            {'guid': '2', 'pins': ['checkin']},
-            {'guid': '3', 'pins': []},
-            ],
-            ipc.get(['context'], reply=['guid', 'pins'])['result'])
+        self.assertEqual(
+                sorted([('1', ['favorite']), ('2', ['checkin']), ('3', [])]),
+                sorted([(i['guid'], i['pins']) for i in ipc.get(['context'], reply=['guid', 'pins'])['result']]))
 
         self.stop_master()
         self.wait_for_events(event='inline', state='offline').wait()
@@ -692,8 +668,7 @@ class RoutesTest(tests.Test):
         ipc = IPCConnection()
 
         self.assertEqual([
-            {'event': 'checkin', 'state': 'solve'},
-            {'error': 'Context not found', 'event': 'failure', 'exception': 'NotFound'},
+            {'error': 'Resource not found', 'event': 'failure', 'exception': 'NotFound'},
             ],
             [i for i in ipc.put(['context', 'context'], None, cmd='checkin')])
 
@@ -862,11 +837,10 @@ class RoutesTest(tests.Test):
         self.assertEqual('done', events[-1]['event'])
         guid = events[-1]['guid']
 
-        self.assertEqual({
-            'context': 'context',
-            'error': 'error',
-            },
-            ipc.get(['report', guid], reply=['context', 'error']))
+        report = ipc.get(['report', guid], reply=['context', 'error'])
+        self.assertEqual('context', report['context'])
+        self.assertEqual('error', report['error'])
+
         self.assertEqual(sorted([
             'content1',
             'content2',
@@ -1016,7 +990,7 @@ class RoutesTest(tests.Test):
         assert time.time() - ts >= 2
 
         def kill():
-            coroutine.sleep(.5)
+            coroutine.sleep(.4)
             self.waitpid(node_pid)
 
         coroutine.spawn(kill)
@@ -1095,13 +1069,114 @@ class RoutesTest(tests.Test):
         self.assertEqual([{'event': 'pong'}], events)
         assert Routes.subscribe_tries > 2
 
+    def test_PullCheckinsOnGets(self):
+        local_volume = self.start_online_client()
+        local = IPCConnection()
+        remote = Connection(creds=SugarCreds(client.keyfile.value))
 
+        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
 
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': '1',
+            'summary': '',
+            'description': '',
+            })
+        local.put(['context', guid], None, cmd='favorite')
+        self.assertEqual('1', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
+        coroutine.sleep(1.1)
 
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
 
+        remote.put(['context', guid, 'title'], '2')
+        self.assertEqual('2', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
 
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
 
+        self.assertEqual('2', local.get(['context'], reply='title')['result'][0]['title'])
+        coroutine.sleep(.1)
+        self.assertEqual('2', remote.get(['context', guid, 'title']))
+        self.assertEqual('2', local.get(['context', guid])['title'])
 
+        self.assertEqual([[1, 1], [7, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
+
+    def test_PullCheckinsOnGettingOnline(self):
+        routes._RECONNECT_TIMEOUT = 1
+        routes._SYNC_TIMEOUT = 0
+
+        local_volume = self.start_online_client()
+        local = IPCConnection()
+        remote = Connection(creds=SugarCreds(client.keyfile.value))
+
+        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
+
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': '1',
+            'summary': '',
+            'description': '',
+            })
+        local.put(['context', guid], None, cmd='favorite')
+        self.assertEqual('1', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
+        coroutine.sleep(1.1)
+
+        remote.put(['context', guid, 'title'], '2')
+        self.assertEqual('2', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
+
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
+        self.fork_master()
+        self.wait_for_events(event='sync', state='pull').wait()
+
+        self.assertEqual('2', local.get(['context', guid])['title'])
+        self.assertEqual([[1, 1], [7, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
+
+    def test_PullCheckinsOnUpdates(self):
+        local_volume = self.start_online_client()
+        local = IPCConnection()
+        remote = Connection(creds=SugarCreds(client.keyfile.value))
+
+        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
+
+        guid = remote.post(['context'], {
+            'type': 'activity',
+            'title': '1',
+            'summary': '1',
+            'description': '',
+            })
+        local.put(['context', guid], None, cmd='favorite')
+        self.assertEqual('1', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
+        coroutine.sleep(1.1)
+
+        remote.put(['context', guid, 'title'], '2')
+        self.assertEqual('2', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', remote.get(['context', guid, 'summary']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
+        self.assertEqual('1', local.get(['context', guid])['summary'])
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
+
+        local.put(['context', guid, 'summary'], '2')
+        self.assertEqual('2', remote.get(['context', guid, 'title']))
+        self.assertEqual('2', remote.get(['context', guid, 'summary']))
+        self.assertEqual('2', local.get(['context', guid])['title'])
+        self.assertEqual('2', local.get(['context', guid])['summary'])
+        self.assertEqual([[1, 1], [8, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
 
     def ___test_CachedClientRoutes(self):
         volume = db.Volume('client', RESOURCES, lazy_open=True)

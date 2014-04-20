@@ -18,7 +18,7 @@ from sugar_network.toolkit import parcel, http, coroutine
 
 class ParcelTest(tests.Test):
 
-    def test_decode(self):
+    def test_decode_Zipped(self):
         stream = zips(
             json.dumps({'foo': 'bar'}) + '\n'
             )
@@ -96,8 +96,104 @@ class ParcelTest(tests.Test):
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-    def test_decode_WithLimit(self):
+    def test_decode_NotZipped(self):
+        stream = StringIO(
+            json.dumps({'foo': 'bar'}) + '\n'
+            )
+        packets_iter = parcel.decode(stream)
+        self.assertRaises(EOFError, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
+        stream = StringIO(
+            json.dumps({'foo': 'bar'}) + '\n' +
+            json.dumps({'packet': 1, 'bar': 'foo'}) + '\n'
+            )
+        packets_iter = parcel.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            self.assertEqual('foo', packet['bar'])
+            packet_iter = iter(packet)
+            self.assertRaises(EOFError, packet_iter.next)
+        self.assertRaises(EOFError, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
+        stream = StringIO(
+            json.dumps({'foo': 'bar'}) + '\n' +
+            json.dumps({'packet': 1, 'bar': 'foo'}) + '\n' +
+            json.dumps({'payload': 1}) + '\n'
+            )
+        packets_iter = parcel.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            packet_iter = iter(packet)
+            self.assertEqual({'payload': 1}, next(packet_iter))
+            self.assertRaises(EOFError, packet_iter.next)
+        self.assertRaises(EOFError, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
+        stream = StringIO(
+            json.dumps({'foo': 'bar'}) + '\n' +
+            json.dumps({'packet': 1, 'bar': 'foo'}) + '\n' +
+            json.dumps({'payload': 1}) + '\n' +
+            json.dumps({'packet': 2}) + '\n' +
+            json.dumps({'payload': 2}) + '\n'
+            )
+        packets_iter = parcel.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            packet_iter = iter(packet)
+            self.assertEqual({'payload': 1}, next(packet_iter))
+            self.assertRaises(StopIteration, packet_iter.next)
+        with next(packets_iter) as packet:
+            self.assertEqual(2, packet.name)
+            packet_iter = iter(packet)
+            self.assertEqual({'payload': 2}, next(packet_iter))
+            self.assertRaises(EOFError, packet_iter.next)
+        self.assertRaises(EOFError, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
+        stream = StringIO(
+            json.dumps({'foo': 'bar'}) + '\n' +
+            json.dumps({'packet': 1, 'bar': 'foo'}) + '\n' +
+            json.dumps({'payload': 1}) + '\n' +
+            json.dumps({'packet': 2}) + '\n' +
+            json.dumps({'payload': 2}) + '\n' +
+            json.dumps({'packet': 'last'}) + '\n'
+            )
+        packets_iter = parcel.decode(stream)
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            packet_iter = iter(packet)
+            self.assertEqual({'payload': 1}, next(packet_iter))
+            self.assertRaises(StopIteration, packet_iter.next)
+        with next(packets_iter) as packet:
+            self.assertEqual(2, packet.name)
+            packet_iter = iter(packet)
+            self.assertEqual({'payload': 2}, next(packet_iter))
+            self.assertRaises(StopIteration, packet_iter.next)
+        self.assertRaises(StopIteration, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
+    def test_decode_ZippedWithLimit(self):
         payload = zips(
+            json.dumps({}) + '\n' +
+            json.dumps({'packet': 'first'}) + '\n' +
+            json.dumps({'packet': 'last'}) + '\n'
+            ).getvalue()
+        tail = '.' * 100
+
+        stream = StringIO(payload + tail)
+        for i in parcel.decode(stream):
+            pass
+        self.assertEqual(len(payload + tail), stream.tell())
+
+        stream = StringIO(payload + tail)
+        for i in parcel.decode(stream, limit=len(payload)):
+            pass
+        self.assertEqual(len(payload), stream.tell())
+
+    def test_decode_NotZippedWithLimit(self):
+        payload = StringIO(
             json.dumps({}) + '\n' +
             json.dumps({'packet': 'first'}) + '\n' +
             json.dumps({'packet': 'last'}) + '\n'
@@ -254,7 +350,7 @@ class ParcelTest(tests.Test):
         self.assertRaises(StopIteration, packets_iter.next)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
-    def test_encode(self):
+    def test_encode_Zipped(self):
         stream = ''.join([i for i in parcel.encode([])])
         self.assertEqual(
                 json.dumps({}) + '\n' +
@@ -299,6 +395,52 @@ class ParcelTest(tests.Test):
                 json.dumps({3: 3}) + '\n' +
                 json.dumps({'packet': 'last'}) + '\n',
                 unzips(stream))
+
+    def test_encode_NotZipped(self):
+        stream = ''.join([i for i in parcel.encode([], compresslevel=0)])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'packet': 'last'}) + '\n',
+                stream)
+
+        stream = ''.join([i for i in parcel.encode([(None, None, None)], header={'foo': 'bar'}, compresslevel=0)])
+        self.assertEqual(
+                json.dumps({'foo': 'bar'}) + '\n' +
+                json.dumps({'packet': None}) + '\n' +
+                json.dumps({'packet': 'last'}) + '\n',
+                stream)
+
+        stream = ''.join([i for i in parcel.encode([
+            (1, {}, None),
+            ('2', {'n': 2}, []),
+            ('3', {'n': 3}, iter([])),
+            ], compresslevel=0)])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'packet': 1}) + '\n' +
+                json.dumps({'packet': '2', 'n': 2}) + '\n' +
+                json.dumps({'packet': '3', 'n': 3}) + '\n' +
+                json.dumps({'packet': 'last'})  + '\n',
+                stream)
+
+        stream = ''.join([i for i in parcel.encode([
+            (1, None, [{1: 1}]),
+            (2, None, [{2: 2}, {2: 2}]),
+            (3, None, [{3: 3}, {3: 3}, {3: 3}]),
+            ], compresslevel=0)])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'packet': 1}) + '\n' +
+                json.dumps({1: 1}) + '\n' +
+                json.dumps({'packet': 2}) + '\n' +
+                json.dumps({2: 2}) + '\n' +
+                json.dumps({2: 2}) + '\n' +
+                json.dumps({'packet': 3}) + '\n' +
+                json.dumps({3: 3}) + '\n' +
+                json.dumps({3: 3}) + '\n' +
+                json.dumps({3: 3}) + '\n' +
+                json.dumps({'packet': 'last'}) + '\n',
+                stream)
 
     def test_limited_encode(self):
         RECORD = 1024 * 1024

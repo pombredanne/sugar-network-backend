@@ -46,7 +46,14 @@ _logger = logging.getLogger('parcel')
 def decode(stream, limit=None):
     _logger.debug('Decode %r stream limit=%r', stream, limit)
 
-    stream = _UnzipStream(stream, limit)
+    if limit is not None:
+        limit -= 2
+    magic = stream.read(2)
+    enforce(len(magic) == 2, http.BadRequest, 'Malformed parcel')
+    if magic == '\037\213':
+        stream = _ZippedDecoder(stream, limit)
+    else:
+        stream = _Decoder(magic, stream, limit)
     header = stream.read_record()
 
     packet = _DecodeIterator(stream)
@@ -63,7 +70,11 @@ def encode(packets, limit=None, header=None, compresslevel=None,
     _logger.debug('Encode %r packets limit=%r header=%r',
             packets, limit, header)
 
-    ostream = _ZipStream(compresslevel)
+    if compresslevel is 0:
+        ostream = _Encoder()
+    else:
+        ostream = _ZippedEncoder(compresslevel)
+
     # In case of downloading blobs
     # (?) reuse current `this.http`
     this.http = http.Connection()
@@ -242,16 +253,10 @@ class _DecodeIterator(object):
         pass
 
 
-class _ZipStream(object):
+class _Encoder(object):
 
-    def __init__(self, compresslevel=None):
-        if compresslevel is None:
-            compresslevel = DEFAULT_COMPRESSLEVEL
-        self._zipper = zlib.compressobj(compresslevel,
-                zlib.DEFLATED, -_ZLIB_WBITS, zlib.DEF_MEM_LEVEL, 0)
+    def __init__(self):
         self._offset = 0
-        self._size = 0
-        self._crc = zlib.crc32('') & 0xffffffffL
 
     def write_record(self, record, limit=None):
         chunk = json.dumps(record) + '\n'
@@ -260,49 +265,58 @@ class _ZipStream(object):
         return self.write(chunk)
 
     def write(self, chunk):
+        chunk = self._encode(chunk)
+        if chunk:
+            self._offset += len(chunk)
+        return chunk
+
+    def flush(self):
+        chunk = self._flush()
+        self._offset += len(chunk)
+        return chunk
+
+    def _encode(self, chunk):
+        return chunk
+
+    def _flush(self):
+        return ''
+
+
+class _ZippedEncoder(_Encoder):
+
+    def __init__(self, compresslevel=None):
+        _Encoder.__init__(self)
+        if compresslevel is None:
+            compresslevel = DEFAULT_COMPRESSLEVEL
+        self._zipper = zlib.compressobj(compresslevel,
+                zlib.DEFLATED, -_ZLIB_WBITS, zlib.DEF_MEM_LEVEL, 0)
+        self._size = 0
+        self._crc = zlib.crc32('') & 0xffffffffL
+
+    def _encode(self, chunk):
         self._size += len(chunk)
         self._crc = zlib.crc32(chunk, self._crc) & 0xffffffffL
         chunk = self._zipper.compress(chunk)
-
         if self._offset == 0:
             chunk = '\037\213' + '\010' + chr(0) + \
                     struct.pack('<L', long(time.time())) + \
                     '\002' + '\377' + \
                     chunk
             self._offset = _ZLIB_WBITS_SIZE
-        if chunk:
-            self._offset += len(chunk)
-
         return chunk
 
-    def flush(self):
-        chunk = self._zipper.flush() + \
+    def _flush(self):
+        return self._zipper.flush() + \
                 struct.pack('<L', self._crc) + \
                 struct.pack('<L', self._size & 0xffffffffL)
-        self._offset += len(chunk)
-        return chunk
 
 
-class _UnzipStream(object):
+class _Decoder(object):
 
-    def __init__(self, stream, limit):
+    def __init__(self, prefix, stream, limit):
+        self._buffer = prefix
         self._stream = stream
         self._limit = limit
-        self._unzipper = zlib.decompressobj(-_ZLIB_WBITS)
-        self._crc = zlib.crc32('') & 0xffffffffL
-        self._size = 0
-        self._buffer = ''
-
-        if self._limit is not None:
-            self._limit -= 10
-        magic = stream.read(2)
-        enforce(magic == '\037\213', http.BadRequest,
-                'Not a gzipped file')
-        enforce(ord(stream.read(1)) == 8, http.BadRequest,
-                'Unknown compression method')
-        enforce(ord(stream.read(1)) == 0, http.BadRequest,
-                'Gzip flags should be empty')
-        stream.read(6)  # Ignore the rest of header
 
     def read_record(self):
         while True:
@@ -328,20 +342,41 @@ class _UnzipStream(object):
         if self._limit is not None:
             size = min(size, self._limit)
         chunk = self._stream.read(size)
+        if chunk and self._limit is not None:
+            self._limit -= len(chunk)
+        return self._decode(chunk)
 
+    def _decode(self, chunk):
+        self._buffer += chunk
+        return bool(self._buffer)
+
+
+class _ZippedDecoder(_Decoder):
+
+    def __init__(self, stream, limit):
+        _Decoder.__init__(self, '', stream, limit)
+        self._unzipper = zlib.decompressobj(-_ZLIB_WBITS)
+        self._crc = zlib.crc32('') & 0xffffffffL
+        self._size = 0
+
+        if self._limit is not None:
+            self._limit -= 8
+        enforce(ord(stream.read(1)) == 8, http.BadRequest,
+                'Unknown compression method')
+        enforce(ord(stream.read(1)) == 0, http.BadRequest,
+                'Gzip flags should be empty')
+        stream.read(6)  # Ignore the rest of header
+
+    def _decode(self, chunk):
         if chunk:
-            if self._limit is not None:
-                self._limit -= len(chunk)
             self._add_to_buffer(self._unzipper.decompress(chunk))
             return True
-
         enforce(len(self._unzipper.unused_data) >= 8, http.BadRequest,
                 'Malformed gzipped file')
         crc = struct.unpack('<I', self._unzipper.unused_data[:4])[0]
         enforce(crc == self._crc, http.BadRequest, 'CRC check failed')
         size = struct.unpack('<I', self._unzipper.unused_data[4:8])[0]
         enforce(size == self._size, http.BadRequest, 'Incorrect length')
-
         return self._add_to_buffer(self._unzipper.flush())
 
     def _add_to_buffer(self, chunk):

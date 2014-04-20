@@ -70,14 +70,13 @@ class IndexReader(object):
     @property
     def mtime(self):
         """UNIX seconds of the last `commit()` call."""
-        return int(os.stat(self._mtime_path).st_mtime)
+        if exists(self._mtime_path):
+            return int(os.stat(self._mtime_path).st_mtime)
+        else:
+            return 0
 
     def ensure_open(self):
-        if not exists(self._mtime_path):
-            with file(self._mtime_path, 'w'):
-                pass
-            # Outter code should understand the initial state
-            os.utime(self._mtime_path, (0, 0))
+        pass
 
     def get_cached(self, guid):
         """Return cached document.
@@ -337,6 +336,8 @@ class IndexWriter(IndexReader):
 
         if pre_cb is not None:
             properties = pre_cb(guid, properties, *args)
+            if properties is None:
+                return
 
         _logger.debug('Index %r object: %r', self.metadata.name, properties)
 
@@ -419,7 +420,11 @@ class IndexWriter(IndexReader):
             self._db.flush()
 
         checkpoint = time.time()
-        os.utime(self._mtime_path, (checkpoint, checkpoint))
+        if exists(self._mtime_path):
+            os.utime(self._mtime_path, (checkpoint, checkpoint))
+        else:
+            with file(self._mtime_path, 'w'):
+                pass
         self._pending_updates = 0
 
         _logger.debug('Commit to %r took %s seconds',

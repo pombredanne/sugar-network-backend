@@ -56,6 +56,10 @@ class Directory(object):
 
         self._open()
 
+    @property
+    def empty(self):
+        return True if self._index is None else (self._index.mtime == 0)
+
     def wipe(self):
         self.close()
         _logger.debug('Wipe %r directory', self.metadata.name)
@@ -182,21 +186,32 @@ class Directory(object):
             self._save_layout()
             self.commit()
 
+    def diff(self, r):
+        for start, end in r:
+            query = 'seqno:%s..' % start
+            if end:
+                query += str(end)
+            docs, __ = self.find(query=query, order_by='seqno')
+            for doc in docs:
+                yield doc
+
     def patch(self, guid, patch, seqno=None):
         """Apply changes for documents."""
         doc = self.resource(guid, self._storage.get(guid))
+        merged = False
 
         for prop, meta in patch.items():
             orig_meta = doc.meta(prop)
             if orig_meta and orig_meta['mtime'] >= meta['mtime']:
                 continue
-            if doc.post_seqno is None:
-                if seqno is None:
+            if doc.post_seqno is None and seqno is not False:
+                if not seqno:
                     seqno = self._seqno.next()
                 doc.post_seqno = seqno
             doc.post(prop, **meta)
+            merged = True
 
-        if doc.post_seqno is not None and doc.exists:
+        if merged and doc.exists:
             # No need in after-merge event, further commit event
             # is enough to avoid increasing events flow
             self._index.store(guid, doc.posts, self._preindex)
@@ -234,6 +249,8 @@ class Directory(object):
             if not doc.post_seqno and not doc.metadata[prop].acl & ACL.LOCAL:
                 doc.post_seqno = self._seqno.next()
             doc.post(prop, changes[prop])
+        if not doc.exists:
+            return None
         for prop in self.metadata.keys():
             enforce(doc[prop] is not None, 'Empty %r property', prop)
         return doc

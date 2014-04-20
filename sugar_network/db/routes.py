@@ -13,18 +13,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# pylint: disable-msg=W0611
+
 import re
 import logging
 from contextlib import contextmanager
 
 from sugar_network import toolkit
 from sugar_network.db.metadata import Aggregated
-from sugar_network.toolkit.router import ACL, route, fallbackroute
+from sugar_network.toolkit.router import ACL, File
+from sugar_network.toolkit.router import route, postroute, fallbackroute
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, parcel, enforce
+from sugar_network.toolkit import http, parcel, ranges, enforce
 
 
 _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
+_GROUPED_DIFF_LIMIT = 1024
 
 _logger = logging.getLogger('db.routes')
 
@@ -35,6 +39,17 @@ class Routes(object):
         this.volume = self.volume = volume
         self._find_limit = find_limit
 
+    @postroute
+    def postroute(self, result, exception):
+        request = this.request
+        if not request.guid:
+            return result
+        pull = request.headers['pull']
+        if pull is None:
+            return result
+        this.response.content_type = 'application/octet-stream'
+        return self._object_diff(pull)
+
     @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
     def create(self):
         with self._post(ACL.CREATE) as doc:
@@ -44,25 +59,6 @@ class Routes(object):
                 self._useradd(authors, this.principal, ACL.ORIGINAL)
             self.volume[this.request.resource].create(doc.posts)
             return doc['guid']
-
-    @route('GET', [None],
-            arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
-            mime_type='application/json')
-    def find(self, reply, limit):
-        self._preget()
-        request = this.request
-        if self._find_limit and limit > self._find_limit:
-            _logger.warning('The find limit is restricted to %s',
-                    self._find_limit)
-            request['limit'] = self._find_limit
-        documents, total = self.volume[request.resource].find(
-                not_state='deleted', **request)
-        result = [self._postget(i, reply) for i in documents]
-        return {'total': total, 'result': result}
-
-    @route('GET', [None, None], cmd='exists', mime_type='application/json')
-    def exists(self):
-        return self.volume[this.request.resource][this.request.guid].exists
 
     @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update(self):
@@ -88,10 +84,29 @@ class Routes(object):
         # to make master-slave synchronization possible
         directory = self.volume[this.request.resource]
         doc = directory[this.request.guid]
-        enforce(doc.exists, http.NotFound, 'Resource not found')
+        enforce(doc.available, http.NotFound, 'Resource not found')
         doc.posts['state'] = 'deleted'
         doc.updated()
         directory.update(doc.guid, doc.posts, 'delete')
+
+    @route('GET', [None],
+            arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
+            mime_type='application/json')
+    def find(self, reply, limit):
+        self._preget()
+        request = this.request
+        if self._find_limit and limit > self._find_limit:
+            _logger.warning('The find limit is restricted to %s',
+                    self._find_limit)
+            request['limit'] = self._find_limit
+        documents, total = self.volume[request.resource].find(
+                not_state='deleted', **request)
+        result = [self._postget(i, reply) for i in documents]
+        return {'total': total, 'result': result}
+
+    @route('GET', [None, None], cmd='exists', mime_type='application/json')
+    def exists(self):
+        return self.volume[this.request.resource][this.request.guid].available
 
     @route('GET', [None, None], arguments={'reply': list},
             mime_type='application/json')
@@ -103,8 +118,7 @@ class Routes(object):
                     reply.append(prop.name)
         self._preget()
         doc = self.volume[this.request.resource].get(this.request.guid)
-        enforce(doc.exists and doc['state'] != 'deleted', http.NotFound,
-                'Resource not found')
+        enforce(doc.available, http.NotFound, 'Resource not found')
         return self._postget(doc, reply)
 
     @route('GET', [None, None, None], mime_type='application/json')
@@ -166,14 +180,65 @@ class Routes(object):
         del authors[user]
         directory.update(request.guid, {'author': authors})
 
-    @route('GET', [None, None], cmd='clone')
-    def clone(self):
-        clone = self.volume.clone(this.request.resource, this.request.guid)
-        return parcel.encode([('push', None, clone)])
+    @route('GET', [None], cmd='diff', mime_type='application/json')
+    def grouped_diff(self, key):
+        if not key:
+            key = 'guid'
+        in_r = this.request.headers['range'] or [[1, None]]
+        out_r = []
+        diff = set()
+
+        for doc in self.volume[this.request.resource].diff(in_r):
+            diff.add(doc.guid)
+            if len(diff) > _GROUPED_DIFF_LIMIT:
+                break
+            ranges.include(out_r, doc['seqno'], doc['seqno'])
+            doc.diff(in_r, out_r)
+
+        return out_r, list(diff)
+
+    @route('GET', [None, None], cmd='diff')
+    def object_diff(self):
+        return self._object_diff(this.request.headers['range'])
 
     @fallbackroute('GET', ['blobs'])
     def blobs(self):
         return self.volume.blobs.get(this.request.guid)
+
+    def _object_diff(self, in_r):
+        request = this.request
+        doc = self.volume[request.resource][request.guid]
+        enforce(doc.exists, http.NotFound, 'Resource not found')
+
+        out_r = []
+        if in_r is None:
+            in_r = [[1, None]]
+        patch = doc.diff(in_r, out_r)
+        if not patch:
+            return parcel.encode([(None, None, [])], compresslevel=0)
+
+        diff = [{'resource': request.resource},
+                {'guid': request.guid, 'patch': patch},
+                ]
+
+        def add_blob(blob):
+            if not isinstance(blob, File):
+                return
+            seqno = int(blob.meta['x-seqno'])
+            ranges.include(out_r, seqno, seqno)
+            diff.append(blob)
+
+        for prop, meta in patch.items():
+            prop = doc.metadata[prop]
+            value = prop.reprcast(meta['value'])
+            if isinstance(prop, Aggregated):
+                for __, aggvalue in value:
+                    add_blob(aggvalue)
+            else:
+                add_blob(value)
+        diff.append({'commit': out_r})
+
+        return parcel.encode([(None, None, diff)], compresslevel=0)
 
     @contextmanager
     def _post(self, access):
@@ -197,7 +262,7 @@ class Routes(object):
                     doc.posts[name] = prop.default
         else:
             doc = self.volume[this.request.resource][this.request.guid]
-            enforce(doc.exists, 'Resource not found')
+            enforce(doc.available, 'Resource not found')
         this.resource = doc
 
         def teardown(new, old):
@@ -244,7 +309,7 @@ class Routes(object):
     def _useradd(self, authors, user, role):
         props = {}
         user_doc = self.volume['user'][user]
-        if user_doc.exists:
+        if user_doc.available:
             props['name'] = user_doc['name']
             role |= ACL.INSYSTEM
         else:

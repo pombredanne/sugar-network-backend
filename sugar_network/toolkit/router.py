@@ -140,6 +140,7 @@ class Request(dict):
                     else:
                         dict.__setitem__(self, key, value)
             self.environ = environ
+        self.headers = _RequestHeaders(self.environ)
 
         if method:
             self.environ['REQUEST_METHOD'] = method
@@ -312,34 +313,14 @@ class Request(dict):
                 (self.method, self.path, self.cmd, dict(self))
 
 
-class CaseInsensitiveDict(dict):
-
-    def __contains__(self, key):
-        return dict.__contains__(self, key.lower())
-
-    def __getitem__(self, key):
-        return self.get(key.lower())
-
-    def __setitem__(self, key, value):
-        return self.set(key.lower(), value)
-
-    def __delitem__(self, key):
-        self.remove(key.lower())
-
-    def get(self, key, default=None):
-        return dict.get(self, key, default)
-
-    def set(self, key, value):
-        dict.__setitem__(self, key, value)
-
-    def remove(self, key):
-        dict.__delitem__(self, key)
-
-
-class Response(CaseInsensitiveDict):
+class Response(toolkit.CaseInsensitiveDict):
 
     status = '200 OK'
     relocations = 0
+
+    def __init__(self):
+        toolkit.CaseInsensitiveDict.__init__(self)
+        self.headers = _ResponseHeaders(self)
 
     @property
     def content_length(self):
@@ -392,7 +373,7 @@ class File(str):
         pass
 
     def __new__(cls, path=None, digest=None, meta=None):
-        meta = CaseInsensitiveDict(meta or [])
+        meta = toolkit.CaseInsensitiveDict(meta or [])
 
         url = ''
         if meta:
@@ -568,7 +549,7 @@ class Router(object):
             raise
         finally:
             for i in self._postroutes:
-                i(result, exception)
+                result = i(result, exception)
 
         return result
 
@@ -913,6 +894,41 @@ class _Route(object):
         if self.cmd:
             path += ('?cmd=%s' % self.cmd)
         return '%s /%s (%s)' % (self.method, path, self.callback.__name__)
+
+
+class _RequestHeaders(dict):
+
+    def __init__(self, environ):
+        dict.__init__(self)
+        self._environ = environ
+
+    def __contains__(self, key):
+        return 'HTTP_X_%s' % key.upper() in self._environ
+
+    def __getitem__(self, key):
+        value = self._environ.get('HTTP_X_%s' % key.upper())
+        if value is not None:
+            return json.loads(value)
+
+    def __setitem__(self, key, value):
+        dict.__setitem__(self, 'x-%s' % key, json.dumps(value))
+
+
+class _ResponseHeaders(object):
+
+    def __init__(self, headers):
+        self._headers = headers
+
+    def __contains__(self, key):
+        return 'x-%s' % key.lower() in self._headers
+
+    def __getitem__(self, key):
+        value = self._headers.get('x-%s' % key.lower())
+        if value is not None:
+            return json.loads(value)
+
+    def __setitem__(self, key, value):
+        self._headers.set('x-%s' % key.lower(), json.dumps(value))
 
 
 File.AWAY = File(None)

@@ -18,42 +18,46 @@ import logging
 from httplib import IncompleteRead
 from os.path import join
 
-from sugar_network import db, client, node, toolkit, model
-from sugar_network.client import journal
-from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit.router import Request, Router, File
+from sugar_network import db, client, node, toolkit
+from sugar_network.model import FrontRoutes
+from sugar_network.client.journal import Routes as JournalRoutes
+from sugar_network.toolkit.router import Request, Router, Response
 from sugar_network.toolkit.router import route, fallbackroute
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import netlink, zeroconf, coroutine, http, parcel
 from sugar_network.toolkit import ranges, lsb_release, enforce
 
 
-# Flag file to recognize a directory as a synchronization directory
+_SYNC_TIMEOUT = 30
 _RECONNECT_TIMEOUT = 3
 _RECONNECT_TIMEOUT_MAX = 60 * 15
 
 _logger = logging.getLogger('client.routes')
 
 
-class ClientRoutes(model.FrontRoutes, journal.Routes):
+class ClientRoutes(FrontRoutes, JournalRoutes):
 
     def __init__(self, home_volume, creds, no_subscription=False):
-        model.FrontRoutes.__init__(self)
-        journal.Routes.__init__(self)
+        FrontRoutes.__init__(self)
+        JournalRoutes.__init__(self)
 
         this.localcast = this.broadcast
 
         self._local = _LocalRoutes(home_volume)
+        self._remote = None
+        self._remote_urls = []
         self._creds = creds
         self._inline = coroutine.Event()
         self._inline_job = coroutine.Pool()
-        self._remote_urls = []
-        self._node = None
         self._connect_jobs = coroutine.Pool()
+        self._sync_jobs = coroutine.Pool()
         self._no_subscription = no_subscription
+        self._pull_r = toolkit.Bin(
+                join(home_volume.root, 'var', 'pull'), [[1, None]])
         self._push_r = toolkit.Bin(
-                join(home_volume.root, 'var', 'push'),
-                [[1, None]])
-        self._push_job = coroutine.Pool()
+                join(home_volume.root, 'var', 'push'), [[1, None]])
+        self._push_guids_map = toolkit.Bin(
+                join(home_volume.root, 'var', 'push-guids'), {})
 
     def connect(self, api=None):
         if self._connect_jobs:
@@ -64,11 +68,13 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         else:
             self._remote_urls.append(api)
         self._connect_jobs.spawn(self._wait_for_connectivity)
+        self._local.volume.populate()
 
     def close(self):
         self._connect_jobs.kill()
         self._got_offline()
         self._local.volume.close()
+        self._pull_r.commit()
 
     @fallbackroute('GET', ['hub'])
     def hub(self):
@@ -99,7 +105,7 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
 
     @fallbackroute('GET', ['packages'])
     def route_packages(self):
-        if self._inline.is_set():
+        if self.inline():
             return self.fallback()
         else:
             # Let caller know that we are in offline and
@@ -113,54 +119,13 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
 
     @route('GET', cmd='whoami', mime_type='application/json')
     def whoami(self):
-        if self._inline.is_set():
+        if self.inline():
             result = self.fallback()
             result['route'] = 'proxy'
         else:
             result = {'roles': [], 'route': 'offline'}
         result['guid'] = self._creds.login
         return result
-
-    @route('GET', [None],
-            arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
-            mime_type='application/json')
-    def find(self):
-        request = this.request
-        if not self._inline.is_set() or 'pins' in request:
-            return self._local.call(request, this.response)
-
-        reply = request.setdefault('reply', ['guid'])
-        if 'pins' not in reply:
-            return self.fallback()
-
-        if 'guid' not in reply:
-            # Otherwise there is no way to mixin `pins`
-            reply.append('guid')
-        result = self.fallback()
-
-        directory = self._local.volume[request.resource]
-        for item in result['result']:
-            doc = directory[item['guid']]
-            if doc.exists:
-                item['pins'] += doc.repr('pins')
-
-        return result
-
-    @route('GET', [None, None], mime_type='application/json')
-    def get(self):
-        request = this.request
-        if self._local.volume[request.resource][request.guid].exists:
-            return self._local.call(request, this.response)
-        else:
-            return self.fallback()
-
-    @route('GET', [None, None, None], mime_type='application/json')
-    def get_prop(self):
-        request = this.request
-        if self._local.volume[request.resource][request.guid].exists:
-            return self._local.call(request, this.response)
-        else:
-            return self.fallback()
 
     @route('POST', ['report'], cmd='submit', mime_type='text/event-stream')
     def submit_report(self):
@@ -208,6 +173,62 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
     def recycle(self):
         return this.injector.recycle()
 
+    @route('GET', [None],
+            arguments={'offset': int, 'limit': int, 'reply': ['guid']},
+            mime_type='application/json')
+    def find(self, reply):
+        request = this.request
+        if not self.inline() or 'pins' in request:
+            return self._local.call(request, this.response)
+        if 'guid' not in reply:
+            # Otherwise no way to mixin `pins` or sync checkins
+            reply.append('guid')
+        if 'mtime' not in reply:
+            # To track updates for checked-in resources
+            reply.append('mtime')
+        result = self.fallback()
+        directory = self._local.volume[request.resource]
+        for item in result['result']:
+            checkin = directory[item['guid']]
+            if not checkin.exists:
+                continue
+            pins = item['pins'] = checkin.repr('pins')
+            if pins and item['mtime'] > checkin['mtime']:
+                pull = Request(method='GET',
+                        path=[checkin.metadata.name, checkin.guid], cmd='diff')
+                self._sync_jobs.spawn(self._pull_checkin, pull, None, 'range')
+        return result
+
+    @route('GET', [None, None], mime_type='application/json')
+    def get(self):
+        request = this.request
+        if self._local.volume[request.resource][request.guid].exists:
+            return self._local.call(request, this.response)
+        else:
+            return self.fallback()
+
+    @route('GET', [None, None, None], mime_type='application/json')
+    def get_prop(self):
+        return self.get()
+
+    @route('PUT', [None, None])
+    def update(self):
+        if not self.inline():
+            return self.fallback()
+        request = this.request
+        local = self._local.volume[request.resource][request.guid]
+        if not local.exists or not local.repr('pins'):
+            return self.fallback()
+        self._pull_checkin(request, None, 'pull')
+
+    @route('PUT', [None, None, None])
+    def update_prop(self):
+        self.update()
+
+    @route('DELETE', [None, None])
+    def delete(self):
+        self.update()
+
     @fallbackroute()
     def fallback(self, request=None, response=None, **kwargs):
         if request is None:
@@ -215,18 +236,18 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         if response is None:
             response = this.response
 
-        if not self._inline.is_set():
+        if not self.inline():
             return self._local.call(request, response)
 
         try:
-            reply = self._node.call(request, response)
-            if hasattr(reply, 'read'):
+            result = self._remote.call(request, response)
+            if hasattr(result, 'read'):
                 if response.relocations:
-                    return reply
+                    return result
                 else:
-                    return _ResponseStream(reply, self._restart_online)
+                    return _ResponseStream(result, self._restart_online)
             else:
-                return reply
+                return result
         except (http.ConnectionError, IncompleteRead):
             if response.relocations:
                 raise
@@ -234,28 +255,30 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
             return self._local.call(request, response)
 
     def _got_online(self, url):
-        enforce(not self._inline.is_set())
-        _logger.debug('Got online on %r', self._node)
+        enforce(not self.inline())
+        _logger.debug('Got online on %r', self._remote)
         self._inline.set()
         self._local.volume.mute = True
         this.injector.api = url
         this.localcast({'event': 'inline', 'state': 'online'})
-        self._push_job.spawn(self._push)
+        if not self._local.volume.empty:
+            self._sync_jobs.spawn_later(_SYNC_TIMEOUT, self._sync)
 
     def _got_offline(self):
-        if self._node is not None:
-            self._node.close()
-        if self._inline.is_set():
-            _logger.debug('Got offline on %r', self._node)
+        if self._remote is not None:
+            self._remote.close()
+            self._remote = None
+        if self.inline():
+            _logger.debug('Got offline on %r', self._remote)
             self._inline.clear()
             self._local.volume.mute = False
             this.injector.api = None
             this.localcast({'event': 'inline', 'state': 'offline'})
-        self._push_job.kill()
+        self._sync_jobs.kill()
 
     def _restart_online(self):
         _logger.debug('Lost %r connection, try to reconnect in %s seconds',
-                self._node, _RECONNECT_TIMEOUT)
+                self._remote, _RECONNECT_TIMEOUT)
         self._remote_connect(_RECONNECT_TIMEOUT)
 
     def _discover_node(self):
@@ -275,19 +298,19 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
     def _remote_connect(self, timeout=0):
 
         def pull_events():
-            for event in self._node.subscribe():
+            for event in self._remote.subscribe():
                 if event.get('event') == 'release':
                     this.injector.seqno = event['seqno']
                 this.broadcast(event)
 
         def handshake(url):
             _logger.debug('Connecting to %r node', url)
-            self._node = client.Connection(url, creds=self._creds)
-            status = self._node.get(cmd='status')
+            self._remote = client.Connection(url, creds=self._creds)
+            status = self._remote.get(cmd='status')
             seqno = status.get('seqno')
             if seqno and 'releases' in seqno:
                 this.injector.seqno = seqno['releases']
-            if self._inline.is_set():
+            if self.inline():
                 _logger.info('Reconnected to %r node', url)
             else:
                 self._got_online(url)
@@ -322,36 +345,63 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
         self._inline_job.spawn_later(timeout, connect)
 
     def _checkin_context(self, pin=None):
-        context = this.volume['context'][this.request.guid]
-        if not context.exists:
+        contexts = self._local.volume['context']
+        local_context = contexts[this.request.guid]
+        if not local_context.exists:
             enforce(self.inline(), http.ServiceUnavailable,
                     'Not available in offline')
-            _logger.debug('Checkin %r context', context.guid)
-            clone = self.fallback(
-                    method='GET', path=['context', context.guid], cmd='clone')
-            seqno, __ = this.volume.patch(next(parcel.decode(clone)))
-            if seqno:
-                ranges.exclude(self._push_r.value, seqno, seqno)
-        pins = context['pins']
+            _logger.debug('Checkin %r context', local_context.guid)
+            pull = Request(method='GET',
+                    path=['context', local_context.guid], cmd='diff')
+            self._pull_checkin(pull, None, 'range')
+        pins = local_context['pins']
         if pin and pin not in pins:
-            this.volume['context'].update(context.guid, {'pins': pins + [pin]})
+            contexts.update(local_context.guid, {'pins': pins + [pin]})
 
     def _checkout_context(self, pin=None):
-        directory = this.volume['context']
-        context = directory[this.request.guid]
-        if not context.exists:
+        contexts = self._local.volume['context']
+        local_context = contexts[this.request.guid]
+        if not local_context.exists:
             return
-        pins = set(context.repr('pins'))
+        pins = set(local_context.repr('pins'))
         if pin:
             pins -= set([pin])
-        if not self._inline.is_set() or pins:
+        if not self.inline() or pins:
             if pin:
-                directory.update(context.guid, {'pins': list(pins)})
+                contexts.update(local_context.guid, {'pins': list(pins)})
         else:
-            directory.delete(context.guid)
+            contexts.delete(local_context.guid)
 
-    def _push(self):
-        return
+    def _pull_checkin(self, request, response, header_key):
+        request.headers[header_key] = self._pull_r.value
+        patch = self.fallback(request, response)
+        __, committed = self._local.volume.patch(next(parcel.decode(patch)),
+                shift_seqno=False)
+        ranges.exclude(self._pull_r.value, committed)
+
+    def _sync(self):
+        _logger.info('Start pulling updates')
+
+        for directory in self._local.volume.values():
+            if directory.empty:
+                continue
+            request = Request(method='GET',
+                    path=[directory.metadata.name], cmd='diff')
+            response = Response()
+            while True:
+                request.headers['range'] = self._pull_r.value
+                r, guids = self.fallback(request, response)
+                if not r:
+                    break
+                for guid in guids:
+                    checkin = Request(method='GET',
+                            path=[request.resource, guid], cmd='diff')
+                    self._pull_checkin(checkin, response, 'range')
+                ranges.exclude(self._pull_r.value, r)
+        self._pull_r.commit()
+        this.localcast({'event': 'sync', 'state': 'pull'})
+
+        """
         resource = None
         metadata = None
 
@@ -396,6 +446,7 @@ class ClientRoutes(model.FrontRoutes, journal.Routes):
                 request.content_type = 'application/json'
                 request.content = props
                 self.fallback(request)
+        """
 
 
 class _LocalRoutes(db.Routes, Router):

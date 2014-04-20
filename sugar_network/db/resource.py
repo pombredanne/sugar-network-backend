@@ -55,7 +55,7 @@ class Resource(object):
             self._post_seqno = value
             self.post('seqno', value)
 
-    @indexed_property(Numeric, slot=1000, prefix='RS', acl=0)
+    @indexed_property(Numeric, slot=1000, prefix='RS', acl=0, default=0)
     def seqno(self, value):
         return value
 
@@ -85,13 +85,18 @@ class Resource(object):
     def status(self, value):
         return value
 
-    @indexed_property(List, prefix='RP', default=[], acl=ACL.READ)
+    @indexed_property(List, prefix='RP', default=[],
+            acl=ACL.READ | ACL.LOCAL)
     def pins(self, value):
         return value
 
     @property
     def exists(self):
         return self.record is not None and self.record.consistent
+
+    @property
+    def available(self):
+        return self.exists and self['state'] != 'deleted'
 
     def created(self):
         ts = int(time.time())
@@ -160,7 +165,7 @@ class Resource(object):
         if self.record is not None:
             return self.record.get(prop)
 
-    def diff(self, r):
+    def diff(self, r, out_r=None):
         patch = {}
         for name, prop in self.metadata.items():
             if name == 'seqno' or prop.acl & (ACL.CALC | ACL.LOCAL):
@@ -171,6 +176,8 @@ class Resource(object):
             seqno = meta.get('seqno')
             if not ranges.contains(r, seqno):
                 continue
+            if out_r is not None:
+                ranges.include(out_r, seqno, seqno)
             value = meta.get('value')
             if isinstance(prop, Aggregated):
                 value_ = {}
@@ -178,6 +185,8 @@ class Resource(object):
                     agg_seqno = agg.pop('seqno')
                     if ranges.contains(r, agg_seqno):
                         value_[key] = agg
+                        if out_r is not None:
+                            ranges.include(out_r, agg_seqno, agg_seqno)
                 value = value_
             patch[name] = {'mtime': meta['mtime'], 'value': value}
         return patch
@@ -204,7 +213,7 @@ class Resource(object):
         if prop.on_set is not None:
             value = prop.on_set(self, value)
         seqno = None
-        if not prop.acl & ACL.LOCAL:
+        if self.post_seqno and not prop.acl & ACL.LOCAL:
             seqno = meta['seqno'] = self.post_seqno
         if seqno and isinstance(prop, Aggregated):
             for agg in value.values():

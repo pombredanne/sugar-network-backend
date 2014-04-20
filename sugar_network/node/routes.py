@@ -13,15 +13,16 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+# pylint: disable-msg=W0611
+
 import logging
 from os.path import join
 
 from sugar_network import db
 from sugar_network.model import FrontRoutes, load_bundle
 from sugar_network.node import model
-# pylint: disable-msg=W0611
-from sugar_network.toolkit.router import route, postroute, ACL, File
-from sugar_network.toolkit.router import Request, fallbackroute, preroute
+from sugar_network.toolkit.router import ACL, File
+from sugar_network.toolkit.router import route, fallbackroute, preroute
 from sugar_network.toolkit.spec import parse_requires, parse_version
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.coroutine import this
@@ -83,7 +84,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
         return {'guid': self.guid,
                 'seqno': {
                     'db': self.volume.seqno.value,
-                    'releases': self.volume.releases_seqno.value,
+                    'releases': self.volume.release_seqno.value,
                     },
                 }
 

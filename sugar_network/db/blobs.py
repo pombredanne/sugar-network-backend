@@ -150,7 +150,7 @@ class Blobs(object):
                     if exists(path):
                         stat = os.stat(path)
                         if seqno != int(stat.st_mtime):
-                            _logger.debug('Found updated %r file', path)
+                            _logger.debug('Found updated %r blob', path)
                             seqno = self._seqno.next()
                             meta = _read_meta(path)
                             meta['x-seqno'] = str(seqno)
@@ -169,7 +169,7 @@ class Blobs(object):
                 elif not is_files or exists(path + _META_SUFFIX):
                     continue
                 else:
-                    _logger.debug('Found new %r file', path)
+                    _logger.debug('Found new %r blob', path)
                     mime_type = mimetypes.guess_type(filename)[0] or \
                             'application/octet-stream'
                     if checkin_seqno is None:

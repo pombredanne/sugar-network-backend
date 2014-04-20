@@ -267,6 +267,7 @@ class Connection(object):
             value = request.environ.get(env_key)
             if value is not None:
                 headers[key] = value
+        headers.update(request.headers)
 
         path = request.path
         while True:

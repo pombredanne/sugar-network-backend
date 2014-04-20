@@ -14,6 +14,7 @@ from __init__ import tests
 from sugar_network import db, client
 from sugar_network.client import Connection, keyfile, api, packagekit, injector as injector_, model
 from sugar_network.client.injector import _PreemptivePool, Injector
+from sugar_network.client.model import Volume as LocalVolume
 from sugar_network.client.auth import SugarCreds
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, lsb_release
@@ -349,7 +350,8 @@ class InjectorTest(tests.Test):
         assert not exists('releases/2')
 
     def test_solve(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -382,7 +384,8 @@ class InjectorTest(tests.Test):
         self.assertEqual([client.api.value, 'stable', 0, solution], json.load(file('client/solutions/context')))
 
     def test_solve_FailInOffline(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = None
@@ -403,7 +406,8 @@ class InjectorTest(tests.Test):
         self.assertRaises(http.ServiceUnavailable, injector._solve, 'context', 'stable')
 
     def test_solve_ReuseCachedSolution(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -420,13 +424,14 @@ class InjectorTest(tests.Test):
             ]))), cmd='submit', initial=True)
 
         assert 'context' in injector._solve('context', 'stable')
-        volume['context'].delete('context')
+        conn.delete(['context', 'context'])
         assert 'context' in injector._solve('context', 'stable')
         os.unlink('client/solutions/context')
         self.assertRaises(http.NotFound, injector._solve, 'context', 'stable')
 
     def test_solve_InvalidateCachedSolution(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = 'http://127.0.0.1:7777'
@@ -492,7 +497,8 @@ class InjectorTest(tests.Test):
         self.assertEqual(['http://localhost:7777', 'stable', 2], json.load(file('client/solutions/context'))[:-1])
 
     def test_solve_ForceUsingStaleCachedSolutionInOffline(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -519,7 +525,8 @@ class InjectorTest(tests.Test):
         self.assertRaises(http.ServiceUnavailable, injector._solve, 'context', 'stable')
 
     def test_download_SetExecPermissions(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -552,7 +559,8 @@ class InjectorTest(tests.Test):
         assert not os.access(path + 'test/file2', os.X_OK)
 
     def test_checkin(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -603,7 +611,8 @@ class InjectorTest(tests.Test):
             [i for i in injector.checkin('context')])
 
     def test_checkin_PreemptivePool(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -660,7 +669,8 @@ class InjectorTest(tests.Test):
         self.assertEqual([], this.volume['context']['context']['pins'])
 
     def test_checkin_Refresh(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -694,7 +704,8 @@ class InjectorTest(tests.Test):
         assert exists('client/releases/%s' % release2)
 
     def test_launch(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -742,7 +753,8 @@ class InjectorTest(tests.Test):
             [i for i in injector.launch('context', activity_id='activity_id')])
 
     def test_launch_PreemptivePool(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -783,7 +795,8 @@ class InjectorTest(tests.Test):
         self.assertEqual(len(activity_info), injector._pool._du)
 
     def test_launch_DonntAcquireCheckins(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector('client')
         injector.api = client.api.value
@@ -810,7 +823,8 @@ class InjectorTest(tests.Test):
         assert injector._pool._du == 0
 
     def test_launch_RefreshCheckins(self):
-        self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
@@ -862,7 +876,26 @@ class InjectorTest(tests.Test):
         self.assertEqual('2', file('client/releases/%s/output' % release2).read())
 
     def test_launch_InstallDeps(self):
-        volume = self.start_master()
+
+        def master_cb(volume):
+            distro = '%s-%s' % (lsb_release.distributor_id(), lsb_release.release())
+            volume['context'].create({
+                'guid': 'package1', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                    'resolves': {
+                        distro: {'version': [[1], 0], 'packages': ['pkg1', 'pkg2']},
+                        },
+                    },
+                })
+            volume['context'].create({
+                'guid': 'package2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                    'resolves': {
+                        distro: {'version': [[1], 0], 'packages': ['pkg3', 'pkg4']},
+                        },
+                    },
+                })
+
+        self.fork_master(cb=master_cb)
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
@@ -878,21 +911,6 @@ class InjectorTest(tests.Test):
             'license = Public Domain',
             'requires = package1; package2',
             ]))), cmd='submit', initial=True)
-        distro = '%s-%s' % (lsb_release.distributor_id(), lsb_release.release())
-        volume['context'].create({
-            'guid': 'package1', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                'resolves': {
-                    distro: {'version': [[1], 0], 'packages': ['pkg1', 'pkg2']},
-                    },
-                },
-            })
-        volume['context'].create({
-            'guid': 'package2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                'resolves': {
-                    distro: {'version': [[1], 0], 'packages': ['pkg3', 'pkg4']},
-                    },
-                },
-            })
 
         packages = []
         self.override(packagekit, 'install', lambda names: packages.extend(names))
@@ -902,14 +920,15 @@ class InjectorTest(tests.Test):
         self.assertEqual(['pkg1', 'pkg2', 'pkg3', 'pkg4'], sorted(packages))
 
     def test_launch_Document(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
 
-        volume['context'].create({'guid': 'book', 'type': ['book'], 'title': {}, 'summary': {}, 'description': {}})
-        book = conn.upload(['context'], 'book', cmd='submit', context='book', version='1', license='Public Domain')
+        book_context = conn.post(['context'], {'type': ['book'], 'title': {}, 'summary': {}, 'description': {}})
+        book = conn.upload(['context'], 'book', cmd='submit', context=book_context, version='1', license='Public Domain')
 
         app = conn.upload(['context'], self.zips(
             ('topdir/activity/activity.info', '\n'.join([
@@ -929,21 +948,22 @@ class InjectorTest(tests.Test):
 
         self.assertEqual(
                 {'event': 'launch', 'state': 'exit'},
-                [i for i in injector.launch('book', activity_id='activity_id', app='app')][-1])
+                [i for i in injector.launch(book_context, activity_id='activity_id', app='app')][-1])
 
         self.assertEqual(
                 '-b app -a activity_id -u %s/client/releases/%s' % (tests.tmpdir, book),
                 file('client/releases/%s/output' % app).read())
 
     def test_launch_DocumentWithDetectingAppByMIMEType(self):
-        volume = self.start_master()
+        self.fork_master()
+        this.volume = LocalVolume('client')
         conn = Connection(creds=SugarCreds(keyfile.value))
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
 
-        volume['context'].create({'guid': 'book', 'type': ['book'], 'title': {}, 'summary': {}, 'description': {}})
-        book = conn.upload(['context'], 'book', cmd='submit', context='book', version='1', license='Public Domain')
+        book_context = conn.post(['context'], {'type': ['book'], 'title': {}, 'summary': {}, 'description': {}})
+        book = conn.upload(['context'], 'book', cmd='submit', context=book_context, version='1', license='Public Domain')
 
         app = conn.upload(['context'], self.zips(
             ('topdir/activity/activity.info', '\n'.join([
@@ -964,7 +984,7 @@ class InjectorTest(tests.Test):
         self.override(injector_, '_app_by_mimetype', lambda mime_type: 'app')
         self.assertEqual(
                 {'event': 'launch', 'state': 'exit'},
-                [i for i in injector.launch('book', activity_id='activity_id')][-1])
+                [i for i in injector.launch(book_context, activity_id='activity_id')][-1])
 
         self.assertEqual(
                 '-b app -a activity_id -u %s/client/releases/%s' % (tests.tmpdir, book),

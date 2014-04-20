@@ -21,10 +21,6 @@ from sugar_network.toolkit import svg_to_png
 
 class Context(db.Resource):
 
-    @db.indexed_property(db.List, prefix='P', default=[])
-    def pins(self, value):
-        return value
-
     @db.indexed_property(db.List, prefix='T',
             subtype=db.Enum(model.CONTEXT_TYPES))
     def type(self, value):

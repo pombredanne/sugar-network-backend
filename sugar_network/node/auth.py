@@ -17,7 +17,7 @@ import time
 import hashlib
 import logging
 from ConfigParser import ConfigParser
-from os.path import join, dirname, exists, expanduser, abspath
+from os.path import join, exists
 
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import pylru, http, enforce
@@ -89,7 +89,7 @@ class SugarAuth(object):
             signature = creds['signature']
             nonce = int(creds['nonce'])
             user = this.volume['user'][login]
-            enforce(user.exists, Unauthorized, 'Principal does not exist')
+            enforce(user.available, Unauthorized, 'Principal does not exist')
             key = RSA.load_pub_key_bio(BIO.MemoryBuffer(str(user['pubkey'])))
             data = hashlib.sha1('%s:%s' % (login, nonce)).digest()
             enforce(key.verify(data, signature.decode('hex')),

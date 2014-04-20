@@ -28,7 +28,7 @@ coroutine.inject()
 
 import sugar_network_webui as webui
 from sugar_network import db, toolkit, client, node
-from sugar_network.client.routes import CachedClientRoutes
+from sugar_network.client.routes import ClientRoutes
 from sugar_network.client.injector import Injector
 from sugar_network.client.model import Volume
 from sugar_network.client.auth import BasicCreds, SugarCreds
@@ -112,7 +112,7 @@ class Application(application.Daemon):
             creds = SugarCreds(client.keyfile.value)
         else:
             raise RuntimeError('No credentials specified')
-        routes = CachedClientRoutes(volume, creds)
+        routes = ClientRoutes(volume, creds)
         router = Router(routes, allow_spawn=True)
 
         logging.info('Listening for IPC requests on %s port',

@@ -181,7 +181,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         if context in context_clauses:
             return context_clauses[context]
         context = volume['context'][context]
-        enforce(context.exists, http.NotFound, 'Context not found')
+        enforce(context.available, http.NotFound, 'Context not found')
         releases = context['releases']
         clause = []
 

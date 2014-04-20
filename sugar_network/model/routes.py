@@ -17,7 +17,7 @@ import logging
 
 from sugar_network.toolkit.router import route
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import coroutine
+from sugar_network.toolkit import coroutine, http
 
 
 _logger = logging.getLogger('model.routes')
@@ -30,9 +30,9 @@ class FrontRoutes(object):
         this.broadcast = self._broadcast
         this.localcast = self._broadcast
 
-    @route('GET', mime_type='text/html')
+    @route('GET')
     def hello(self):
-        return _HELLO_HTML
+        raise http.Redirect('http://wiki.sugarlabs.org/go/Sugar_Network/API')
 
     @route('OPTIONS')
     def options(self):
@@ -86,7 +86,7 @@ class FrontRoutes(object):
 
     @route('GET', ['favicon.ico'])
     def favicon(self):
-        return this.volume.blobs.get('favicon.ico')
+        return this.volume.blobs.get('assets/favicon.ico')
 
     def _broadcast(self, event):
         _logger.debug('Broadcast event: %r', event)
@@ -97,10 +97,3 @@ class FrontRoutes(object):
             coroutine.select([rfile.fileno()], [], [])
         finally:
             self._spooler.notify_all(rfile)
-
-
-_HELLO_HTML = """\
-<h2>Welcome to Sugar Network API!</h2>
-Visit the <a href="http://wiki.sugarlabs.org/go/Sugar_Network/API">
-Sugar Labs Wiki</a> to learn how it can be used.
-"""

@@ -1,6 +1,5 @@
 - proxying as a tool to sort out downstream content
 - push local offline changes to the node on getting online
-- diff/merge while checking in node context
 - deliver spawn events only to local subscribers
 - test/run presolve
 - if node relocates api calls, do it only once in toolkit.http
@@ -9,6 +8,8 @@
 - cache init sync pull
 - switch auth from WWW-AUTHENTICATE to mutual authentication over the HTTPS
 - restrict ACL.LOCAL routes only to localhost clients
+- prevent calling diff api cmd from clients to avoid disclosuring private props
+- pull node changes periodically for checked-in contexts
 
 v2.0
 ====

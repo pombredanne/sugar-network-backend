@@ -3,6 +3,7 @@
 
 import os
 import sys
+import json
 import time
 import shutil
 import hashlib
@@ -16,10 +17,11 @@ src_root = abspath(dirname(__file__))
 from __init__ import tests
 
 from sugar_network import db, toolkit
+from sugar_network.db import routes as db_routes
 from sugar_network.model.user import User
 from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, File
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import coroutine, http, i18n
+from sugar_network.toolkit import coroutine, http, i18n, parcel
 
 
 class RoutesTest(tests.Test):
@@ -1941,6 +1943,169 @@ class RoutesTest(tests.Test):
         self.assertEqual(
                 [{'event': 'delete', 'resource': 'document', 'guid': guid}],
                 events)
+
+    def test_ObjectDiff(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+            @db.stored_property(db.Blob)
+            def prop3(self, value):
+                return value
+
+            @db.stored_property(db.Blob)
+            def prop4(self, value):
+                return value
+
+        volume = db.Volume('.', [Document])
+        router = Router(db.Routes(volume))
+
+        volume['document'].create({
+            'guid': 'guid',
+            'prop1': '1',
+            'prop2': 2,
+            'prop3': volume.blobs.post('333', '3/3').digest,
+            })
+        volume['document'].update('guid', {'prop4': volume.blobs.post('4444', '4/4').digest})
+        self.utime('db/document/gu/guid', 1)
+
+        patch = ''.join([i for i in this.call(method='GET', path=['document', 'guid'], cmd='diff')])
+        self.assertEqual([(
+            {'packet': None}, [
+                {'resource': 'document'},
+                {'guid': 'guid', 'patch': {
+                    'guid': {'value': 'guid', 'mtime': 1},
+                    'prop1': {'value': '1', 'mtime': 1},
+                    'prop2': {'value': 2, 'mtime': 1},
+                    'prop3': {'value': hashlib.sha1('333').hexdigest(), 'mtime': 1},
+                    'prop4': {'value': hashlib.sha1('4444').hexdigest(), 'mtime': 1},
+                    }},
+                {'content-type': '4/4', 'content-length': '4', 'x-seqno': '3'},
+                {'content-type': '3/3', 'content-length': '3', 'x-seqno': '1'},
+                {'commit': [[1, 4]]},
+                ],
+            )],
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(StringIO(patch))])
+
+        patch = ''.join([i for i in this.call(method='GET', path=['document', 'guid'], cmd='diff', environ={
+            'HTTP_X_RANGE': json.dumps([[1, 1]]),
+            })])
+        self.assertEqual([(
+            {'packet': None}, [],
+            )],
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(StringIO(patch))])
+
+        patch = ''.join([i for i in this.call(method='GET', path=['document', 'guid'], cmd='diff', environ={
+            'HTTP_X_RANGE': json.dumps([[2, 2]]),
+            })])
+        self.assertEqual([(
+            {'packet': None}, [
+                {'resource': 'document'},
+                {'guid': 'guid', 'patch': {
+                    'guid': {'value': 'guid', 'mtime': 1},
+                    'prop1': {'value': '1', 'mtime': 1},
+                    'prop2': {'value': 2, 'mtime': 1},
+                    'prop3': {'value': hashlib.sha1('333').hexdigest(), 'mtime': 1},
+                    }},
+                {'content-type': '3/3', 'content-length': '3', 'x-seqno': '1'},
+                {'commit': [[1, 2]]},
+                ],
+            )],
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(StringIO(patch))])
+
+        patch = ''.join([i for i in this.call(method='GET', path=['document', 'guid'], cmd='diff', environ={
+            'HTTP_X_RANGE': json.dumps([[3, 3]]),
+            })])
+        self.assertEqual([(
+            {'packet': None}, [],
+            )],
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(StringIO(patch))])
+
+        patch = ''.join([i for i in this.call(method='GET', path=['document', 'guid'], cmd='diff', environ={
+            'HTTP_X_RANGE': json.dumps([[4, 4]]),
+            })])
+        self.assertEqual([(
+            {'packet': None}, [
+                {'resource': 'document'},
+                {'guid': 'guid', 'patch': {
+                    'prop4': {'value': hashlib.sha1('4444').hexdigest(), 'mtime': 1},
+                    }},
+                {'content-type': '4/4', 'content-length': '4', 'x-seqno': '3'},
+                {'commit': [[3, 4]]},
+                ],
+            )],
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(StringIO(patch))])
+
+    def test_GroupedDiff(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
+
+        volume = db.Volume('.', [Document])
+        router = Router(db.Routes(volume))
+
+        volume['document'].create({'guid': '1', 'prop': 'q'})
+        volume['document'].create({'guid': '2', 'prop': 'w'})
+        volume['document'].create({'guid': '3', 'prop': 'w'})
+        volume['document'].create({'guid': '4', 'prop': 'e'})
+        volume['document'].create({'guid': '5', 'prop': 'e'})
+        volume['document'].create({'guid': '6', 'prop': 'e'})
+        self.utime('db/document', 0)
+
+        self.assertEqual({
+            '1': [[1, 1]],
+            '2': [[2, 2]],
+            '3': [[3, 3]],
+            '4': [[4, 4]],
+            '5': [[5, 5]],
+            '6': [[6, 6]],
+            },
+            this.call(method='GET', path=['document'], cmd='diff'))
+
+        self.assertEqual({
+            'q': [[1, 1]],
+            'w': [[2, 3]],
+            'e': [[4, 6]],
+            },
+            this.call(method='GET', path=['document'], cmd='diff', key='prop'))
+
+    def test_GroupedDiffLimit(self):
+        db_routes._GROUPED_DIFF_LIMIT = 2
+
+        class Document(db.Resource):
+            pass
+
+        volume = db.Volume('.', [Document])
+        router = Router(db.Routes(volume))
+
+        volume['document'].create({'guid': '1'})
+        volume['document'].create({'guid': '2'})
+        volume['document'].create({'guid': '3'})
+        volume['document'].create({'guid': '4'})
+        volume['document'].create({'guid': '5'})
+        self.utime('db/document', 0)
+
+        self.assertEqual({
+            '1': [[1, 1]],
+            '2': [[2, 2]],
+            },
+            this.call(method='GET', path=['document'], cmd='diff'))
+
+        self.assertEqual({
+            '3': [[3, 3]],
+            '4': [[4, 4]],
+            },
+            this.call(method='GET', path=['document'], cmd='diff', environ={'HTTP_X_RANGE': json.dumps([[3, None]])}))
 
 
 if __name__ == '__main__':

@@ -420,14 +420,18 @@ class IndexTest(tests.Test):
         post_stored = []
         deleted = []
 
+        def pre_stored_cb(*args):
+            pre_stored.append(args)
+            return {}
+
         db.store('1', {},
-                lambda *args: pre_stored.append(args),
+                pre_stored_cb,
                 lambda *args: post_stored.append(args))
         self.assertEqual(1, len(pre_stored))
         self.assertEqual(1, len(post_stored))
 
         db.store('1', {},
-                lambda *args: pre_stored.append(args),
+                pre_stored_cb,
                 lambda *args: post_stored.append(args))
         self.assertEqual(2, len(pre_stored))
         self.assertEqual(2, len(post_stored))

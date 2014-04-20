@@ -535,7 +535,7 @@ class RouterTest(tests.Test):
                 ['_afz'],
                 [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/'}, lambda *args: None)])
 
-    def test_routes_Post(self):
+    def test_routes_Postroutes(self):
         postroutes = []
 
         class A(object):
@@ -551,24 +551,28 @@ class RouterTest(tests.Test):
             @postroute
             def _(self, result, exception):
                 postroutes.append(('_', result, str(exception)))
+                return result
 
         class B1(A):
 
             @postroute
             def z(self, result, exception):
                 postroutes.append(('z', result, str(exception)))
+                return result
 
         class B2(object):
 
             @postroute
             def f(self, result, exception):
                 postroutes.append(('f', result, str(exception)))
+                return result
 
         class C(B1, B2):
 
             @postroute
             def a(self, result, exception):
                 postroutes.append(('a', result, str(exception)))
+                return result
 
         router = Router(C())
 
@@ -594,6 +598,25 @@ class RouterTest(tests.Test):
             ('z', None, 'fail'),
             ],
             postroutes)
+
+    def test_routes_UpdateResultInPostroutes(self):
+        postroutes = []
+
+        class A(object):
+
+            @route('OK')
+            def ok(self):
+                return 'ok'
+
+            @postroute
+            def postroute(self, result, exception):
+                return result + '!'
+
+        router = Router(A())
+
+        self.assertEqual(
+                ['ok!'],
+                [i for i in router({'REQUEST_METHOD': 'OK', 'PATH_INFO': '/'}, lambda *args: None)])
 
     def test_routes_WildcardsAsLastResort(self):
 

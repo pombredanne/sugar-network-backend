@@ -464,6 +464,35 @@ class NamedTemporaryFile(object):
         return getattr(self._file, name)
 
 
+class Variable(list):
+
+    def __init__(self, default=None):
+        list.__init__(self, [default])
+
+    @property
+    def value(self):
+        return self[0]
+
+    @value.setter
+    def value(self, value):
+        self[0] = value
+
+    def __contains__(self, key):
+        return key in self[0]
+
+    def __getitem__(self, key):
+        return self[0].get(key)
+
+    def __setitem__(self, key, value):
+        self[0][key] = value
+
+    def __delitem__(self, key):
+        del self[0][key]
+
+    def __getattr__(self, name):
+        return getattr(self[0], name)
+
+
 class Bin(object):
     """Store variable in a file."""
 
@@ -471,10 +500,7 @@ class Bin(object):
         self._path = abspath(path)
         self.value = default_value
 
-        if exists(self._path):
-            with file(self._path) as f:
-                self.value = json.load(f)
-        else:
+        if not self.reset():
             self.commit()
 
     @property
@@ -490,6 +516,13 @@ class Bin(object):
             json.dump(self.value, f)
             f.flush()
             os.fsync(f.fileno())
+
+    def reset(self):
+        if not exists(self._path):
+            return False
+        with file(self._path) as f:
+            self.value = json.load(f)
+        return True
 
     def __enter__(self):
         return self.value
@@ -533,6 +566,30 @@ class Seqno(Bin):
         """
         self.value += 1
         return self.value
+
+
+class CaseInsensitiveDict(dict):
+
+    def __contains__(self, key):
+        return dict.__contains__(self, key.lower())
+
+    def __getitem__(self, key):
+        return self.get(key.lower())
+
+    def __setitem__(self, key, value):
+        return self.set(key.lower(), value)
+
+    def __delitem__(self, key):
+        self.remove(key.lower())
+
+    def get(self, key, default=None):
+        return dict.get(self, key, default)
+
+    def set(self, key, value):
+        dict.__setitem__(self, key, value)
+
+    def remove(self, key):
+        dict.__delitem__(self, key)
 
 
 class Pool(object):

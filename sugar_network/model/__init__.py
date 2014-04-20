@@ -199,7 +199,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
             this.call(method='POST', path=['context'], content=context_meta,
                     principal=principal)
     else:
-        enforce(doc.exists, http.NotFound, 'No context')
+        enforce(doc.available, http.NotFound, 'No context')
         enforce(context_type in doc['type'],
                 http.BadRequest, 'Inappropriate bundle type')
 

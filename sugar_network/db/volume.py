@@ -19,7 +19,6 @@ from copy import deepcopy
 from os.path import exists, join, abspath
 
 from sugar_network import toolkit
-from sugar_network.db.metadata import Blob
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.db.blobs import Blobs
@@ -64,6 +63,13 @@ class Volume(dict):
     def root(self):
         return self._root
 
+    @property
+    def empty(self):
+        for directory in self.values():
+            if not directory.empty:
+                return False
+        return True
+
     def close(self):
         """Close operations with the server."""
         _logger.info('Closing documents in %r', self._root)
@@ -90,19 +96,13 @@ class Volume(dict):
             for resource, directory in self.items():
                 if one_way and directory.resource.one_way:
                     continue
-                directory.commit()
                 yield {'resource': resource}
-                for start, end in r:
-                    query = 'seqno:%s..' % start
-                    if end:
-                        query += str(end)
-                    docs, __ = directory.find(query=query, order_by='seqno')
-                    for doc in docs:
-                        patch = doc.diff(include)
-                        if patch:
-                            yield {'guid': doc.guid, 'patch': patch}
-                            found = True
-                        last_seqno = max(last_seqno, doc['seqno'])
+                for doc in directory.diff(r):
+                    patch = doc.diff(include)
+                    if patch:
+                        yield {'guid': doc.guid, 'patch': patch}
+                        found = True
+                    last_seqno = max(last_seqno, doc['seqno'])
             if blobs:
                 for blob in self.blobs.diff(include):
                     seqno = int(blob.meta.pop('x-seqno'))
@@ -124,27 +124,16 @@ class Volume(dict):
             ranges.exclude(r, None, last_seqno)
             yield {'commit': commit_r}
 
-    def clone(self, resource, guid):
-        doc = self[resource][guid]
-        patch = doc.diff([[1, None]])
-        if not patch:
-            return
-        for name, prop in self[resource].metadata.items():
-            if isinstance(prop, Blob) and name in patch:
-                yield self.blobs.get(patch[name]['value'])
-        yield {'resource': resource}
-        yield {'guid': guid, 'patch': patch}
-
-    def patch(self, records):
+    def patch(self, records, shift_seqno=True):
         directory = None
         committed = []
-        seqno = None
+        seqno = None if shift_seqno else False
 
         for record in records:
             if isinstance(record, File):
                 if seqno is None:
                     seqno = self.seqno.next()
-                self.blobs.patch(record, seqno)
+                self.blobs.patch(record, seqno or 0)
                 continue
             resource = record.get('resource')
             if resource:

@@ -107,7 +107,6 @@ class SlaveTest(tests.Test):
         self.assertEqual([[7, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
-        slave.put(['document', guid1], {'message': 'a'})
         slave.put(['document', guid2], {'message': 'b'})
         slave.put(['document', guid3], {'message': 'c'})
         guid4 = slave.post(['document'], {'message': 'd', 'title': ''})
@@ -119,7 +118,7 @@ class SlaveTest(tests.Test):
             ]),
             sorted(master.get(['document'], reply=['guid', 'message'])['result']))
         self.assertEqual([[6, None]], json.load(file('slave/var/pull.ranges')))
-        self.assertEqual([[12, None]], json.load(file('slave/var/push.ranges')))
+        self.assertEqual([[11, None]], json.load(file('slave/var/push.ranges')))
 
     def test_online_sync_Pull(self):
         self.fork_master([User, self.Document])
@@ -172,7 +171,6 @@ class SlaveTest(tests.Test):
         self.assertEqual([[5, None]], json.load(file('slave/var/push.ranges')))
 
         coroutine.sleep(1)
-        master.put(['document', guid1], {'message': 'a'})
         master.put(['document', guid2], {'message': 'b'})
         master.put(['document', guid3], {'message': 'c'})
         guid4 = master.post(['document'], {'message': 'd', 'title': ''})
@@ -183,7 +181,7 @@ class SlaveTest(tests.Test):
             {'guid': guid4, 'message': 'd'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[12, None]], json.load(file('slave/var/pull.ranges')))
+        self.assertEqual([[11, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[6, None]], json.load(file('slave/var/push.ranges')))
 
     def test_online_sync_PullBlobs(self):

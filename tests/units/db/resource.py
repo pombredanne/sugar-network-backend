@@ -483,6 +483,45 @@ class ResourceTest(tests.Test):
         self.assertEqual('set2!', doc['prop1'])
         self.assertEqual('set2!', doc['prop3'])
 
+    def test_diff_OutputRange(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop1(self, value):
+                return value
+
+            @db.stored_property()
+            def prop2(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+
+        guid = directory.create({'prop1': '1', 'prop2': '1'})
+        self.utime('db', 0)
+
+        out_r = []
+        self.assertEqual({
+            'guid': {'mtime': 0, 'value': guid},
+            'prop1': {'mtime': 0, 'value': '1'},
+            'prop2': {'mtime': 0, 'value': '1'},
+            },
+            directory[guid].diff([[1, None]], out_r))
+        self.assertEqual([[1, 1]], out_r)
+
+        directory.update(guid, {'prop1': '2'})
+        directory.update(guid, {'prop2': '2'})
+        self.utime('db', 0)
+
+        out_r = []
+        self.assertEqual({
+            'guid': {'mtime': 0, 'value': guid},
+            'prop1': {'mtime': 0, 'value': '2'},
+            'prop2': {'mtime': 0, 'value': '2'},
+            },
+            directory[guid].diff([[1, None]], out_r))
+        self.assertEqual([[1, 3]], out_r)
+
 
 class _SessionSeqno(object):
 

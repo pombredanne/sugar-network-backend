@@ -29,7 +29,7 @@ _logger = logging.getLogger('client.model')
 
 class Context(_Context):
 
-    @db.indexed_property(db.List, prefix='RP', default=[],
+    @db.indexed_property(db.List, prefix='P', default=[],
             acl=ACL.READ | ACL.LOCAL)
     def pins(self, value):
         return value + this.injector.pins(self.guid)
@@ -37,7 +37,9 @@ class Context(_Context):
 
 class Volume(db.Volume):
 
-    def __init__(self, root):
-        db.Volume.__init__(self, root, [User, Context, Post, Report])
-        for resource in ('user', 'context', 'post'):
-            self[resource].metadata['author'].acl |= ACL.LOCAL
+    def __init__(self, root, resources=None):
+        if resources is None:
+            resources = [User, Context, Post, Report]
+        db.Volume.__init__(self, root, resources)
+        for directory in self.values():
+            directory.metadata['author'].acl |= ACL.LOCAL

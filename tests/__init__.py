@@ -24,10 +24,12 @@ from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languag
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
 from sugar_network.client import IPCConnection, journal, routes as client_routes, model as client_model
+from sugar_network.client.model import Volume as LocalVolume
 from sugar_network.client.injector import Injector
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.client.auth import SugarCreds
 from sugar_network import db, client, node, toolkit, model
+from sugar_network.db import routes as db_routes
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.node.model import Context as MasterContext
@@ -103,6 +105,8 @@ class Test(unittest.TestCase):
         client.cache_lifetime.value = 0
         client.keyfile.value = join(root, 'data', UID)
         client_routes._RECONNECT_TIMEOUT = 0
+        client_routes._SYNC_TIMEOUT = 30
+        db_routes._GROUPED_DIFF_LIMIT = 1024
         journal._ds_root = tmpdir + '/datastore'
         mountpoints._connects.clear()
         mountpoints._found.clear()
@@ -141,6 +145,7 @@ class Test(unittest.TestCase):
         this.volume = None
         this.call = None
         this.broadcast = lambda x: x
+        this.localcast = lambda x: x
         this.injector = None
         this.principal = None
 
@@ -287,12 +292,14 @@ class Test(unittest.TestCase):
         this.call = self.node_router.call
         return self.node_volume
 
-    def fork_master(self, classes=None, routes=MasterRoutes):
+    def fork_master(self, classes=None, routes=MasterRoutes, cb=None):
         if classes is None:
             classes = master.RESOURCES
 
         def node():
             volume = NodeVolume('master', classes)
+            if cb is not None:
+                cb(volume)
             node = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(volume=volume, auth=SugarAuth('master'))))
             node.serve_forever()
 
@@ -314,10 +321,7 @@ class Test(unittest.TestCase):
     def start_online_client(self, classes=None):
         self.fork_master(classes)
         this.injector = Injector('client/cache')
-        if classes:
-            home_volume = db.Volume('client', classes)
-        else:
-            home_volume = client_model.Volume('client')
+        home_volume = LocalVolume('client', classes)
         self.client_routes = ClientRoutes(home_volume, SugarCreds(client.keyfile.value))
         self.client_routes.connect(client.api.value)
         self.wait_for_events(self.client_routes, event='inline', state='online').wait()
