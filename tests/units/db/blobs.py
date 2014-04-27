@@ -129,6 +129,18 @@ class BlobsTest(tests.Test):
         assert the_same_blob.digest == blob.digest
         assert the_same_blob.path == blob.path
 
+    def test_post_File(self):
+        blobs = Blobs('.', Seqno())
+
+        self.touch(('blob', 'value'))
+        blob = blobs.post(File('blob', 'digest', {'foo': 'bar'}))
+
+        self.assertEqual('digest', blob.digest)
+        self.assertEqual(abspath('blobs/dig/digest'), blob.path)
+        self.assertEqual({'x-seqno': '1', 'foo': 'bar'}, blob.meta)
+        self.assertEqual('value', file(blob.path).read())
+        self.assertEqual(['x-seqno: 1', 'foo: bar'], file(blob.path + '.meta').read().strip().split('\n'))
+
     def test_update(self):
         blobs = Blobs('.', Seqno())
 
@@ -391,6 +403,17 @@ class BlobsTest(tests.Test):
         blob = blobs.get('foo/bar')
         assert not exists(blob.path)
         self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, blob.meta)
+
+    def test_walk_Blobs(self):
+        blobs = Blobs('.', Seqno())
+
+        blob1 = blobs.post('1')
+        blob2 = blobs.post('2')
+        blob3 = blobs.post('3')
+
+        self.assertEqual(
+                sorted([blob1.digest, blob2.digest, blob3.digest]),
+                sorted([i.digest for i in blobs.walk()]))
 
 
 class Seqno(object):

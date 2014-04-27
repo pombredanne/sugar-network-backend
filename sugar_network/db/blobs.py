@@ -43,6 +43,8 @@ class Blobs(object):
     def path(self, path=None):
         if path is None:
             return join(self._root, 'files')
+        if isinstance(path, File):
+            return self._blob_path(path.digest)
         if isinstance(path, basestring):
             path = path.split(os.sep)
         if len(path) == 1 and len(path[0]) == 40 and '.' not in path[0]:
@@ -51,7 +53,47 @@ class Blobs(object):
             return join(assets.PATH, *path[1:])
         return join(self._root, 'files', *path)
 
+    def walk(self, path=None, include=None, recursive=True, all_files=False):
+        if path is None:
+            is_files = False
+            root = self._blob_path()
+        else:
+            path = path.strip('/').split('/')
+            enforce(not [i for i in path if i == '..'],
+                    http.BadRequest, 'Relative paths are not allowed')
+            is_files = True
+            root = self.path(path)
+
+        for root, __, files in os.walk(root):
+            if include is not None and \
+                    not ranges.contains(include, int(os.stat(root).st_mtime)):
+                continue
+            api_path = root[len(self._root) + 7:] if is_files else None
+            for filename in files:
+                if filename.endswith(_META_SUFFIX):
+                    if not all_files:
+                        digest = filename[:-len(_META_SUFFIX)]
+                        path = join(root, digest)
+                        yield File(path, digest, _read_meta(path))
+                        continue
+                elif not all_files:
+                    continue
+                yield root, api_path, filename
+            if not recursive:
+                break
+
     def post(self, content, mime_type=None, digest_to_assert=None, meta=None):
+        if isinstance(content, File):
+            seqno = self._seqno.next()
+            meta = content.meta.copy()
+            meta['x-seqno'] = str(seqno)
+            path = self._blob_path(content.digest)
+            if not exists(dirname(path)):
+                os.makedirs(dirname(path))
+            os.link(content.path, path)
+            _write_meta(path, meta, seqno)
+            return File(path, content.digest, meta)
+
         if meta is None:
             meta = []
             meta.append(('content-type',
@@ -94,9 +136,8 @@ class Blobs(object):
             seqno = self._seqno.next()
             meta.append(('content-length', str(blob.tell())))
             meta.append(('x-seqno', str(seqno)))
-            _write_meta(path, meta, seqno)
             blob.name = path
-        os.utime(path, (seqno, seqno))
+        _write_meta(path, meta, seqno)
 
         _logger.debug('Post %r file', path)
 
@@ -121,75 +162,67 @@ class Blobs(object):
     def delete(self, path):
         self._delete(self.path(path), None)
 
+    def wipe(self, path):
+        path = self.path(path)
+        if exists(path + _META_SUFFIX):
+            os.unlink(path + _META_SUFFIX)
+        if exists(path):
+            _logger.debug('Wipe %r file', path)
+            os.unlink(path)
+
     def populate(self, path=None, recursive=True):
         for __ in self.diff([[1, None]], path or '', recursive):
             pass
 
     def diff(self, r, path=None, recursive=True):
-        if path is None:
-            is_files = False
-            root = self._blob_path()
-        else:
-            path = path.strip('/').split('/')
-            enforce(not [i for i in path if i == '..'],
-                    http.BadRequest, 'Relative paths are not allowed')
-            is_files = True
-            root = self.path(path)
+        is_files = path is not None
         checkin_seqno = None
 
-        for root, __, files in os.walk(root):
-            if not ranges.contains(r, int(os.stat(root).st_mtime)):
-                continue
-            rel_root = root[len(self._root) + 7:] if is_files else None
-            for filename in files:
-                path = join(root, filename)
-                if filename.endswith(_META_SUFFIX):
-                    seqno = int(os.stat(path).st_mtime)
-                    path = path[:-len(_META_SUFFIX)]
-                    meta = None
-                    if exists(path):
-                        stat = os.stat(path)
-                        if seqno != int(stat.st_mtime):
-                            _logger.debug('Found updated %r blob', path)
-                            seqno = self._seqno.next()
-                            meta = _read_meta(path)
-                            meta['x-seqno'] = str(seqno)
-                            meta['content-length'] = str(stat.st_size)
-                            _write_meta(path, meta, seqno)
-                            os.utime(path, (seqno, seqno))
-                    if not ranges.contains(r, seqno):
-                        continue
-                    if meta is None:
+        for root, rel_root, filename in self.walk(path, r, recursive, True):
+            path = join(root, filename)
+            if filename.endswith(_META_SUFFIX):
+                seqno = int(os.stat(path).st_mtime)
+                path = path[:-len(_META_SUFFIX)]
+                meta = None
+                if exists(path):
+                    stat = os.stat(path)
+                    if seqno != int(stat.st_mtime):
+                        _logger.debug('Found updated %r blob', path)
+                        seqno = self._seqno.next()
                         meta = _read_meta(path)
-                    if is_files:
-                        digest = join(rel_root, filename[:-len(_META_SUFFIX)])
-                        meta['path'] = digest
-                    else:
-                        digest = filename[:-len(_META_SUFFIX)]
-                elif not is_files or exists(path + _META_SUFFIX):
+                        meta['x-seqno'] = str(seqno)
+                        meta['content-length'] = str(stat.st_size)
+                        _write_meta(path, meta, seqno)
+                if not ranges.contains(r, seqno):
                     continue
+                if meta is None:
+                    meta = _read_meta(path)
+                if is_files:
+                    digest = join(rel_root, filename[:-len(_META_SUFFIX)])
+                    meta['path'] = digest
                 else:
-                    _logger.debug('Found new %r blob', path)
-                    mime_type = mimetypes.guess_type(filename)[0] or \
-                            'application/octet-stream'
-                    if checkin_seqno is None:
-                        checkin_seqno = self._seqno.next()
-                    seqno = checkin_seqno
-                    meta = [('content-type', mime_type),
-                            ('content-length', str(os.stat(path).st_size)),
-                            ('x-seqno', str(seqno)),
-                            ]
-                    _write_meta(path, meta, seqno)
-                    os.utime(path, (seqno, seqno))
-                    if not ranges.contains(r, seqno):
-                        continue
-                    digest = join(rel_root, filename)
-                    meta.append(('path', digest))
-                yield File(path, digest, meta)
-            if not recursive:
-                break
+                    digest = filename[:-len(_META_SUFFIX)]
+            elif not is_files or exists(path + _META_SUFFIX):
+                continue
+            else:
+                _logger.debug('Found new %r blob', path)
+                mime_type = mimetypes.guess_type(filename)[0] or \
+                        'application/octet-stream'
+                if checkin_seqno is None:
+                    checkin_seqno = self._seqno.next()
+                seqno = checkin_seqno
+                meta = [('content-type', mime_type),
+                        ('content-length', str(os.stat(path).st_size)),
+                        ('x-seqno', str(seqno)),
+                        ]
+                _write_meta(path, meta, seqno)
+                if not ranges.contains(r, seqno):
+                    continue
+                digest = join(rel_root, filename)
+                meta.append(('path', digest))
+            yield File(path, digest, meta)
 
-    def patch(self, patch, seqno):
+    def patch(self, patch, seqno=0):
         if 'path' in patch.meta:
             path = self.path(patch.meta.pop('path'))
         else:
@@ -207,7 +240,6 @@ class Blobs(object):
             meta = patch.meta
         meta['x-seqno'] = str(seqno)
         _write_meta(path, meta, seqno)
-        os.utime(path, (seqno, seqno))
 
     def _delete(self, path, seqno):
         if exists(path + _META_SUFFIX):
@@ -228,6 +260,8 @@ class Blobs(object):
 
 
 def _write_meta(path, meta, seqno):
+    if seqno:
+        os.utime(path, (seqno, seqno))
     path += _META_SUFFIX
     with toolkit.new_file(path) as f:
         for key, value in meta.items() if isinstance(meta, dict) else meta:

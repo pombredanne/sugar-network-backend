@@ -10,8 +10,7 @@ from os.path import exists
 from __init__ import tests
 
 from sugar_network import db, toolkit
-from sugar_network.client import Connection, keyfile
-from sugar_network.client.auth import SugarCreds
+from sugar_network.client import Connection
 from sugar_network.node import master_api
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
@@ -19,7 +18,7 @@ from sugar_network.node.auth import SugarAuth
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
 from sugar_network.toolkit.router import Router, File
-from sugar_network.toolkit import coroutine, http, parcel
+from sugar_network.toolkit import coroutine, http, packets
 
 
 class SlaveTest(tests.Test):
@@ -58,8 +57,8 @@ class SlaveTest(tests.Test):
 
     def test_online_sync_Push(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        master = Connection('http://127.0.0.1:7777')
+        slave = Connection('http://127.0.0.1:8888')
 
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
@@ -122,9 +121,10 @@ class SlaveTest(tests.Test):
 
     def test_online_sync_Pull(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        master = Connection('http://127.0.0.1:7777')
+        slave = Connection('http://127.0.0.1:8888')
 
+        coroutine.sleep(1)
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[1, None]], json.load(file('slave/var/push.ranges')))
@@ -186,9 +186,10 @@ class SlaveTest(tests.Test):
 
     def test_online_sync_PullBlobs(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        master = Connection('http://127.0.0.1:7777')
+        slave = Connection('http://127.0.0.1:8888')
 
+        coroutine.sleep(1)
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
         self.assertEqual([[1, None]], json.load(file('slave/var/push.ranges')))
@@ -203,8 +204,8 @@ class SlaveTest(tests.Test):
 
     def test_online_sync_PullFromPreviouslyMergedRecord(self):
         self.fork_master([User, self.Document])
-        master = Connection('http://127.0.0.1:7777', creds=SugarCreds(keyfile.value))
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        master = Connection('http://127.0.0.1:7777')
+        slave = Connection('http://127.0.0.1:8888')
 
         slave.post(cmd='online_sync')
         self.assertEqual([[1, None]], json.load(file('slave/var/pull.ranges')))
@@ -224,11 +225,11 @@ class SlaveTest(tests.Test):
         self.assertEqual('1_', slave.get(['document', guid, 'title']))
 
     def test_offline_sync_Import(self):
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888')
 
         self.touch(('blob1', 'a'))
         self.touch(('blob2', 'bb'))
-        parcel.encode_dir([
+        packets.encode_dir([
             ('push', {'from': '127.0.0.1:7777'}, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -255,7 +256,7 @@ class SlaveTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    ({'from': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': '1', 'patch': {
                             'guid': {'value': '1', 'mtime': 0},
@@ -268,22 +269,22 @@ class SlaveTest(tests.Test):
                         {'content-length': '2', 'path': 'foo/bar'},
                         {'commit': [[1, 2]]},
                         ]),
-                    ({'ack': [[101, 103]], 'from': '127.0.0.1:7777', 'packet': 'ack', 'ranges': [[1, 3]], 'to': self.slave_routes.guid}, [
+                    ({'ack': [[101, 103]], 'from': '127.0.0.1:7777', 'segment': 'ack', 'ranges': [[1, 3]], 'to': self.slave_routes.guid}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         {'resource': 'document'},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[3, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[3, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
     def test_offline_sync_ImportPush(self):
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888')
 
         self.touch(('blob1', 'a'))
         self.touch(('blob2', 'bb'))
-        parcel.encode_dir([
+        packets.encode_dir([
             ('push', {'from': '127.0.0.1:7777'}, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -309,7 +310,7 @@ class SlaveTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    ({'from': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': '1', 'patch': {
                             'guid': {'value': '1', 'mtime': 0},
@@ -322,18 +323,18 @@ class SlaveTest(tests.Test):
                         {'content-length': '2', 'path': 'foo/bar'},
                         {'commit': [[1, 2]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         {'resource': 'document'},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[3, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[3, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
     def test_offline_sync_ImportAck(self):
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888')
 
-        parcel.encode_dir([
+        packets.encode_dir([
             ('ack', {'ack': [[101, 103]], 'ranges': [[1, 3]], 'from': '127.0.0.1:7777', 'to': self.slave_routes.guid}, []),
             ],
             root='sync', limit=99999999)
@@ -344,19 +345,19 @@ class SlaveTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    ({'ack': [[101, 103]], 'from': '127.0.0.1:7777', 'packet': 'ack', 'ranges': [[1, 3]], 'to': self.slave_routes.guid}, [
+                    ({'ack': [[101, 103]], 'from': '127.0.0.1:7777', 'segment': 'ack', 'ranges': [[1, 3]], 'to': self.slave_routes.guid}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
     def test_offline_sync_GenerateRequestAfterImport(self):
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888')
 
-        parcel.encode_dir([
+        packets.encode_dir([
             ('push', {'from': 'another-slave'}, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -378,7 +379,7 @@ class SlaveTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    ({'from': 'another-slave', 'packet': u'push'}, [
+                    ({'from': 'another-slave', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': '1', 'patch': {
                             'guid': {'value': '1', 'mtime': 0},
@@ -389,18 +390,18 @@ class SlaveTest(tests.Test):
                             }},
                         {'commit': [[1, 1]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'request', 'to': '127.0.0.1:7777', 'origin': 'another-slave', 'ranges': [[1, 1]]}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'request', 'to': '127.0.0.1:7777', 'origin': 'another-slave', 'ranges': [[1, 1]]}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'push', 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         {'resource': 'document'},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
     def test_offline_sync_Export(self):
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888')
 
         class statvfs(object):
 
@@ -423,7 +424,7 @@ class SlaveTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': guid, 'patch': {
                             'mtime': {'value': 0, 'mtime': self.slave_volume['document'].get(guid).meta('mtime')['mtime']},
@@ -433,13 +434,13 @@ class SlaveTest(tests.Test):
                         {'content-length': '1', 'content-type': 'application/octet-stream'},
                         {'commit': [[push_seqno, push_seqno + 1]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
     def test_offline_sync_ContinuousExport(self):
-        slave = Connection('http://127.0.0.1:8888', creds=SugarCreds(keyfile.value))
+        slave = Connection('http://127.0.0.1:8888')
 
         class statvfs(object):
 
@@ -457,12 +458,12 @@ class SlaveTest(tests.Test):
         RECORD = 1024 * 1024
         slave.put(['document', guid1, 'title'], '.' * RECORD)
         slave.put(['document', guid2, 'title'], '.' * RECORD)
-        statvfs.f_bfree = parcel._RESERVED_DISK_SPACE + RECORD * 1.5
+        statvfs.f_bfree = packets._RESERVED_DISK_SPACE + RECORD * 1.5
 
         slave.post(cmd='offline_sync', path=tests.tmpdir + '/sync')
         self.assertEqual(
                 sorted([
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': guid1, 'patch': {
                             'mtime': {'value': 0, 'mtime': self.slave_volume['document'].get(guid1).meta('mtime')['mtime']},
@@ -470,15 +471,15 @@ class SlaveTest(tests.Test):
                             }},
                         {'commit': [[push_seqno, push_seqno]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
         slave.post(cmd='offline_sync', path=tests.tmpdir + '/sync')
         self.assertEqual(
                 sorted([
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': guid1, 'patch': {
                             'mtime': {'value': 0, 'mtime': self.slave_volume['document'].get(guid1).meta('mtime')['mtime']},
@@ -486,9 +487,9 @@ class SlaveTest(tests.Test):
                             }},
                         {'commit': [[push_seqno, push_seqno]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': guid2, 'patch': {
                             'mtime': {'value': 0, 'mtime': self.slave_volume['document'].get(guid2).meta('mtime')['mtime']},
@@ -497,15 +498,15 @@ class SlaveTest(tests.Test):
                         {'resource': 'user'},
                         {'commit': [[push_seqno + 1, push_seqno + 1]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
         slave.post(cmd='offline_sync', path=tests.tmpdir + '/sync')
         self.assertEqual(
                 sorted([
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': guid1, 'patch': {
                             'mtime': {'value': 0, 'mtime': self.slave_volume['document'].get(guid1).meta('mtime')['mtime']},
@@ -513,9 +514,9 @@ class SlaveTest(tests.Test):
                             }},
                         {'commit': [[push_seqno, push_seqno]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'guid': guid2, 'patch': {
                             'mtime': {'value': 0, 'mtime': self.slave_volume['document'].get(guid2).meta('mtime')['mtime']},
@@ -524,16 +525,16 @@ class SlaveTest(tests.Test):
                         {'resource': 'user'},
                         {'commit': [[push_seqno + 1, push_seqno + 1]]},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
-                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'packet': u'push'}, [
+                    ({'from': self.slave_routes.guid, 'to': '127.0.0.1:7777', 'segment': 'push'}, [
                         {'resource': 'document'},
                         {'resource': 'user'},
                         ]),
-                    ({'from': self.slave_routes.guid, 'packet': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
+                    ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
                     ]),
-                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode_dir('sync')]))
+                sorted([(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode_dir('sync')]))
 
 
 if __name__ == '__main__':

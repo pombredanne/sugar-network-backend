@@ -20,11 +20,12 @@ from sugar_network.toolkit.coroutine import this
 
 class Post(db.Resource):
 
-    @db.indexed_property(prefix='C', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(db.Reference, prefix='C', acl=ACL.CREATE | ACL.READ)
     def context(self, value):
         return value
 
-    @db.indexed_property(prefix='A', default='', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(db.Reference, prefix='A', default='',
+            acl=ACL.CREATE | ACL.READ)
     def topic(self, value):
         return value
 
@@ -42,7 +43,7 @@ class Post(db.Resource):
     def message(self, value):
         return value
 
-    @db.indexed_property(prefix='R', default='')
+    @db.indexed_property(db.Reference, prefix='R', default='')
     def solution(self, value):
         return value
 
@@ -82,10 +83,10 @@ class Post(db.Resource):
         return value
 
     @db.indexed_property(db.Numeric, slot=2, default=0,
-            acl=ACL.READ | ACL.CALC)
+            acl=ACL.READ | ACL.LOCAL)
     def downloads(self, value):
         return value
 
-    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.CALC)
+    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
     def rating(self, value):
         return value

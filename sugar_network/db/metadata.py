@@ -149,6 +149,8 @@ class Property(object):
         enforce(name == 'guid' or prefix != GUID_PREFIX,
                 'Prefix %r is reserved for internal needs in %r',
                 GUID_PREFIX, name)
+        enforce(acl ^ ACL.AUTHOR or acl & ACL.AUTH,
+                'ACL.AUTHOR without ACL.AUTH')
 
         self.setter = None
         self.on_get = lambda self, x: x
@@ -200,6 +202,10 @@ class Property(object):
         enforce(mode & self.acl, http.Forbidden,
                 '%s access is disabled for %r property',
                 ACL.NAMES[mode], self.name)
+
+
+class Reference(Property):
+    pass
 
 
 class Boolean(Property):

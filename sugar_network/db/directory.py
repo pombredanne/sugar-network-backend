@@ -27,6 +27,10 @@ from sugar_network.toolkit import enforce
 # To invalidate existed index on stcuture changes
 _LAYOUT_VERSION = 4
 
+_STATE_HAS_SEQNO = 1
+_STATE_HAS_NOSEQNO = 2
+
+
 _logger = logging.getLogger('db.directory')
 
 
@@ -53,12 +57,26 @@ class Directory(object):
         self._storage = None
         self._index = None
         self._broadcast = broadcast
+        self._state = toolkit.Bin(
+                join(root, 'index', self.metadata.name, 'state'), 0)
 
         self._open()
 
     @property
     def empty(self):
-        return True if self._index is None else (self._index.mtime == 0)
+        return not self._state.value & (_STATE_HAS_SEQNO | _STATE_HAS_NOSEQNO)
+
+    @property
+    def has_seqno(self):
+        return self._state.value & _STATE_HAS_SEQNO
+
+    @property
+    def has_noseqno(self):
+        return self._state.value & _STATE_HAS_NOSEQNO
+
+    def __iter__(self):
+        for guid in self._storage.walk(0):
+            yield self.get(guid)
 
     def wipe(self):
         self.close()
@@ -67,7 +85,22 @@ class Directory(object):
                 ignore_errors=True)
         shutil.rmtree(join(self._root, 'db', self.metadata.name),
                 ignore_errors=True)
+        self._state.value = 0
         self._open()
+
+    def dilute(self):
+        for doc in self:
+            if 'seqno' in doc.record.get('guid'):
+                self._index.delete(doc.guid, self._postdelete, doc.guid, None)
+                continue
+            doc.record.unset('seqno')
+            for prop in self.metadata.keys():
+                meta = doc.record.get(prop)
+                if meta is None or 'seqno' not in meta:
+                    continue
+                meta.pop('seqno')
+                doc.record.set(prop, **meta)
+        self._state.value ^= _STATE_HAS_SEQNO
 
     def close(self):
         """Flush index write pending queue and close the index."""
@@ -158,9 +191,9 @@ class Directory(object):
 
         """
         found = False
-        migrate = (self._index.mtime == 0)
+        migrate = self.empty
 
-        for guid in self._storage.walk(self._index.mtime):
+        for guid in self._storage.walk(self._state.mtime):
             if not found:
                 _logger.info('Start populating %r index', self.metadata.name)
                 found = True
@@ -175,7 +208,7 @@ class Directory(object):
                     meta = record.get(name)
                     if meta is not None:
                         props[name] = meta['value']
-                self._index.store(guid, props)
+                self._index.store(guid, props, self._preindex)
                 yield
             except Exception:
                 _logger.exception('Cannot populate %r in %r, invalidate it',
@@ -195,7 +228,7 @@ class Directory(object):
             for doc in docs:
                 yield doc
 
-    def patch(self, guid, patch, seqno=None):
+    def patch(self, guid, patch, seqno=False):
         """Apply changes for documents."""
         doc = self.resource(guid, self._storage.get(guid))
         merged = False
@@ -239,6 +272,10 @@ class Directory(object):
         doc = self.resource(guid, self._storage.get(guid), changes)
         for prop in self.metadata:
             enforce(doc[prop] is not None, 'Empty %r property', prop)
+        if changes.get('seqno'):
+            self._state.value |= _STATE_HAS_SEQNO
+        else:
+            self._state.value |= _STATE_HAS_NOSEQNO
         return doc
 
     def _prestore(self, guid, changes, event):
@@ -253,15 +290,21 @@ class Directory(object):
             return None
         for prop in self.metadata.keys():
             enforce(doc[prop] is not None, 'Empty %r property', prop)
+        if changes.get('seqno'):
+            self._state.value |= _STATE_HAS_SEQNO
+        else:
+            self._state.value |= _STATE_HAS_NOSEQNO
         return doc
 
     def _postdelete(self, guid, event):
         self._storage.delete(guid)
-        self.broadcast(event)
+        if event:
+            self.broadcast(event)
 
     def _postcommit(self):
         self._seqno.commit()
-        self.broadcast({'event': 'commit', 'mtime': self._index.mtime})
+        self._state.commit()
+        self.broadcast({'event': 'commit', 'mtime': self._state.mtime})
 
     def _save_layout(self):
         path = join(self._root, 'index', self.metadata.name, 'layout')

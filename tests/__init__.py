@@ -20,7 +20,7 @@ from M2Crypto import DSA
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
-from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, parcel
+from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, packets
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
 from sugar_network.client import IPCConnection, journal, routes as client_routes, model as client_model
@@ -29,13 +29,13 @@ from sugar_network.client.injector import Injector
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.client.auth import SugarCreds
 from sugar_network import db, client, node, toolkit, model
-from sugar_network.db import routes as db_routes
 from sugar_network.model.user import User
 from sugar_network.model.context import Context
 from sugar_network.node.model import Context as MasterContext
 from sugar_network.node.model import User as MasterUser
 from sugar_network.node.model import Volume as NodeVolume
 from sugar_network.node.auth import SugarAuth
+from sugar_network.node import routes as node_routes
 from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node import obs, slave, master
@@ -82,7 +82,7 @@ class Test(unittest.TestCase):
         os.environ['HOME'] = tmpdir
         os.environ['LC_ALL'] = 'en_US.UTF-8'
 
-        parcel.DEFAULT_COMPRESSLEVEL = 0
+        packets.DEFAULT_COMPRESSLEVEL = 0
         adapters.DEFAULT_RETRIES = 5
         Option.items = {}
         Option.config_files = []
@@ -106,7 +106,7 @@ class Test(unittest.TestCase):
         client.keyfile.value = join(root, 'data', UID)
         client_routes._RECONNECT_TIMEOUT = 0
         client_routes._SYNC_TIMEOUT = 30
-        db_routes._GROUPED_DIFF_LIMIT = 1024
+        node_routes._GROUPED_DIFF_LIMIT = 1024
         journal._ds_root = tmpdir + '/datastore'
         mountpoints._connects.clear()
         mountpoints._found.clear()
@@ -148,6 +148,7 @@ class Test(unittest.TestCase):
         this.localcast = lambda x: x
         this.injector = None
         this.principal = None
+        this.reset_property('resource')
 
     def tearDown(self):
         self.stop_nodes()

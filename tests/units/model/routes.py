@@ -10,7 +10,7 @@ from os.path import exists
 from __init__ import tests, src_root
 
 from sugar_network import db, model
-from sugar_network.toolkit.router import Router, Request
+from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine
 
@@ -28,6 +28,7 @@ class RoutesTest(tests.Test):
         routes = model.FrontRoutes()
         volume = db.Volume('db', [Document])
         events = []
+        this.response = Response()
 
         def read_events():
             for event in routes.subscribe(event='!commit'):
@@ -55,6 +56,7 @@ class RoutesTest(tests.Test):
 
     def test_SubscribeWithPong(self):
         routes = model.FrontRoutes()
+        this.response = Response()
         for event in routes.subscribe():
             break
         self.assertEqual({'event': 'pong'}, event)

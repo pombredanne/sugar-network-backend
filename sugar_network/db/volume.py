@@ -15,16 +15,14 @@
 
 import os
 import logging
-from copy import deepcopy
 from os.path import exists, join, abspath
 
 from sugar_network import toolkit
 from sugar_network.db.directory import Directory
 from sugar_network.db.index import IndexWriter
 from sugar_network.db.blobs import Blobs
-from sugar_network.toolkit.router import File
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, coroutine, ranges, enforce
+from sugar_network.toolkit import http, coroutine, enforce
 
 
 _logger = logging.getLogger('db.volume')
@@ -70,6 +68,20 @@ class Volume(dict):
                 return False
         return True
 
+    @property
+    def has_seqno(self):
+        for directory in self.values():
+            if directory.has_seqno:
+                return True
+        return False
+
+    @property
+    def has_noseqno(self):
+        for directory in self.values():
+            if directory.has_noseqno:
+                return True
+        return False
+
     def close(self):
         """Close operations with the server."""
         _logger.info('Closing documents in %r', self._root)
@@ -82,74 +94,6 @@ class Volume(dict):
         for cls in self.values():
             for __ in cls.populate():
                 coroutine.dispatch()
-
-    def diff(self, r, exclude=None, files=None, blobs=True, one_way=False):
-        if exclude:
-            include = deepcopy(r)
-            ranges.exclude(include, exclude)
-        else:
-            include = r
-        last_seqno = None
-        found = False
-
-        try:
-            for resource, directory in self.items():
-                if one_way and directory.resource.one_way:
-                    continue
-                yield {'resource': resource}
-                for doc in directory.diff(r):
-                    patch = doc.diff(include)
-                    if patch:
-                        yield {'guid': doc.guid, 'patch': patch}
-                        found = True
-                    last_seqno = max(last_seqno, doc['seqno'])
-            if blobs:
-                for blob in self.blobs.diff(include):
-                    seqno = int(blob.meta.pop('x-seqno'))
-                    yield blob
-                    found = True
-                    last_seqno = max(last_seqno, seqno)
-            for dirpath in files or []:
-                for blob in self.blobs.diff(include, dirpath):
-                    seqno = int(blob.meta.pop('x-seqno'))
-                    yield blob
-                    found = True
-                    last_seqno = max(last_seqno, seqno)
-        except StopIteration:
-            pass
-
-        if found:
-            commit_r = include if exclude else deepcopy(r)
-            ranges.exclude(commit_r, last_seqno + 1, None)
-            ranges.exclude(r, None, last_seqno)
-            yield {'commit': commit_r}
-
-    def patch(self, records, shift_seqno=True):
-        directory = None
-        committed = []
-        seqno = None if shift_seqno else False
-
-        for record in records:
-            if isinstance(record, File):
-                if seqno is None:
-                    seqno = self.seqno.next()
-                self.blobs.patch(record, seqno or 0)
-                continue
-            resource = record.get('resource')
-            if resource:
-                directory = self[resource]
-                continue
-            guid = record.get('guid')
-            if guid is not None:
-                seqno = directory.patch(guid, record['patch'], seqno)
-                continue
-            commit = record.get('commit')
-            if commit is not None:
-                ranges.include(committed, commit)
-                continue
-            raise http.BadRequest('Malformed patch')
-
-        return seqno, committed
 
     def broadcast(self, event):
         if not self.mute:

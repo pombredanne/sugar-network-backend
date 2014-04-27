@@ -506,7 +506,7 @@ class Bin(object):
     @property
     def mtime(self):
         if exists(self._path):
-            return os.stat(self._path).st_mtime
+            return int(os.stat(self._path).st_mtime)
         else:
             return 0
 
@@ -650,7 +650,7 @@ class _NewFile(object):
     dst_path = None
 
     def __init__(self, **kwargs):
-        self._file = tempfile.NamedTemporaryFile(delete=False, **kwargs)
+        self._file = NamedTemporaryFile(delete=False, **kwargs)
 
     @property
     def name(self):
@@ -666,6 +666,8 @@ class _NewFile(object):
     def close(self):
         self._file.close()
         if exists(self.name):
+            if not exists(dirname(self.dst_path)):
+                os.makedirs(dirname(self.dst_path))
             os.rename(self.name, self.dst_path)
 
     def __enter__(self):

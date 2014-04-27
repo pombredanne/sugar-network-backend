@@ -15,21 +15,16 @@
 
 import os
 import gettext
-import logging
-import mimetypes
 from os.path import join
 
 import xapian
 
-from sugar_network import toolkit, db
+from sugar_network import db
 from sugar_network.model.routes import FrontRoutes
-from sugar_network.toolkit.spec import parse_version, parse_requires
-from sugar_network.toolkit.spec import EMPTY_LICENSE
-from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit import i18n, http, svg_to_png, enforce
 
+
+ICON_SIZE = 55
+LOGO_SIZE = 140
 
 CONTEXT_TYPES = [
         'activity', 'group', 'package', 'book',
@@ -58,11 +53,6 @@ RESOURCES = (
         'sugar_network.model.user',
         )
 
-ICON_SIZE = 55
-LOGO_SIZE = 140
-
-_logger = logging.getLogger('model')
-
 
 class Rating(db.List):
 
@@ -72,229 +62,3 @@ class Rating(db.List):
     def slotting(self, value):
         rating = float(value[1]) / value[0] if value[0] else 0
         return xapian.sortable_serialise(rating)
-
-
-class Release(object):
-
-    def typecast(self, release):
-        if this.resource.exists and \
-                'activity' not in this.resource['type'] and \
-                'book' not in this.resource['type']:
-            return release
-        if not isinstance(release, dict):
-            __, release = load_bundle(
-                    this.volume.blobs.post(release, this.request.content_type),
-                    context=this.request.guid)
-        return release['bundles']['*-*']['blob'], release
-
-    def reprcast(self, release):
-        return this.volume.blobs.get(release['bundles']['*-*']['blob'])
-
-    def teardown(self, release):
-        if this.resource.exists and \
-                'activity' not in this.resource['type'] and \
-                'book' not in this.resource['type']:
-            return
-        for bundle in release['bundles'].values():
-            this.volume.blobs.delete(bundle['blob'])
-
-    def encode(self, value):
-        return []
-
-
-def generate_node_stats(volume):
-
-    def calc_rating(**kwargs):
-        rating = [0, 0]
-        alldocs, __ = volume['post'].find(**kwargs)
-        for post in alldocs:
-            if post['vote']:
-                rating[0] += 1
-                rating[1] += post['vote']
-        return rating
-
-    alldocs, __ = volume['context'].find()
-    for context in alldocs:
-        rating = calc_rating(type='review', context=context.guid)
-        volume['context'].update(context.guid, {'rating': rating})
-
-    alldocs, __ = volume['post'].find(topic='')
-    for topic in alldocs:
-        rating = calc_rating(type='feedback', topic=topic.guid)
-        volume['post'].update(topic.guid, {'rating': rating})
-
-
-def load_bundle(blob, context=None, initial=False, extra_deps=None):
-    context_type = None
-    context_meta = None
-    release_notes = None
-    release = {}
-    version = None
-
-    try:
-        bundle = Bundle(blob.path, mime_type='application/zip')
-    except Exception:
-        context_type = 'book'
-        if not context:
-            context = this.request['context']
-        version = this.request['version']
-        if 'license' in this.request:
-            release['license'] = this.request['license']
-            if isinstance(release['license'], basestring):
-                release['license'] = [release['license']]
-        release['stability'] = 'stable'
-        release['bundles'] = {
-                '*-*': {
-                    'blob': blob.digest,
-                    },
-                }
-    else:
-        context_type = 'activity'
-        unpack_size = 0
-
-        with bundle:
-            changelog = join(bundle.rootdir, 'CHANGELOG')
-            for arcname in bundle.get_names():
-                if changelog and arcname == changelog:
-                    with bundle.extractfile(changelog) as f:
-                        release_notes = f.read()
-                    changelog = None
-                unpack_size += bundle.getmember(arcname).size
-            spec = bundle.get_spec()
-            context_meta = _load_context_metadata(bundle, spec)
-
-        if not context:
-            context = spec['context']
-        else:
-            enforce(context == spec['context'],
-                    http.BadRequest, 'Wrong context')
-        if extra_deps:
-            spec.requires.update(parse_requires(extra_deps))
-
-        version = spec['version']
-        release['stability'] = spec['stability']
-        if spec['license'] is not EMPTY_LICENSE:
-            release['license'] = spec['license']
-        release['commands'] = spec.commands
-        release['requires'] = spec.requires
-        release['bundles'] = {
-                '*-*': {
-                    'blob': blob.digest,
-                    'unpack_size': unpack_size,
-                    },
-                }
-        blob.meta['content-type'] = 'application/vnd.olpc-sugar'
-
-    enforce(context, http.BadRequest, 'Context is not specified')
-    enforce(version, http.BadRequest, 'Version is not specified')
-    release['version'] = parse_version(version)
-
-    doc = this.volume['context'][context]
-    if initial and not doc.exists:
-        enforce(context_meta, http.BadRequest, 'No way to initate context')
-        context_meta['guid'] = context
-        context_meta['type'] = [context_type]
-        with this.principal as principal:
-            principal.admin = True
-            this.call(method='POST', path=['context'], content=context_meta,
-                    principal=principal)
-    else:
-        enforce(doc.available, http.NotFound, 'No context')
-        enforce(context_type in doc['type'],
-                http.BadRequest, 'Inappropriate bundle type')
-
-    if 'license' not in release:
-        releases = doc['releases'].values()
-        enforce(releases, http.BadRequest, 'License is not specified')
-        recent = max(releases, key=lambda x: x.get('value', {}).get('release'))
-        enforce(recent, http.BadRequest, 'License is not specified')
-        release['license'] = recent['value']['license']
-
-    _logger.debug('Load %r release: %r', context, release)
-
-    if this.principal in doc['author']:
-        patch = doc.format_patch(context_meta)
-        if patch:
-            this.call(method='PUT', path=['context', context], content=patch,
-                    principal=this.principal)
-            doc.posts.update(patch)
-        # TRANS: Release notes title
-        title = i18n._('%(name)s %(version)s release')
-    else:
-        # TRANS: 3rd party release notes title
-        title = i18n._('%(name)s %(version)s third-party release')
-    release['announce'] = this.call(method='POST', path=['post'],
-            content={
-                'context': context,
-                'type': 'notification',
-                'title': i18n.encode(title,
-                    name=doc['title'],
-                    version=version,
-                    ),
-                'message': release_notes or '',
-                },
-            content_type='application/json', principal=this.principal)
-
-    blob.meta['content-disposition'] = 'attachment; filename="%s-%s%s"' % (
-            ''.join(i18n.decode(doc['title']).split()), version,
-            mimetypes.guess_extension(blob.meta.get('content-type')) or '',
-            )
-    this.volume.blobs.update(blob.digest, blob.meta)
-
-    return context, release
-
-
-def _load_context_metadata(bundle, spec):
-    result = {}
-    for prop in ('homepage', 'mime_types'):
-        if spec[prop]:
-            result[prop] = spec[prop]
-    result['guid'] = spec['context']
-
-    try:
-        from sugar_network.toolkit.sugar import color_svg
-
-        icon_file = bundle.extractfile(join(bundle.rootdir, spec['icon']))
-        svg = color_svg(icon_file.read(), result['guid'])
-        blobs = this.volume.blobs
-
-        result['artefact_icon'] = \
-                blobs.post(svg, 'image/svg+xml').digest
-        result['icon'] = \
-                blobs.post(svg_to_png(svg, ICON_SIZE), 'image/png').digest
-        result['logo'] = \
-                blobs.post(svg_to_png(svg, LOGO_SIZE), 'image/png').digest
-
-        icon_file.close()
-    except Exception:
-        _logger.exception('Failed to load icon')
-
-    msgids = {}
-    for prop, confname in [
-            ('title', 'name'),
-            ('summary', 'summary'),
-            ('description', 'description'),
-            ]:
-        if spec[confname]:
-            msgids[prop] = spec[confname]
-            result[prop] = {'en': spec[confname]}
-    with toolkit.mkdtemp() as tmpdir:
-        for path in bundle.get_names():
-            if not path.endswith('.mo'):
-                continue
-            mo_path = path.strip(os.sep).split(os.sep)
-            if len(mo_path) != 5 or mo_path[1] != 'locale':
-                continue
-            lang = mo_path[2]
-            bundle.extract(path, tmpdir)
-            try:
-                translation = gettext.translation(spec['context'],
-                        join(tmpdir, *mo_path[:2]), [lang])
-                for prop, value in msgids.items():
-                    msgstr = translation.gettext(value).decode('utf8')
-                    if lang == 'en' or msgstr != value:
-                        result[prop][lang] = msgstr
-            except Exception:
-                _logger.exception('Gettext failed to read %r', mo_path[-1])
-
-    return result

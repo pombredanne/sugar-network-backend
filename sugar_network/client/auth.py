@@ -15,9 +15,13 @@
 
 import os
 import hashlib
+import logging
 from base64 import b64encode
 from urllib2 import parse_http_list, parse_keqv_list
 from os.path import abspath, expanduser, dirname, exists
+
+
+_logger = logging.getLogger('client.auth')
 
 
 class BasicCreds(object):

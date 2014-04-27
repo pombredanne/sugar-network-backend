@@ -95,17 +95,17 @@ class Context(db.Resource):
     def previews(self, value):
         return value
 
-    @db.stored_property(db.Aggregated, subtype=model.Release(),
-            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
+    @db.stored_property(db.Aggregated, subtype=db.Dict(),
+            acl=ACL.READ | ACL.LOCAL)
     def releases(self, value):
         return value
 
     @db.indexed_property(db.Numeric, slot=2, default=0,
-            acl=ACL.READ | ACL.CALC)
+            acl=ACL.READ | ACL.LOCAL)
     def downloads(self, value):
         return value
 
-    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.CALC)
+    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
     def rating(self, value):
         return value
 

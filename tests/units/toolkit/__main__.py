@@ -13,7 +13,7 @@ from router import *
 from gbus import *
 from i18n import *
 from sat import *
-from parcel import *
+from packets import *
 from ranges import *
 
 if __name__ == '__main__':

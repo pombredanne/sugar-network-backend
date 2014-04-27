@@ -40,19 +40,46 @@ class Unauthorized(http.Unauthorized):
 
 class Principal(str):
 
-    admin = False
-    editor = False
-    translator = False
+    def __new__(cls, value, caps=0):
+        if not isinstance(value, basestring):
+            value, caps = value
+        self = str.__new__(cls, value)
+        # pylint: disable-msg=W0212
+        self._caps = caps
+        self._backup = 0
+        return self
 
-    _backup = None
+    @property
+    def cap_author_override(self):
+        return self._caps & 1
+
+    @cap_author_override.setter
+    def cap_author_override(self, value):
+        if value:
+            self._caps |= 1
+        else:
+            self._caps ^= 1
+
+    @property
+    def cap_create_with_guid(self):
+        return self._caps & 1
+
+    @cap_create_with_guid.setter
+    def cap_create_with_guid(self, value):
+        if value:
+            self._caps |= 1
+        else:
+            self._caps ^= 1
 
     def __enter__(self):
-        self._backup = (self.admin, self.editor, self.translator)
+        self._backup = self._caps
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.admin, self.editor, self.translator = self._backup
-        self._backup = None
+        self._caps = self._backup
+
+    def dump(self):
+        return self, self._caps
 
 
 class SugarAuth(object):
@@ -109,10 +136,8 @@ class SugarAuth(object):
             for role in self._config.get('permissions', user).split():
                 role = role.lower()
                 if role == 'admin':
-                    principal.admin = True
-                elif role == 'editor':
-                    principal.editor = True
-                elif role == 'translator':
-                    principal.translator = True
+                    principal.cap_author_override = True
+                    principal.cap_create_with_guid = True
+                # TODO
 
         return principal

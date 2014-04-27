@@ -132,3 +132,8 @@ class Record(object):
             # Touch directory to let it possible to crawl it on startup
             # when index was not previously closed properly
             os.utime(join(self._root, '..'), (mtime, mtime))
+
+    def unset(self, prop):
+        meta_path = join(self._root, prop)
+        if exists(meta_path):
+            os.unlink(meta_path)

@@ -139,40 +139,40 @@ class SpecTest(tests.Test):
         self.assertEqual([[1, 2], 0], spec.parse_version('1.2foo', ignore_errors=True))
 
     def test_ensure(self):
-        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep')['dep'])
+        assert spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep')['dep'])
 
-        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep=1')['dep'])
-        assert not spec.ensure(spec.parse_version('2'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep=1')['dep'])
+        assert not spec.ensure_version(spec.parse_version('2'), spec.parse_requires('dep=1')['dep'])
 
-        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep<2')['dep'])
-        assert not spec.ensure(spec.parse_version('2'), spec.parse_requires('dep<2')['dep'])
-        assert not spec.ensure(spec.parse_version('3'), spec.parse_requires('dep<2')['dep'])
+        assert spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep<2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('2'), spec.parse_requires('dep<2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('3'), spec.parse_requires('dep<2')['dep'])
 
-        assert spec.ensure(spec.parse_version('3'), spec.parse_requires('dep>2')['dep'])
-        assert not spec.ensure(spec.parse_version('2'), spec.parse_requires('dep>2')['dep'])
-        assert not spec.ensure(spec.parse_version('1'), spec.parse_requires('dep>2')['dep'])
+        assert spec.ensure_version(spec.parse_version('3'), spec.parse_requires('dep>2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('2'), spec.parse_requires('dep>2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep>2')['dep'])
 
-        assert spec.ensure(spec.parse_version('1'), spec.parse_requires('dep<=2')['dep'])
-        assert spec.ensure(spec.parse_version('2'), spec.parse_requires('dep<=2')['dep'])
-        assert not spec.ensure(spec.parse_version('3'), spec.parse_requires('dep<=2')['dep'])
+        assert spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep<=2')['dep'])
+        assert spec.ensure_version(spec.parse_version('2'), spec.parse_requires('dep<=2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('3'), spec.parse_requires('dep<=2')['dep'])
 
-        assert spec.ensure(spec.parse_version('3'), spec.parse_requires('dep>=2')['dep'])
-        assert spec.ensure(spec.parse_version('2'), spec.parse_requires('dep>=2')['dep'])
-        assert not spec.ensure(spec.parse_version('1'), spec.parse_requires('dep>=2')['dep'])
+        assert spec.ensure_version(spec.parse_version('3'), spec.parse_requires('dep>=2')['dep'])
+        assert spec.ensure_version(spec.parse_version('2'), spec.parse_requires('dep>=2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep>=2')['dep'])
 
     def test_ensure_StripVersionsForEQ(self):
-        assert spec.ensure(spec.parse_version('1.2'), spec.parse_requires('dep=1')['dep'])
-        assert not spec.ensure(spec.parse_version('1'), spec.parse_requires('dep=1.2')['dep'])
-        assert spec.ensure(spec.parse_version('1.2.3'), spec.parse_requires('dep=1.2')['dep'])
+        assert spec.ensure_version(spec.parse_version('1.2'), spec.parse_requires('dep=1')['dep'])
+        assert not spec.ensure_version(spec.parse_version('1'), spec.parse_requires('dep=1.2')['dep'])
+        assert spec.ensure_version(spec.parse_version('1.2.3'), spec.parse_requires('dep=1.2')['dep'])
 
-        assert spec.ensure(spec.parse_version('1-pre2'), spec.parse_requires('dep=1')['dep'])
-        assert spec.ensure(spec.parse_version('1-post2'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure_version(spec.parse_version('1-pre2'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure_version(spec.parse_version('1-post2'), spec.parse_requires('dep=1')['dep'])
 
-        assert spec.ensure(spec.parse_version('1.2-pre3'), spec.parse_requires('dep=1')['dep'])
-        assert spec.ensure(spec.parse_version('1.2-post3'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure_version(spec.parse_version('1.2-pre3'), spec.parse_requires('dep=1')['dep'])
+        assert spec.ensure_version(spec.parse_version('1.2-post3'), spec.parse_requires('dep=1')['dep'])
 
-        assert not spec.ensure(spec.parse_version('1-pre3'), spec.parse_requires('dep=1.2')['dep'])
-        assert not spec.ensure(spec.parse_version('1-post3'), spec.parse_requires('dep=1.2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('1-pre3'), spec.parse_requires('dep=1.2')['dep'])
+        assert not spec.ensure_version(spec.parse_version('1-post3'), spec.parse_requires('dep=1.2')['dep'])
 
 
 if __name__ == '__main__':

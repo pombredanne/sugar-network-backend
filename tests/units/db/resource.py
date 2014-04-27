@@ -17,7 +17,7 @@ import gobject
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, toolkit
 from sugar_network.db import storage, index
 from sugar_network.db import directory as directory_
 from sugar_network.db.directory import Directory
@@ -134,6 +134,23 @@ class ResourceTest(tests.Test):
         self.assertEqual(0, directory.find(query='foo')[-1])
         self.assertEqual(1, directory.find(query='bar')[-1])
 
+    def test_create(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+        assert not directory.has_seqno
+        assert not directory.has_noseqno
+
+        guid = directory.create({'prop': '1'})
+        self.assertEqual(1, directory[guid]['seqno'])
+        assert directory.has_seqno
+        assert not directory.has_noseqno
+
     def test_update(self):
 
         class Document(db.Resource):
@@ -147,16 +164,24 @@ class ResourceTest(tests.Test):
                 return value
 
         directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+        assert not directory.has_seqno
+        assert not directory.has_noseqno
 
         guid = directory.create({'prop_1': '1', 'prop_2': '2'})
         self.assertEqual(
                 [('1', '2')],
                 [(i.prop_1, i.prop_2) for i in directory.find()[0]])
+        self.assertEqual(1, directory[guid]['seqno'])
+        assert directory.has_seqno
+        assert not directory.has_noseqno
 
         directory.update(guid, {'prop_1': '3', 'prop_2': '4'})
         self.assertEqual(
                 [('3', '4')],
                 [(i.prop_1, i.prop_2) for i in directory.find()[0]])
+        self.assertEqual(2, directory[guid]['seqno'])
+        assert directory.has_seqno
+        assert not directory.has_noseqno
 
     def test_delete(self):
 
@@ -204,31 +229,31 @@ class ResourceTest(tests.Test):
                 ('db/document/1/1/ctime', '{"value": 1}'),
                 ('db/document/1/1/mtime', '{"value": 1}'),
                 ('db/document/1/1/prop', '{"value": "prop-1"}'),
-                ('db/document/1/1/seqno', '{"value": 0}'),
+                ('db/document/1/1/seqno', '{"value": 1}'),
 
                 ('db/document/2/2/guid', '{"value": "2"}'),
                 ('db/document/2/2/ctime', '{"value": 2}'),
                 ('db/document/2/2/mtime', '{"value": 2}'),
                 ('db/document/2/2/prop', '{"value": "prop-2"}'),
-                ('db/document/2/2/seqno', '{"value": 0}'),
+                ('db/document/2/2/seqno', '{"value": 2}'),
                 )
 
         directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
 
-        self.assertEqual(0, directory._index.mtime)
         for i in directory.populate():
             pass
-        self.assertNotEqual(0, directory._index.mtime)
 
         doc = directory.get('1')
         self.assertEqual(1, doc['ctime'])
         self.assertEqual(1, doc['mtime'])
         self.assertEqual('prop-1', doc['prop'])
+        self.assertEqual(1, directory['1']['seqno'])
 
         doc = directory.get('2')
         self.assertEqual(2, doc['ctime'])
         self.assertEqual(2, doc['mtime'])
         self.assertEqual('prop-2', doc['prop'])
+        self.assertEqual(2, directory['2']['seqno'])
 
         self.assertEqual(
                 [
@@ -236,6 +261,37 @@ class ResourceTest(tests.Test):
                     (2, 2, 'prop-2'),
                     ],
                 [(i.ctime, i.mtime, i.prop) for i in directory.find()[0]])
+        assert directory.has_seqno
+        assert not directory.has_noseqno
+
+    def test_populate_NoSeqnoSatus(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(slot=1)
+            def prop(self, value):
+                return value
+
+        self.touch(
+                ('db/document/1/1/guid', '{"value": "1"}'),
+                ('db/document/1/1/ctime', '{"value": 1}'),
+                ('db/document/1/1/mtime', '{"value": 1}'),
+                ('db/document/1/1/prop', '{"value": "prop-1"}'),
+                )
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+        assert not directory.has_seqno
+        assert not directory.has_noseqno
+
+        for i in directory.populate():
+            pass
+
+        doc = directory.get('1')
+        self.assertEqual(1, doc['ctime'])
+        self.assertEqual(1, doc['mtime'])
+        self.assertEqual('prop-1', doc['prop'])
+        self.assertEqual(0, directory['1']['seqno'])
+        assert not directory.has_seqno
+        assert directory.has_noseqno
 
     def test_populate_IgnoreBadDocuments(self):
 
@@ -521,6 +577,38 @@ class ResourceTest(tests.Test):
             },
             directory[guid].diff([[1, None]], out_r))
         self.assertEqual([[1, 3]], out_r)
+
+    def test_CommitLastSeqno(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+        directory.create({'prop': '1'})
+        assert directory.has_seqno
+        directory.commit()
+        directory.close()
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+        assert directory.has_seqno
+
+    def test_IterateDirectory(self):
+
+        class Document(db.Resource):
+            pass
+
+        directory = Directory(tests.tmpdir, Document, IndexWriter, _SessionSeqno(), this.broadcast)
+
+        guid1 = directory.create({})
+        guid2 = directory.create({})
+        guid3 = directory.create({})
+
+        self.assertEqual(
+                sorted([guid1, guid2, guid3]),
+                sorted([i.guid for i in directory]))
 
 
 class _SessionSeqno(object):

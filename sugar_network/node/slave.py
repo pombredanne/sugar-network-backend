@@ -25,15 +25,14 @@ from sugar_network import toolkit
 from sugar_network.model.context import Context
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
-from sugar_network.node.model import User
-from sugar_network.node import master_api
+from sugar_network.node import master_api, model
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, parcel, ranges, enforce
+from sugar_network.toolkit import http, packets, ranges, enforce
 
 
-RESOURCES = (User, Context, Post, Report)
+RESOURCES = (model.User, Context, Post, Report)
 
 _logger = logging.getLogger('node.slave')
 
@@ -62,13 +61,13 @@ class SlaveRoutes(NodeRoutes):
     def online_sync(self, no_pull=False):
         conn = http.Connection(master_api.value)
         response = conn.request('POST',
-                data=parcel.encode(self._export(not no_pull), header={
+                data=packets.encode(self._export(not no_pull), header={
                     'from': self.guid,
                     'to': self._master_guid,
                     }),
                 params={'cmd': 'sync'},
                 headers={'Transfer-Encoding': 'chunked'})
-        self._import(parcel.decode(response.raw))
+        self._import(packets.decode(response.raw))
 
     @route('POST', cmd='offline_sync', acl=ACL.LOCAL)
     def offline_sync(self, path):
@@ -82,7 +81,7 @@ class SlaveRoutes(NodeRoutes):
             'event': 'sync_progress',
             'progress': _('Reading sneakernet packages'),
             })
-        requests = self._import(parcel.decode_dir(path))
+        requests = self._import(packets.decode_dir(path))
 
         this.broadcast({
             'event': 'sync_progress',
@@ -91,7 +90,7 @@ class SlaveRoutes(NodeRoutes):
         offline_script = join(dirname(sys.argv[0]), 'sugar-network-sync')
         if exists(offline_script):
             shutil.copy(offline_script, path)
-        parcel.encode_dir(requests + self._export(True), root=path, header={
+        packets.encode_dir(requests + self._export(True), root=path, header={
             'from': self.guid,
             'to': self._master_guid,
             })
@@ -110,7 +109,7 @@ class SlaveRoutes(NodeRoutes):
             sender = packet['from']
             from_master = (sender == self._master_guid)
             if packet.name == 'push':
-                seqno, committed = this.volume.patch(packet)
+                seqno, committed = model.patch_volume(packet)
                 if seqno is not None:
                     if from_master:
                         with self._pull_r as r:
@@ -136,5 +135,5 @@ class SlaveRoutes(NodeRoutes):
         export = []
         if pull:
             export.append(('pull', {'ranges': self._pull_r.value}, None))
-        export.append(('push', None, self.volume.diff(self._push_r.value)))
+        export.append(('push', None, model.diff_volume(self._push_r.value)))
         return export

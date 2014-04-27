@@ -13,12 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import re
 import time
 import shutil
 import logging
-from os.path import exists, join
 
 import xapian
 
@@ -60,20 +58,11 @@ class IndexReader(object):
         self._db = None
         self._props = {}
         self._path = root
-        self._mtime_path = join(self._path, 'mtime')
         self._commit_cb = commit_cb
 
         for name, prop in self.metadata.items():
             if prop.indexed:
                 self._props[name] = prop
-
-    @property
-    def mtime(self):
-        """UNIX seconds of the last `commit()` call."""
-        if exists(self._mtime_path):
-            return int(os.stat(self._mtime_path).st_mtime)
-        else:
-            return 0
 
     def ensure_open(self):
         pass
@@ -418,17 +407,10 @@ class IndexWriter(IndexReader):
             self._db.commit()
         else:
             self._db.flush()
-
-        checkpoint = time.time()
-        if exists(self._mtime_path):
-            os.utime(self._mtime_path, (checkpoint, checkpoint))
-        else:
-            with file(self._mtime_path, 'w'):
-                pass
         self._pending_updates = 0
 
         _logger.debug('Commit to %r took %s seconds',
-                self.metadata.name, checkpoint - ts)
+                self.metadata.name, time.time() - ts)
 
         if self._commit_cb is not None:
             self._commit_cb()

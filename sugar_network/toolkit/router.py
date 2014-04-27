@@ -88,10 +88,9 @@ class ACL(object):
 
     AUTH = 1 << 10
     AUTHOR = 1 << 11
-    SUPERUSER = 1 << 12
+    AGG_AUTHOR = 1 << 12
 
-    LOCAL = 1 << 13
-    CALC = 1 << 14
+    LOCAL = 1 << 14
 
     NAMES = {
             CREATE: 'Create',
@@ -107,8 +106,7 @@ class ACL(object):
 class Request(dict):
 
     def __init__(self, environ=None, method=None, path=None, cmd=None,
-            content=None, content_stream=None, content_type=None,
-            principal=None, **kwargs):
+            content=None, content_type=None, principal=None, **kwargs):
         dict.__init__(self)
 
         self.path = []
@@ -120,7 +118,6 @@ class Request(dict):
         self._dirty_query = False
         self._if_modified_since = _NOT_SET
         self._accept_language = _NOT_SET
-        self._content_stream = content_stream or _NOT_SET
         self._content_type = content_type or _NOT_SET
 
         if environ:
@@ -194,7 +191,17 @@ class Request(dict):
 
     @property
     def content(self):
-        self.ensure_content()
+        if self._content is not _NOT_SET:
+            return self._content
+        stream = self.environ.get('wsgi.input')
+        if stream is None:
+            self._content = None
+        else:
+            stream = _ContentStream(stream, self.content_length)
+            if self.content_type == 'application/json':
+                self._content = json.load(stream)
+            else:
+                self._content = stream
         return self._content
 
     @content.setter
@@ -212,38 +219,40 @@ class Request(dict):
         self.environ['CONTENT_LENGTH'] = str(value)
 
     @property
-    def content_stream(self):
-        if self._content_stream is _NOT_SET:
-            s = self.environ.get('wsgi.input')
-            if s is None:
-                self._content_stream = None
-            else:
-                self._content_stream = _ContentStream(s, self.content_length)
-        return self._content_stream
-
-    @content_stream.setter
-    def content_stream(self, value):
-        self._content_stream = value
-
-    @property
     def resource(self):
         if self.path:
             return self.path[0]
+
+    @resource.setter
+    def resource(self, value):
+        self.path[0] = value
 
     @property
     def guid(self):
         if len(self.path) > 1:
             return self.path[1]
 
+    @guid.setter
+    def guid(self, value):
+        self.path[1] = value
+
     @property
     def prop(self):
         if len(self.path) > 2:
             return self.path[2]
 
+    @prop.setter
+    def prop(self, value):
+        self.path[2] = value
+
     @property
     def key(self):
         if len(self.path) > 3:
             return self.path[3]
+
+    @key.setter
+    def key(self, value):
+        self.path[3] = value
 
     @property
     def static_prefix(self):
@@ -297,16 +306,6 @@ class Request(dict):
                 existing_value.append(value)
             else:
                 existing_value = self[key] = [existing_value, value]
-
-    def ensure_content(self):
-        if self._content is not _NOT_SET:
-            return
-        if self.content_stream is None:
-            self._content = None
-        elif self.content_type == 'application/json':
-            self._content = json.load(self.content_stream)
-        else:
-            self._content = self.content_stream.read()
 
     def __repr__(self):
         return '<Request method=%s path=%r cmd=%s query=%r>' % \
@@ -539,7 +538,6 @@ class Router(object):
             if route_.mime_type == 'text/event-stream' and \
                     self._allow_spawn and 'spawn' in request:
                 _logger.debug('Spawn event stream for %r', request)
-                request.ensure_content()
                 coroutine.spawn(self._event_stream, request, result)
                 result = None
             elif route_.mime_type and 'content-type' not in response:
@@ -617,29 +615,23 @@ class Router(object):
                 response.content_type = 'application/json'
 
         streamed_content = isinstance(content, types.GeneratorType)
-
-        if request.method == 'HEAD':
-            streamed_content = False
-            content = None
-        elif js_callback:
+        if js_callback or response.content_type == 'application/json':
             if streamed_content:
                 content = ''.join(content)
                 streamed_content = False
-            content = '%s(%s);' % (js_callback, json.dumps(content))
-            response.content_length = len(content)
-        elif not streamed_content:
-            if response.content_type == 'application/json':
+            else:
                 content = json.dumps(content)
-                response.content_length = len(content)
-            elif 'content-length' not in response:
-                response.content_length = len(content) if content else 0
-        if request.method == 'HEAD' and content is not None:
-            _logger.warning('Content from HEAD response is ignored')
+            if js_callback:
+                content = '%s(%s);' % (js_callback, content)
+        if request.method == 'HEAD':
+            streamed_content = False
             content = None
-        _save_cookie(response, 'sugar_network_node', this.cookie)
+        elif not streamed_content:
+            response.content_length = len(content) if content else 0
 
         _logger.trace('%s call: request=%s response=%r content=%r',
                 self, request.environ, response, repr(content)[:256])
+        _save_cookie(response, 'sugar_network_node', this.cookie)
         start_response(response.status, response.items())
 
         if streamed_content:
@@ -872,6 +864,13 @@ class _Route(object):
 
     def __init__(self, callback, method, path, cmd, mime_type=None, acl=0,
             arguments=None):
+        enforce(acl ^ ACL.AUTHOR or acl & ACL.AUTH,
+                'ACL.AUTHOR without ACL.AUTH')
+        enforce(acl ^ ACL.AUTHOR or len(path) >= 2,
+                'ACL.AUTHOR requires longer path')
+        enforce(acl ^ ACL.AGG_AUTHOR or len(path) >= 3,
+                'ACL.AGG_AUTHOR requires longer path')
+
         self.op = (method, cmd)
         self.callback = callback
         self.method = method

@@ -15,19 +15,27 @@
 
 # pylint: disable-msg=W0611
 
+import os
+import re
+import json
+import time
+import shutil
 import logging
-from os.path import join
+from os.path import join, exists
 
-from sugar_network import db
-from sugar_network.model import FrontRoutes, load_bundle
+from sugar_network import db, toolkit
+from sugar_network.model import FrontRoutes
 from sugar_network.node import model
-from sugar_network.toolkit.router import ACL, File
-from sugar_network.toolkit.router import route, fallbackroute, preroute
+from sugar_network.toolkit.router import ACL, File, Request, Response, route
+from sugar_network.toolkit.router import fallbackroute, preroute, postroute
 from sugar_network.toolkit.spec import parse_requires, parse_version
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, coroutine, enforce
+from sugar_network.toolkit import http, coroutine, ranges, packets, enforce
 
+
+_GROUPED_DIFF_LIMIT = 1024
+_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 
 _logger = logging.getLogger('node.routes')
 
@@ -39,6 +47,10 @@ class NodeRoutes(db.Routes, FrontRoutes):
         FrontRoutes.__init__(self)
         self._guid = guid
         self._auth = auth
+        self._batch_dir = join(self.volume.root, 'batch')
+
+        if not exists(self._batch_dir):
+            os.makedirs(self._batch_dir)
 
     @property
     def guid(self):
@@ -47,35 +59,49 @@ class NodeRoutes(db.Routes, FrontRoutes):
     @preroute
     def preroute(self, op):
         request = this.request
+
         if request.principal:
             this.principal = request.principal
         elif op.acl & ACL.AUTH:
             this.principal = self._auth.logon(request)
         else:
             this.principal = None
-        if op.acl & ACL.AUTHOR and request.guid:
-            if not this.principal:
-                this.principal = self._auth.logon(request)
-            allowed = this.principal.admin
-            if not allowed:
-                if request.resource == 'user':
-                    allowed = (this.principal == request.guid)
-                else:
-                    doc = self.volume[request.resource].get(request.guid)
-                    allowed = this.principal in doc['author']
+
+        if op.acl & ACL.AUTHOR and not this.principal.cap_author_override:
+            if request.resource == 'user':
+                allowed = (this.principal == request.guid)
+            else:
+                allowed = this.principal in this.resource['author']
             enforce(allowed, http.Forbidden, 'Authors only')
-        if op.acl & ACL.SUPERUSER:
-            if not this.principal:
-                this.principal = self._auth.logon(request)
-            enforce(this.principal.admin, http.Forbidden, 'Superusers only')
+
+        if op.acl & ACL.AGG_AUTHOR and not this.principal.cap_author_override:
+            if this.resource.metadata[request.prop].acl & ACL.AUTHOR:
+                allowed = this.principal in this.resource['author']
+            elif request.key:
+                value = this.resource[request.prop].get(request.key)
+                allowed = value is None or this.principal in value['author']
+            else:
+                allowed = True
+            enforce(allowed, http.Forbidden, 'Authors only')
+
+    @postroute
+    def postroute(self, result, exception):
+        request = this.request
+        if not request.guid:
+            return result
+        pull = request.headers['pull']
+        if pull is None:
+            return result
+        this.response.content_type = 'application/octet-stream'
+        return model.diff_resource(pull)
+
+    @route('GET', cmd='logon', acl=ACL.AUTH)
+    def logon(self):
+        pass
 
     @route('GET', cmd='whoami', mime_type='application/json')
     def whoami(self):
-        roles = []
-        if this.principal and this.principal.admin:
-            roles.append('root')
-        return {'roles': roles,
-                'guid': this.principal,
+        return {'guid': this.principal,
                 'route': 'direct',
                 }
 
@@ -123,9 +149,9 @@ class NodeRoutes(db.Routes, FrontRoutes):
             mime_type='application/json', acl=ACL.AUTH)
     def submit_release(self, initial):
         blob = self.volume.blobs.post(
-                this.request.content_stream, this.request.content_type)
+                this.request.content, this.request.content_type)
         try:
-            context, release = load_bundle(blob, initial=initial)
+            context, release = model.load_bundle(blob, initial=initial)
         except Exception:
             self.volume.blobs.delete(blob.digest)
             raise
@@ -146,6 +172,55 @@ class NodeRoutes(db.Routes, FrontRoutes):
     def resolve(self):
         solution = self.solve()
         return self.volume.blobs.get(solution[this.request.guid]['blob'])
+
+    @route('GET', [None, None], cmd='diff')
+    def diff_resource(self):
+        return model.diff_resource(this.request.headers['ranges'])
+
+    @route('GET', [None], cmd='diff', mime_type='application/json')
+    def grouped_diff(self, key):
+        request = this.request
+        enforce(request.resource != 'user', http.BadRequest,
+                'Not allowed for User resource')
+
+        if not key:
+            key = 'guid'
+        in_r = request.headers['ranges'] or [[1, None]]
+        diff = {}
+
+        for doc in self.volume[request.resource].diff(in_r):
+            out_r = diff.get(doc[key])
+            if out_r is None:
+                if len(diff) >= _GROUPED_DIFF_LIMIT:
+                    break
+                out_r = diff[doc[key]] = []
+            ranges.include(out_r, doc['seqno'], doc['seqno'])
+            doc.diff(in_r, out_r)
+
+        return diff
+
+    @route('POST', cmd='apply', acl=ACL.AUTH)
+    def batched_post(self):
+        with toolkit.NamedTemporaryFile(dir=self._batch_dir,
+                prefix=this.principal, delete=False) as batch:
+            try:
+                shutil.copyfileobj(this.request.content, batch)
+            except Exception:
+                os.unlink(batch.name)
+                raise
+        with file(batch.name + '.meta', 'w') as f:
+            json.dump({'principal': this.principal.dump()}, f)
+        coroutine.spawn(model.apply_batch, batch.name)
+
+    def create(self):
+        if this.principal and this.principal.cap_create_with_guid:
+            guid = this.request.content.get('guid')
+            enforce(not guid or _GUID_RE.match(guid), http.BadRequest,
+                    'Malformed GUID')
+        else:
+            enforce('guid' not in this.request.content, http.BadRequest,
+                    'GUID should not be specified')
+        return db.Routes.create(self)
 
 
 this.principal = None

@@ -15,20 +15,16 @@
 
 # pylint: disable-msg=W0611
 
-import re
 import logging
 from contextlib import contextmanager
 
 from sugar_network import toolkit
 from sugar_network.db.metadata import Aggregated
 from sugar_network.toolkit.router import ACL, File
-from sugar_network.toolkit.router import route, postroute, fallbackroute
+from sugar_network.toolkit.router import route, fallbackroute, preroute
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, parcel, ranges, enforce
+from sugar_network.toolkit import http, ranges, enforce
 
-
-_GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
-_GROUPED_DIFF_LIMIT = 1024
 
 _logger = logging.getLogger('db.routes')
 
@@ -37,18 +33,12 @@ class Routes(object):
 
     def __init__(self, volume, find_limit=None):
         this.volume = self.volume = volume
+        this.add_property('resource', _get_resource)
         self._find_limit = find_limit
 
-    @postroute
-    def postroute(self, result, exception):
-        request = this.request
-        if not request.guid:
-            return result
-        pull = request.headers['pull']
-        if pull is None:
-            return result
-        this.response.content_type = 'application/octet-stream'
-        return self._object_diff(pull)
+    @preroute
+    def __preroute__(self, op):
+        this.reset_property('resource')
 
     @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
     def create(self):
@@ -71,11 +61,7 @@ class Routes(object):
     @route('PUT', [None, None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update_prop(self):
         request = this.request
-        if request.content is None:
-            value = request.content_stream
-        else:
-            value = request.content
-        request.content = {request.prop: value}
+        request.content = {request.prop: request.content}
         self.update()
 
     @route('DELETE', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
@@ -133,17 +119,17 @@ class Routes(object):
         return self.get_prop()
 
     @route('POST', [None, None, None],
-            acl=ACL.AUTH, mime_type='application/json')
+            acl=ACL.AUTH | ACL.AGG_AUTHOR, mime_type='application/json')
     def insert_to_aggprop(self):
         return self._aggpost(ACL.INSERT)
 
     @route('PUT', [None, None, None, None],
-            acl=ACL.AUTH, mime_type='application/json')
+            acl=ACL.AUTH | ACL.AGG_AUTHOR, mime_type='application/json')
     def update_aggprop(self):
         self._aggpost(ACL.REPLACE)
 
     @route('DELETE', [None, None, None, None],
-            acl=ACL.AUTH, mime_type='application/json')
+            acl=ACL.AUTH | ACL.AGG_AUTHOR, mime_type='application/json')
     def remove_from_aggprop(self):
         self._aggpost(ACL.REMOVE)
 
@@ -180,65 +166,9 @@ class Routes(object):
         del authors[user]
         directory.update(request.guid, {'author': authors})
 
-    @route('GET', [None], cmd='diff', mime_type='application/json')
-    def grouped_diff(self, key):
-        if not key:
-            key = 'guid'
-        in_r = this.request.headers['range'] or [[1, None]]
-        out_r = []
-        diff = set()
-
-        for doc in self.volume[this.request.resource].diff(in_r):
-            diff.add(doc.guid)
-            if len(diff) > _GROUPED_DIFF_LIMIT:
-                break
-            ranges.include(out_r, doc['seqno'], doc['seqno'])
-            doc.diff(in_r, out_r)
-
-        return out_r, list(diff)
-
-    @route('GET', [None, None], cmd='diff')
-    def object_diff(self):
-        return self._object_diff(this.request.headers['range'])
-
     @fallbackroute('GET', ['blobs'])
     def blobs(self):
         return self.volume.blobs.get(this.request.guid)
-
-    def _object_diff(self, in_r):
-        request = this.request
-        doc = self.volume[request.resource][request.guid]
-        enforce(doc.exists, http.NotFound, 'Resource not found')
-
-        out_r = []
-        if in_r is None:
-            in_r = [[1, None]]
-        patch = doc.diff(in_r, out_r)
-        if not patch:
-            return parcel.encode([(None, None, [])], compresslevel=0)
-
-        diff = [{'resource': request.resource},
-                {'guid': request.guid, 'patch': patch},
-                ]
-
-        def add_blob(blob):
-            if not isinstance(blob, File):
-                return
-            seqno = int(blob.meta['x-seqno'])
-            ranges.include(out_r, seqno, seqno)
-            diff.append(blob)
-
-        for prop, meta in patch.items():
-            prop = doc.metadata[prop]
-            value = prop.reprcast(meta['value'])
-            if isinstance(prop, Aggregated):
-                for __, aggvalue in value:
-                    add_blob(aggvalue)
-            else:
-                add_blob(value)
-        diff.append({'commit': out_r})
-
-        return parcel.encode([(None, None, diff)], compresslevel=0)
 
     @contextmanager
     def _post(self, access):
@@ -246,14 +176,7 @@ class Routes(object):
         enforce(isinstance(content, dict), http.BadRequest, 'Invalid value')
 
         if access == ACL.CREATE:
-            guid = content.get('guid')
-            if guid:
-                enforce(this.principal and this.principal.admin,
-                        http.BadRequest, 'GUID should not be specified')
-                enforce(_GUID_RE.match(guid) is not None,
-                        http.BadRequest, 'Malformed GUID')
-            else:
-                guid = toolkit.uuid()
+            guid = content.get('guid') or toolkit.uuid()
             doc = self.volume[this.request.resource][guid]
             enforce(not doc.exists, 'Resource already exists')
             doc.posts['guid'] = guid
@@ -261,6 +184,8 @@ class Routes(object):
                 if name not in content and prop.default is not None:
                     doc.posts[name] = prop.default
         else:
+            enforce('guid' not in content, http.BadRequest,
+                    'GUID in cannot be changed')
             doc = self.volume[this.request.resource][this.request.guid]
             enforce(doc.available, 'Resource not found')
         this.resource = doc
@@ -334,27 +259,16 @@ class Routes(object):
                 'Property is not aggregated')
         prop.assert_access(acl)
 
-        def enforce_authority(author):
-            if prop.acl & ACL.AUTHOR:
-                author = doc['author']
-            enforce(not author or this.principal in author or
-                    this.principal and this.principal.admin,
-                    http.Forbidden, 'Authors only')
-
         aggid = request.key
         if aggid and aggid in doc[request.prop]:
             aggvalue = doc[request.prop][aggid]
-            enforce_authority(aggvalue.get('author'))
             prop.subteardown(aggvalue['value'])
         else:
             enforce(acl != ACL.REMOVE, http.NotFound, 'No aggregated item')
-            enforce_authority(None)
 
         aggvalue = {}
         if acl != ACL.REMOVE:
-            value = prop.subtypecast(
-                    request.content_stream if request.content is None
-                    else request.content)
+            value = prop.subtypecast(request.content)
             if type(value) is tuple:
                 aggid_, value = value
                 enforce(not aggid or aggid == aggid_, http.BadRequest,
@@ -373,3 +287,8 @@ class Routes(object):
         self.volume[request.resource].update(request.guid, doc.posts)
 
         return aggid
+
+
+def _get_resource():
+    request = this.request
+    return this.volume[request.resource][request.guid]

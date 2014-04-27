@@ -58,7 +58,7 @@ class FrontRoutes(object):
         # initiate a subscription and do not stuck in waiting for the 1st event
         yield {'event': 'pong'}
 
-        subscription = this.request.content_stream
+        subscription = this.request.content
         if subscription is not None:
             coroutine.spawn(self._wait_for_closing, subscription)
 

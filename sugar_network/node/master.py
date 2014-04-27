@@ -19,15 +19,14 @@ from urlparse import urlsplit
 from sugar_network import toolkit
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
-from sugar_network.node.model import User, Context
-from sugar_network.node import obs, master_api
+from sugar_network.node import obs, master_api, model
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, parcel, pylru, ranges, enforce
+from sugar_network.toolkit import http, packets, pylru, ranges, enforce
 
 
-RESOURCES = (User, Context, Post, Report)
+RESOURCES = (model.User, model.Context, Post, Report)
 
 _logger = logging.getLogger('node.master')
 
@@ -40,20 +39,20 @@ class MasterRoutes(NodeRoutes):
 
     @route('POST', cmd='sync', arguments={'accept_length': int})
     def sync(self, accept_length):
-        return parcel.encode(self._push() + (self._pull() or []),
+        return packets.encode(self._push() + (self._pull() or []),
                 limit=accept_length, header={'from': self.guid},
                 on_complete=this.cookie.clear)
 
     @route('POST', cmd='push')
     def push(self):
-        return parcel.encode(self._push(), header={'from': self.guid})
+        return packets.encode(self._push(), header={'from': self.guid})
 
     @route('GET', cmd='pull', arguments={'accept_length': int})
     def pull(self, accept_length):
         reply = self._pull()
         if reply is None:
             return None
-        return parcel.encode(reply, limit=accept_length,
+        return packets.encode(reply, limit=accept_length,
                 header={'from': self.guid}, on_complete=this.cookie.clear)
 
     @route('PUT', ['context', None], cmd='presolve',
@@ -72,13 +71,13 @@ class MasterRoutes(NodeRoutes):
         cookie = this.cookie
         reply = []
 
-        for packet in parcel.decode(
-                this.request.content_stream, this.request.content_length):
+        for packet in packets.decode(
+                this.request.content, this.request.content_length):
             sender = packet['from']
             enforce(packet['to'] == self.guid, http.BadRequest,
                     'Misaddressed packet')
             if packet.name == 'push':
-                seqno, push_r = this.volume.patch(packet)
+                seqno, push_r = model.patch_volume(packet)
                 ack_r = [] if seqno is None else [[seqno, seqno]]
                 ack = {'ack': ack_r, 'ranges': push_r, 'to': sender}
                 reply.append(('ack', ack, None))
@@ -129,7 +128,7 @@ class MasterRoutes(NodeRoutes):
             r = reduce(lambda x, y: ranges.intersect(x, y), acked.values())
             ranges.include(exclude, r)
 
-        push = this.volume.diff(pull_r, exclude, one_way=True, files=[''])
+        push = model.diff_volume(pull_r, exclude, one_way=True, files=[''])
         reply.append(('push', None, push))
 
         return reply

@@ -1,4 +1,4 @@
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +15,6 @@
 
 import sys
 import json
-import types
 import logging
 from os.path import join, dirname
 
@@ -110,12 +109,14 @@ class Connection(object):
 
     _Session = None
 
-    def __init__(self, url='', creds=None, max_retries=0, **session_args):
+    def __init__(self, url='', creds=None, max_retries=0, auth_request=None,
+            **session_args):
         self.url = url
         self.creds = creds
         self._max_retries = max_retries
         self._session_args = session_args
         self._session = None
+        self._auth_request = auth_request
 
     def __repr__(self):
         return '<Connection url=%s>' % self.url
@@ -146,13 +147,17 @@ class Connection(object):
         return self._decode_reply(reply)
 
     def post(self, path_=None, data_=None, query_=None, **kwargs):
-        reply = self.request('POST', path_, json.dumps(data_),
+        if data_ is not None:
+            data_ = json.dumps(data_)
+        reply = self.request('POST', path_, data_,
                 headers={'Content-Type': 'application/json'},
                 params=query_ or kwargs)
         return self._decode_reply(reply)
 
     def put(self, path_=None, data_=None, query_=None, **kwargs):
-        reply = self.request('PUT', path_, json.dumps(data_),
+        if data_ is not None:
+            data_ = json.dumps(data_)
+        reply = self.request('PUT', path_, data_,
                 headers={'Content-Type': 'application/json'},
                 params=query_ or kwargs)
         return self._decode_reply(reply)
@@ -182,8 +187,8 @@ class Connection(object):
                 f.close()
         return reply
 
-    def upload(self, path_=None, data_=None, **kwargs):
-        reply = self.request('POST', path_, data_, params=kwargs)
+    def upload(self, path_=None, data=None, **kwargs):
+        reply = self.request('POST', path_, data, params=kwargs)
         if reply.headers.get('Content-Type') == 'application/json':
             return json.loads(reply.content)
         else:
@@ -191,6 +196,11 @@ class Connection(object):
 
     def request(self, method, path=None, data=None, headers=None, allowed=None,
             params=None, **kwargs):
+        if data is not None and self._auth_request:
+            auth_request = self._auth_request
+            self._auth_request = None
+            self.request(**auth_request)
+
         if self._session is None:
             self._init()
 
@@ -209,6 +219,9 @@ class Connection(object):
             reply = self._session.request(method, path, data=data,
                     headers=headers, params=params, **kwargs)
             if reply.status_code == Unauthorized.status_code:
+                enforce(data is None,
+                        'Authorization is requited '
+                        'but no way to resend posting data')
                 enforce(self.creds is not None, Unauthorized, 'No credentials')
                 challenge_ = reply.headers.get('www-authenticate')
                 if challenge and challenge == challenge_:
@@ -218,6 +231,7 @@ class Connection(object):
                     self.post(['user'], profile)
                 challenge = challenge_
                 self._session.headers.update(self.creds.logon(challenge))
+                self._auth_request = None
                 try_ = 0
             elif reply.status_code == 200 or \
                     allowed and reply.status_code in allowed:
@@ -228,12 +242,12 @@ class Connection(object):
                     error = json.loads(content)['error']
                 except Exception:
                     # On non-JSONified fail response, assume that the error
-                    # was not sent by the application level server code, i.e.,
+                    # was not sent by the application-level server code, i.e.,
                     # something happaned on low level, like connection abort.
                     # If so, try to resend request.
-                    if try_ <= self._max_retries and method in ('GET', 'HEAD'):
+                    if try_ <= self._max_retries and data is None:
                         continue
-                    error = content or reply.headers.get('x-sn-error') or \
+                    error = content or reply.headers.get('x-error') or \
                             'No error message provided'
                 cls = _FORWARD_STATUSES.get(reply.status_code, RuntimeError) \
                         or ConnectionError
@@ -242,24 +256,11 @@ class Connection(object):
         return reply
 
     def call(self, request, response=None):
-        if request.content_type == 'application/json':
-            request.content = json.dumps(request.content)
-
-        headers = {}
-        if request.content is not None:
-            headers['content-type'] = \
-                    request.content_type or 'application/octet-stream'
-            headers['content-length'] = str(len(request.content))
-        elif request.content_stream is not None:
-            headers['content-type'] = \
-                    request.content_type or 'application/octet-stream'
-            # TODO Avoid reading the full content at once
-            if isinstance(request.content_stream, types.GeneratorType):
-                request.content = ''.join([i for i in request.content_stream])
-            else:
-                request.content = request.content_stream.read()
-            headers['content-length'] = str(len(request.content))
+        headers = {
+            'content-type': request.content_type or 'application/octet-stream',
+            }
         for env_key, key in (
+                ('CONTENT_LENGTH', 'content-length'),
                 ('HTTP_IF_MODIFIED_SINCE', 'if-modified-since'),
                 ('HTTP_ACCEPT_LANGUAGE', 'accept-language'),
                 ('HTTP_ACCEPT_ENCODING', 'accept-encoding'),
@@ -269,12 +270,18 @@ class Connection(object):
                 headers[key] = value
         headers.update(request.headers)
 
+        data = None
+        if request.method in ('POST', 'PUT'):
+            if request.content_type == 'application/json':
+                data = json.dumps(request.content)
+            else:
+                data = request.content
+
         path = request.path
         while True:
-            reply = self.request(request.method, path,
-                    data=request.content, params=request.query or request,
-                    headers=headers, allowed=_REDIRECT_CODES,
-                    allow_redirects=False)
+            reply = self.request(request.method, path, data=data,
+                    params=request.query or request, headers=headers,
+                    allowed=_REDIRECT_CODES, allow_redirects=False)
             resend = reply.status_code in _REDIRECT_CODES
             if response is not None:
                 if 'transfer-encoding' in reply.headers:
@@ -293,7 +300,10 @@ class Connection(object):
 
         if request.method != 'HEAD':
             if reply.headers.get('Content-Type') == 'application/json':
-                return json.loads(reply.content)
+                if reply.content:
+                    return json.loads(reply.content)
+                else:
+                    return None
             else:
                 return reply.raw
 

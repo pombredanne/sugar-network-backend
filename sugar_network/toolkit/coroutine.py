@@ -303,25 +303,45 @@ class Spooler(object):
 
 class _Local(object):
 
+    PROPERTY_NOT_SET = object()
+
     def __init__(self):
         self.attrs = set()
+        self.properties = {}
 
         if hasattr(gevent.getcurrent(), 'local'):
             current = gevent.getcurrent().local
             for attr in current.attrs:
                 self.attrs.add(attr)
                 setattr(self, attr, getattr(current, attr))
+            self.properties = current.properties
 
 
 class _LocalAccess(object):
 
     def __getattr__(self, name):
-        return getattr(gevent.getcurrent().local, name)
+        local = gevent.getcurrent().local
+        value = getattr(local, name)
+        if value is _Local.PROPERTY_NOT_SET:
+            value = local.properties[name]()
+            setattr(local, name, value)
+        return value
 
     def __setattr__(self, name, value):
         local = gevent.getcurrent().local
         local.attrs.add(name)
-        return setattr(local, name, value)
+        if value is None and name in local.properties:
+            value = _Local.PROPERTY_NOT_SET
+        setattr(local, name, value)
+
+    def add_property(self, name, getter):
+        local = gevent.getcurrent().local
+        local.properties[name] = getter
+        setattr(local, name, _Local.PROPERTY_NOT_SET)
+
+    def reset_property(self, name):
+        local = gevent.getcurrent().local
+        setattr(local, name, _Local.PROPERTY_NOT_SET)
 
 
 class _Child(object):

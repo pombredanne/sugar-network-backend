@@ -3,7 +3,8 @@
 from __init__ import tests
 
 from journal import *
-from routes import *
+from client_model import *
+from client_routes import *
 from injector import *
 from packagekit import *
 

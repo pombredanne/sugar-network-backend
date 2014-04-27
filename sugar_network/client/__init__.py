@@ -15,7 +15,6 @@
 
 import os
 import logging
-from base64 import b64encode
 from os.path import join, expanduser, exists
 
 from sugar_network.toolkit import http, Option
@@ -166,10 +165,15 @@ def stability(context):
     return value.split()
 
 
-def Connection(url=None, **args):
+def Connection(url=None, creds=None, **kwargs):
     if url is None:
         url = api.value
-    return http.Connection(url, verify=not no_check_certificate.value, **args)
+    if creds is None and keyfile.value:
+        from sugar_network.client.auth import SugarCreds
+        creds = SugarCreds(keyfile.value)
+    return http.Connection(url,
+            auth_request={'method': 'GET', 'params': {'cmd': 'logon'}},
+            creds=creds, verify=not no_check_certificate.value, **kwargs)
 
 
 def IPCConnection():

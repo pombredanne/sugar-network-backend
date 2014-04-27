@@ -6,7 +6,7 @@ from metadata import *
 from storage import *
 from index import *
 from resource import *
-from routes import *
+from db_routes import *
 from blobs import *
 from volume import *
 #from migrate import *

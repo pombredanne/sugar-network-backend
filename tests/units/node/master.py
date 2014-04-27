@@ -16,15 +16,14 @@ import rrdtool
 
 from __init__ import tests
 
-from sugar_network.client import Connection, keyfile, api
+from sugar_network.client import Connection as Connection_, api
 from sugar_network.db.directory import Directory
 from sugar_network import db, node, toolkit
-from sugar_network.client.auth import SugarCreds
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
 from sugar_network.toolkit.router import Response, File
-from sugar_network.toolkit import coroutine, parcel, http
+from sugar_network.toolkit import coroutine, packets, http
 
 
 class MasterTest(tests.Test):
@@ -34,7 +33,7 @@ class MasterTest(tests.Test):
 
         def next_uuid():
             self.uuid += 1
-            return self.uuid
+            return str(self.uuid)
 
         self.uuid = 0
         self.override(toolkit, 'uuid', next_uuid)
@@ -45,11 +44,11 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         self.touch(('blob1', '1'))
         self.touch(('blob2', '2'))
 
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -63,7 +62,7 @@ class MasterTest(tests.Test):
                 ]),
             ], header={'to': self.node_routes.guid, 'from': 'slave'}))
         response = conn.request('POST', [], patch, params={'cmd': 'push'})
-        reply = parcel.decode(response.raw)
+        reply = iter(packets.decode(response.raw))
 
         assert volume['document']['1'].exists
         blob = volume.blobs.get(hashlib.sha1('1').hexdigest())
@@ -72,7 +71,7 @@ class MasterTest(tests.Test):
         self.assertEqual('2', ''.join(blob.iter_content()))
 
         self.assertEqual({
-            'packet': 'ack',
+            'segment': 'ack',
             'from': self.node_routes.guid,
             'to': 'slave',
             'ack': [[1, 1]],
@@ -95,9 +94,9 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -110,7 +109,7 @@ class MasterTest(tests.Test):
             ], header={'from': 'slave'}))
         self.assertRaises(http.BadRequest, conn.request, 'POST', [], patch, params={'cmd': 'push'})
 
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -123,7 +122,7 @@ class MasterTest(tests.Test):
             ], header={'to': 'fake', 'from': 'slave'}))
         self.assertRaises(http.BadRequest, conn.request, 'POST', [], patch, params={'cmd': 'push'})
 
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -141,11 +140,11 @@ class MasterTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = self.start_master([Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        volume = self.start_master([Document, User])
+        conn = Connection()
         self.touch(('blob', 'blob'))
 
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
@@ -164,7 +163,7 @@ class MasterTest(tests.Test):
                     },
                 })),
             })
-        reply = parcel.decode(response.raw)
+        reply = iter(packets.decode(response.raw))
 
         assert volume['document']['1'].exists
         blob_digest = hashlib.sha1('blob').hexdigest()
@@ -172,7 +171,7 @@ class MasterTest(tests.Test):
         self.assertEqual('blob', ''.join(blob.iter_content()))
 
         self.assertEqual({
-            'packet': 'ack',
+            'segment': 'ack',
             'from': self.node_routes.guid,
             'to': 'slave',
             'ack': [[1, 1]],
@@ -194,24 +193,24 @@ class MasterTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = self.start_master([Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        volume = self.start_master([Document, User])
+        conn = Connection()
         self.touch(('blob', 'blob'))
 
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('pull', {'ranges': [[1, None]]}, []),
             ('request', {'for': 1}, []),
             ], header={'to': self.node_routes.guid, 'from': 'slave'}))
         response = conn.request('POST', [], patch, params={'cmd': 'push'})
-        reply = parcel.decode(response.raw)
+        reply = iter(packets.decode(response.raw))
         self.assertRaises(StopIteration, next, reply)
 
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
-                    'pull': [[1, None]],
                     'ack': {'slave': []},
+                    'pull': [[1, None]],
                     'request': [
-                        {'to': '127.0.0.1:7777', 'from': 'slave', 'packet': 'request', 'for': 1},
+                        {'to': '127.0.0.1:7777', 'segment': 'request', 'for': 1, 'from': 'slave'},
                         ],
                     })),
                 response.headers['set-cookie'])
@@ -222,7 +221,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
         volume['document'].create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/gu/guid', 1)
@@ -235,7 +234,7 @@ class MasterTest(tests.Test):
                 }))
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 {'guid': 'guid', 'patch': {
                     'ctime': {'mtime': 1, 'value': 1},
@@ -247,10 +246,10 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 3]]},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
-                    'id': 1,
+                    'id': '1',
                     'pull': [[1, None]],
                     })),
                 response.headers['set-cookie'])
@@ -267,7 +266,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/1/1', 1)
@@ -282,12 +281,12 @@ class MasterTest(tests.Test):
                 }))
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [{'resource': 'document'}]),
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [{'resource': 'document'}]),
             ],
-            [(packet.header, [record for record in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [record for record in packet]) for packet in packets.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
-                    'id': 1,
+                    'id': '1',
                     'pull': [[1, None]],
                     'ack': {
                         'node': [[[[0, 0]], [[1, 1]]], [[[0, 0]], [[2, 2]]]],
@@ -307,7 +306,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/1/1', 1)
@@ -326,9 +325,9 @@ class MasterTest(tests.Test):
                 }))
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [{'resource': 'document'}]),
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [{'resource': 'document'}]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
 
         response = conn.request('GET', [], params={'cmd': 'pull'}, headers={
             'cookie': 'sugar_network_node=%s' % b64encode(json.dumps({
@@ -340,7 +339,7 @@ class MasterTest(tests.Test):
                 }))
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
                     'guid': {'mtime': 1, 'value': '1'},
@@ -350,7 +349,7 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 1]]},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
 
         response = conn.request('GET', [], params={'cmd': 'pull'}, headers={
             'cookie': 'sugar_network_node=%s' % b64encode(json.dumps({
@@ -362,13 +361,13 @@ class MasterTest(tests.Test):
                 }))
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 {'content-length': '2', 'content-type': 'application/octet-stream'},
                 {'commit': [[4, 4]]},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
 
     def test_pull_ExcludeAckRequests(self):
 
@@ -376,7 +375,7 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/1/1', 1)
@@ -394,10 +393,10 @@ class MasterTest(tests.Test):
                     ],
                 }))
             })
-        reply = parcel.decode(response.raw)
+        reply = packets.decode(response.raw)
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'to': 'node2', 'packet': 'ack', 'ack': [[1, 2]]}, []),
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [{'resource': 'document'}]),
+            ({'from': '127.0.0.1:7777', 'to': 'node2', 'segment': 'ack', 'ack': [[1, 2]]}, []),
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [{'resource': 'document'}]),
             ],
             [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in reply])
 
@@ -411,7 +410,7 @@ class MasterTest(tests.Test):
                 pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
         volume['document'].create({'guid': '1', 'ctime': 1, 'mtime': 1, 'prop': '.' * RECORD})
         self.utime('master/db/document/1/1', 1)
@@ -426,14 +425,14 @@ class MasterTest(tests.Test):
                 }))
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
-                    'id': 1,
+                    'id': '1',
                     'pull': [[1, None]],
                     })),
                 response.headers['set-cookie'])
@@ -442,7 +441,7 @@ class MasterTest(tests.Test):
             'cookie': response.headers['set-cookie'],
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 {'guid': '1', 'patch': {
                     'ctime': {'mtime': 1, 'value': 1},
@@ -453,10 +452,10 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 1]]},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
-                    'id': 1,
+                    'id': '1',
                     'pull': [[1, None]],
                     })),
                 response.headers['set-cookie'])
@@ -465,7 +464,7 @@ class MasterTest(tests.Test):
             'cookie': response.headers['set-cookie'],
             })
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 {'guid': '2', 'patch': {
                     'ctime': {'mtime': 2, 'value': 2},
@@ -482,10 +481,10 @@ class MasterTest(tests.Test):
                 {'commit': [[2, 3]]},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
         self.assertEqual(
                 'sugar_network_node=%s; Max-Age=3600; HttpOnly' % b64encode(json.dumps({
-                    'id': 1,
+                    'id': '1',
                     'pull': [[2, None]],
                     })),
                 response.headers['set-cookie'])
@@ -504,14 +503,14 @@ class MasterTest(tests.Test):
             pass
 
         volume = self.start_master([User, Document])
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
 
         volume['document'].create({'guid': 'guid', 'ctime': 1, 'mtime': 1})
         self.utime('master/db/document/gu/guid', 1)
         blob1 = volume.blobs.post('1')
 
         self.touch(('blob2', 'ccc'))
-        patch = ''.join(parcel.encode([
+        patch = ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'document'},
                 {'guid': '2', 'patch': {
@@ -528,8 +527,8 @@ class MasterTest(tests.Test):
         blob2 = volume.blobs.get(hashlib.sha1('ccc').hexdigest())
 
         self.assertEqual([
-            ({'from': '127.0.0.1:7777', 'to': 'node', 'packet': 'ack', 'ack': [[3, 3]], 'ranges': [[1, 2]]}, []),
-            ({'from': '127.0.0.1:7777', 'packet': 'push'}, [
+            ({'from': '127.0.0.1:7777', 'to': 'node', 'segment': 'ack', 'ack': [[3, 3]], 'ranges': [[1, 2]]}, []),
+            ({'from': '127.0.0.1:7777', 'segment': 'push'}, [
                 {'resource': 'document'},
                 {'guid': 'guid', 'patch': {
                     'ctime': {'mtime': 1, 'value': 1},
@@ -540,10 +539,14 @@ class MasterTest(tests.Test):
                 {'commit': [[1, 2]]},
                 ]),
             ],
-            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in parcel.decode(response.raw)])
+            [(packet.header, [i.meta if isinstance(i, File) else i for i in packet]) for packet in packets.decode(response.raw)])
 
         assert volume['document']['2'].exists
         self.assertEqual('ccc', ''.join(blob2.iter_content()))
+
+
+def Connection():
+    return http.Connection(api.value)
 
 
 if __name__ == '__main__':

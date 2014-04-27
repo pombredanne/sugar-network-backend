@@ -108,6 +108,155 @@ class HTTPTest(tests.Test):
             })
         self.assertEqual('result', json.load(client.call(request)))
 
+    def test_call_SendGeneratorTypeData(self):
+
+        class Routes(object):
+
+            @route('POST', mime_type='application/json')
+            def probe(self):
+                return this.request.content.read()
+
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Routes()))
+        coroutine.spawn(self.server.serve_forever)
+        coroutine.dispatch()
+        conn = http.Connection('http://127.0.0.1:%s' % local.ipc_port.value)
+
+        def data():
+            yield '1'
+            yield '2'
+            yield '3'
+
+        request = Request({
+            'REQUEST_METHOD': 'POST',
+            'PATH_INFO': '/',
+            }, content=data())
+        self.assertEqual('123', conn.call(request))
+
+    def test_DoNotRepostOn401(self):
+        requests = []
+
+        class Creds(object):
+
+            def logon(self, challenge):
+                return {'login': 'ok'}
+
+        class Routes(object):
+
+            @route('GET', mime_type='application/json')
+            def get(self):
+                requests.append(repr(this.request))
+                if this.request.environ.get('HTTP_LOGIN') != 'ok':
+                    raise http.Unauthorized()
+                return this.request.content.read()
+
+            @route('POST', mime_type='application/json')
+            def post(self):
+                requests.append(repr(this.request))
+                if this.request.environ.get('HTTP_LOGIN') != 'ok':
+                    raise http.Unauthorized()
+                return this.request.content.read()
+
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Routes()))
+        coroutine.spawn(self.server.serve_forever)
+        coroutine.dispatch()
+
+        conn = http.Connection('http://127.0.0.1:%s' % local.ipc_port.value, creds=Creds())
+
+        request = Request({
+            'REQUEST_METHOD': 'GET',
+            'PATH_INFO': '/',
+            })
+        self.assertEqual('', conn.call(request))
+        self.assertEqual([
+            '<Request method=GET path=[] cmd=None query={}>',
+            '<Request method=GET path=[] cmd=None query={}>',
+            ], requests)
+        del requests[:]
+
+        request = Request({
+            'REQUEST_METHOD': 'POST',
+            'PATH_INFO': '/',
+            }, content='probe')
+        self.assertEqual('probe', conn.call(request))
+        self.assertEqual([
+            '<Request method=POST path=[] cmd=None query={}>',
+            ], requests)
+        del requests[:]
+
+        conn = http.Connection('http://127.0.0.1:%s' % local.ipc_port.value, creds=Creds())
+
+        request = Request({
+            'REQUEST_METHOD': 'POST',
+            'PATH_INFO': '/',
+            }, content='probe')
+        self.assertRaises(RuntimeError, conn.call, request)
+        self.assertEqual([
+            '<Request method=POST path=[] cmd=None query={}>',
+            ], requests)
+        del requests[:]
+
+    def test_AuthBeforePosting(self):
+        challenges = []
+        requests = []
+
+        class Creds(object):
+
+            def logon(self, challenge):
+                challenges.append(challenge)
+                return {'login': 'ok'}
+
+        class Routes(object):
+
+            @route('LOGIN')
+            def get(self):
+                requests.append(repr(this.request))
+                if this.request.environ.get('HTTP_LOGIN') != 'ok':
+                    this.response['www-authenticate'] = 'login'
+                    raise http.Unauthorized()
+
+            @route('POST', mime_type='application/json')
+            def post(self):
+                requests.append(repr(this.request))
+                if this.request.environ.get('HTTP_LOGIN') != 'ok':
+                    this.response['www-authenticate'] = 'fail'
+                    raise http.Unauthorized()
+                return this.request.content.read()
+
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Routes()))
+        coroutine.spawn(self.server.serve_forever)
+        coroutine.dispatch()
+
+        conn = http.Connection('http://127.0.0.1:%s' % local.ipc_port.value, creds=Creds(), auth_request={'method': 'LOGIN'})
+
+        request = Request({
+            'REQUEST_METHOD': 'POST',
+            'PATH_INFO': '/',
+            }, content='probe')
+        self.assertEqual('probe', conn.call(request))
+        self.assertEqual([
+            '<Request method=LOGIN path=[] cmd=None query={}>',
+            '<Request method=LOGIN path=[] cmd=None query={}>',
+            '<Request method=POST path=[] cmd=None query={}>',
+            ], requests)
+        del requests[:]
+        self.assertEqual([
+            'login',
+            ], challenges)
+        del challenges[:]
+
+        request = Request({
+            'REQUEST_METHOD': 'POST',
+            'PATH_INFO': '/',
+            }, content='probe')
+        self.assertEqual('probe', conn.call(request))
+        self.assertEqual([
+            '<Request method=POST path=[] cmd=None query={}>',
+            ], requests)
+        del requests[:]
+        self.assertEqual([
+            ], challenges)
+        del challenges[:]
+
 
 if __name__ == '__main__':
     tests.main()

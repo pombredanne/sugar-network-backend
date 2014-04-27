@@ -174,7 +174,7 @@ def parse_requires(requires):
     return result
 
 
-def ensure(version, cond):
+def ensure_version(version, cond):
     if cond:
         for op, cond_version in cond:
             if op == [0]:

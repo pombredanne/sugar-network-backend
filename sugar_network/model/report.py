@@ -34,7 +34,7 @@ class Report(db.Resource):
 
     one_way = True
 
-    @db.indexed_property(prefix='C', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(db.Reference, prefix='C', acl=ACL.CREATE | ACL.READ)
     def context(self, value):
         return value
 

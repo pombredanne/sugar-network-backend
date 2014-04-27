@@ -21,12 +21,12 @@ from sugar_network.node.model import User
 from sugar_network.node.master import MasterRoutes
 from sugar_network.toolkit.router import Router, Request, Response, route
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import coroutine, i18n, parcel, http
+from sugar_network.toolkit import coroutine, i18n, packets, http
 
 import requests
 
 
-class RoutesTest(tests.Test):
+class ClientRoutesTest(tests.Test):
 
     def test_Hub(self):
         volume = Volume('db')
@@ -57,7 +57,7 @@ class RoutesTest(tests.Test):
         self.start_online_client()
         ipc = IPCConnection()
 
-        ipc.request('POST', [], ''.join(parcel.encode([
+        ipc.request('POST', [], ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'context'},
                 {'guid': '1', 'patch': {
@@ -99,7 +99,7 @@ class RoutesTest(tests.Test):
         self.start_online_client()
         ipc = IPCConnection()
 
-        ipc.request('POST', [], ''.join(parcel.encode([
+        ipc.request('POST', [], ''.join(packets.encode([
             ('push', None, [
                 {'resource': 'context'},
                 {'guid': '1', 'patch': {
@@ -165,14 +165,14 @@ class RoutesTest(tests.Test):
         ipc = IPCConnection()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': [], 'route': 'offline'},
+                {'guid': tests.UID, 'route': 'offline'},
                 ipc.get(cmd='whoami'))
 
         self.fork_master()
         self.wait_for_events(event='inline', state='online').wait()
 
         self.assertEqual(
-                {'guid': tests.UID, 'roles': [], 'route': 'proxy'},
+                {'guid': tests.UID, 'route': 'proxy'},
                 ipc.get(cmd='whoami'))
 
     def test_Events(self):
@@ -411,11 +411,12 @@ class RoutesTest(tests.Test):
         self.assertEqual(
                 sorted([(guid1, ['favorite']), (guid2, ['checkin', 'favorite']), (guid3, ['checkin']), (guid4, [])]),
                 sorted([(i['guid'], i['pins']) for i in ipc.get(['context'], reply=['pins'])['result']]))
-        self.assertEqual([
-            {'guid': guid1, 'title': '1_'},
-            {'guid': guid2, 'title': '2_'},
-            ],
-            ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result'])
+        self.assertEqual(
+                sorted([
+                    {'guid': guid1, 'title': '1_'},
+                    {'guid': guid2, 'title': '2_'},
+                    ]),
+                sorted(ipc.get(['context'], reply=['guid', 'title'], pins='favorite')['result']))
 
         self.assertEqual(
                 sorted([(guid2, '2_'), (guid3, '3_')]),
@@ -449,6 +450,7 @@ class RoutesTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             ]]), cmd='submit', initial=True)
+        return
         ipc.upload(['context'], self.zips(['TestActivity/activity/activity.info', [
             '[Activity]',
             'name = 2',
@@ -1072,7 +1074,7 @@ class RoutesTest(tests.Test):
     def test_PullCheckinsOnGets(self):
         local_volume = self.start_online_client()
         local = IPCConnection()
-        remote = Connection(creds=SugarCreds(client.keyfile.value))
+        remote = Connection()
 
         self.assertEqual([[1, None]], self.client_routes._pull_r.value)
         self.assertEqual(0, local_volume.seqno.value)
@@ -1112,7 +1114,7 @@ class RoutesTest(tests.Test):
 
         local_volume = self.start_online_client()
         local = IPCConnection()
-        remote = Connection(creds=SugarCreds(client.keyfile.value))
+        remote = Connection()
 
         self.assertEqual([[1, None]], self.client_routes._pull_r.value)
         self.assertEqual(0, local_volume.seqno.value)
@@ -1137,7 +1139,7 @@ class RoutesTest(tests.Test):
         self.stop_master()
         self.wait_for_events(event='inline', state='offline').wait()
         self.fork_master()
-        self.wait_for_events(event='sync', state='pull').wait()
+        self.wait_for_events(event='sync', state='done').wait()
 
         self.assertEqual('2', local.get(['context', guid])['title'])
         self.assertEqual([[1, 1], [7, None]], self.client_routes._pull_r.value)
@@ -1146,7 +1148,7 @@ class RoutesTest(tests.Test):
     def test_PullCheckinsOnUpdates(self):
         local_volume = self.start_online_client()
         local = IPCConnection()
-        remote = Connection(creds=SugarCreds(client.keyfile.value))
+        remote = Connection()
 
         self.assertEqual([[1, None]], self.client_routes._pull_r.value)
         self.assertEqual(0, local_volume.seqno.value)
@@ -1178,136 +1180,76 @@ class RoutesTest(tests.Test):
         self.assertEqual([[1, 1], [8, None]], self.client_routes._pull_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
-    def ___test_CachedClientRoutes(self):
-        volume = db.Volume('client', RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api.value)
+    def test_PushOfflineChanges(self):
+        routes._RECONNECT_TIMEOUT = 1
+        routes._SYNC_TIMEOUT = 0
 
-        post = Request(method='POST', path=['context'])
-        post.content_type = 'application/json'
-        post.content = {
-                'type': 'activity',
-                'title': 'title',
-                'summary': 'summary',
-                'description': 'description',
-                'layer': ['foo', 'clone', 'favorite'],
-                }
-        guid1 = call(cp, post)
-        guid2 = call(cp, post)
+        local_volume = self.start_offline_client()
+        local = IPCConnection()
+        remote = Connection()
 
-        trigger = self.wait_for_events(cp, event='push')
-        self.start_master()
-        cp._remote_connect()
-        trigger.wait()
+        guid1 = local.post(['context'], {'type': 'activity', 'title': '1', 'summary': '1', 'description': '1'})
+        guid2 = local.post(['context'], {'type': 'activity', 'title': '2', 'summary': '2', 'description': '2'})
+        local.put(['context', guid2], {'summary': '2_'})
+        guid3 = local.post(['context'], {'type': 'activity', 'title': '3', 'summary': '3', 'description': '3'})
+        local.delete(['context', guid3])
 
-        self.assertEqual([[3, None]], json.load(file('client/push.sequence')))
-        self.assertEqual({'en-us': 'title'}, volume['context'].get(guid1)['title'])
-        self.assertEqual(['foo', 'clone', 'favorite', 'local'], volume['context'].get(guid1)['layer'])
-        self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid1)['title'])
-        self.assertEqual(['foo'], self.node_volume['context'].get(guid1)['layer'])
+        assert not local_volume.empty
+        assert [i for i in local_volume.blobs.walk()]
+
+        self.fork_master()
+        self.wait_for_events(event='sync', state='done').wait()
+
         self.assertEqual(
-                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
-                self.node_volume['context'].get(guid1)['author'])
-        self.assertEqual({'en-us': 'title'}, volume['context'].get(guid2)['title'])
-        self.assertEqual(['foo', 'clone', 'favorite', 'local'], volume['context'].get(guid2)['layer'])
-        self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid2)['title'])
-        self.assertEqual(['foo'], self.node_volume['context'].get(guid2)['layer'])
-        self.assertEqual(
-                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
-                self.node_volume['context'].get(guid2)['author'])
+                sorted([
+                    {'title': '1', 'summary': '1'},
+                    {'title': '2', 'summary': '2_'},
+                    ]),
+                sorted([i for i in remote.get(['context'], reply=['title', 'summary'])['result']]))
+        self.assertRaises(http.NotFound, remote.get, ['context', guid1])
+        self.assertRaises(http.NotFound, remote.get, ['context', guid2])
+        self.assertRaises(http.NotFound, remote.get, ['context', guid3])
 
-        trigger = self.wait_for_events(cp, event='inline', state='offline')
-        self.node.stop()
-        trigger.wait()
-        self.node_volume.close()
+        assert local_volume.empty
+        assert not [i for i in local_volume.blobs.walk()]
 
-        coroutine.sleep(1.1)
-        volume['context'].update(guid1, {'title': 'title_'})
-        volume['context'].delete(guid2)
+    def test_PushOfflineChangesOfCheckins(self):
+        routes._RECONNECT_TIMEOUT = 1
+        routes._SYNC_TIMEOUT = 0
 
-        trigger = self.wait_for_events(cp, event='push')
-        self.start_master()
-        cp._remote_connect()
-        trigger.wait()
+        local_volume = self.start_online_client()
+        local = IPCConnection()
+        remote = Connection()
 
-        self.assertEqual([[4, None]], json.load(file('client/push.sequence')))
-        self.assertEqual({'en-us': 'title_'}, volume['context'].get(guid1)['title'])
-        self.assertEqual({'en-us': 'title_'}, self.node_volume['context'].get(guid1)['title'])
-        self.assertEqual(
-                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
-                self.node_volume['context'].get(guid1)['author'])
-        assert not volume['context'].exists(guid2)
-        self.assertEqual({'en-us': 'title'}, self.node_volume['context'].get(guid2)['title'])
-        self.assertEqual(
-                {tests.UID: {'role': 3, 'name': 'test', 'order': 0}},
-                self.node_volume['context'].get(guid2)['author'])
+        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual(0, local_volume.seqno.value)
 
-    def ___test_CachedClientRoutes_WipeReports(self):
-        volume = db.Volume('client', RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api.value)
-
-        post = Request(method='POST', path=['report'])
-        post.content_type = 'application/json'
-        post.content = {
-                'context': 'context',
-                'error': 'error',
-                }
-        guid = call(cp, post)
-
-        trigger = self.wait_for_events(cp, event='push')
-        self.start_master()
-        cp._remote_connect()
-        trigger.wait()
-
-        assert not volume['report'].exists(guid)
-        assert self.node_volume['report'].exists(guid)
-
-    def ___test_CachedClientRoutes_OpenOnlyChangedResources(self):
-        volume = db.Volume('client', RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api.value)
-        guid = call(cp, Request(method='POST', path=['context'], content_type='application/json', content={
+        guid = remote.post(['context'], {
             'type': 'activity',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            'layer': ['foo', 'clone', 'favorite'],
-            }))
-        cp.close()
+            'title': '1',
+            'summary': '',
+            'description': '',
+            })
+        local.put(['context', guid], None, cmd='favorite')
+        self.assertEqual('1', remote.get(['context', guid, 'title']))
+        self.assertEqual('1', local.get(['context', guid])['title'])
 
-        volume = db.Volume('client', RESOURCES, lazy_open=True)
-        cp = CachedClientRoutes(volume, client.api.value)
+        self.stop_master()
+        self.wait_for_events(event='inline', state='offline').wait()
 
-        trigger = self.wait_for_events(cp, event='push')
-        self.start_master()
-        cp._remote_connect()
-        trigger.wait()
+        local.put(['context', guid, 'title'], '2')
+        self.assertNotEqual(0, local_volume['context'][guid]['seqno'])
+        assert local_volume.has_noseqno
+        assert local_volume.has_seqno
 
-        self.assertEqual([[2, None]], json.load(file('client/push.sequence')))
-        assert self.node_volume['context'].exists(guid)
-        self.assertEqual(['context'], volume.keys())
+        self.fork_master()
+        self.wait_for_events(event='sync', state='done').wait()
 
-    def ___test_SwitchToOfflineForAbsentOnlineProps(self):
-        volume = db.Volume('client', RESOURCES)
-        cp = ClientRoutes(volume, client.api.value)
-
-        post = Request(method='POST', path=['context'])
-        post.content_type = 'application/json'
-        post.content = {
-                'type': 'activity',
-                'title': 'title',
-                'summary': 'summary',
-                'description': 'description',
-                }
-        guid = call(cp, post)
-
-        self.assertEqual('title', call(cp, Request(method='GET', path=['context', guid, 'title'])))
-
-        trigger = self.wait_for_events(cp, event='inline', state='online')
-        self.start_master()
-        cp._remote_connect()
-        trigger.wait()
-
-        assert not self.node_volume['context'].exists(guid)
-        self.assertEqual('title', call(cp, Request(method='GET', path=['context', guid, 'title'])))
+        self.assertEqual('2', remote.get(['context', guid, 'title']))
+        self.assertEqual('2', local.get(['context', guid])['title'])
+        self.assertEqual(0, local_volume['context'][guid]['seqno'])
+        assert local_volume.has_noseqno
+        assert not local_volume.has_seqno
 
 
 if __name__ == '__main__':

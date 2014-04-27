@@ -439,28 +439,6 @@ class IndexTest(tests.Test):
         db.delete('1', lambda *args: deleted.append(args))
         self.assertEqual(1, len(deleted))
 
-    def test_mtime(self):
-        # No index at start; checkpoint didn't happen
-        db = Index({})
-        self.assertEqual(0, db.mtime)
-        db.store('1', {})
-        db.commit()
-        db.close()
-
-        # Index exists at start; commit did happen
-        db = Index({})
-        self.assertNotEqual(0, db.mtime)
-        db.close()
-
-        # Index exists at start; mtime is outdated
-        os.utime('index/mtime', (1, 1))
-        db = Index({})
-        self.assertEqual(1, db.mtime)
-        db.store('3', {})
-        db.commit()
-        self.assertNotEqual(1, db.mtime)
-        db.close()
-
     def test_find_OrderByGUIDAllTime(self):
         db = Index({'prop': Property('prop', 1, 'P')})
 

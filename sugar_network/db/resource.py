@@ -168,7 +168,7 @@ class Resource(object):
     def diff(self, r, out_r=None):
         patch = {}
         for name, prop in self.metadata.items():
-            if name == 'seqno' or prop.acl & (ACL.CALC | ACL.LOCAL):
+            if name == 'seqno' or prop.acl & ACL.LOCAL:
                 continue
             meta = self.meta(name)
             if meta is None:

@@ -20,8 +20,8 @@ from sugar_network.model.user import User
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
 from sugar_network.model.context import Context as _Context
+from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit.router import ACL
 
 
 _logger = logging.getLogger('client.model')
@@ -43,3 +43,63 @@ class Volume(db.Volume):
         db.Volume.__init__(self, root, resources)
         for directory in self.values():
             directory.metadata['author'].acl |= ACL.LOCAL
+
+
+def dump_volume(volume):
+    for resource, directory in volume.items():
+        if not directory.has_seqno:
+            continue
+
+        for doc in directory:
+            if not doc['seqno'] or doc['state'] != 'active':
+                continue
+
+            dump = {}
+            op = dump['op'] = {}
+            props = dump['content'] = {}
+            keys = []
+            postfix = []
+
+            for name, prop in doc.metadata.items():
+                meta = doc.meta(name)
+                if meta is None or 'seqno' not in meta:
+                    continue
+                if isinstance(prop, db.Aggregated):
+                    for aggid, value in doc.repr(name):
+                        aggop = {
+                            'method': 'POST',
+                            'path': [resource, doc.guid, name, aggid],
+                            }
+                        if isinstance(value, File):
+                            value.meta['op'] = aggop
+                            postfix.append(value)
+                        else:
+                            postfix.append({'op': aggop, 'content': value})
+                elif prop.acl & (ACL.WRITE | ACL.CREATE):
+                    if isinstance(prop, db.Blob):
+                        blob = volume.blobs.get(doc[name])
+                        blob.meta['op'] = {
+                            'method': 'PUT',
+                            'path': [resource, doc.guid, name],
+                            }
+                        postfix.append(blob)
+                    else:
+                        if isinstance(prop, db.Reference):
+                            keys.append(name)
+                        props[name] = doc[name]
+
+            if 'seqno' in doc.meta('guid'):
+                keys.append('guid')
+                props['guid'] = doc.guid
+                op['method'] = 'POST'
+                op['path'] = [resource]
+            else:
+                op['method'] = 'PUT'
+                op['path'] = [resource, doc.guid]
+
+            if keys:
+                dump['keys'] = keys
+
+            yield dump
+            for dump in postfix:
+                yield dump

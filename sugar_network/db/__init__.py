@@ -351,7 +351,7 @@ Volume
 
 from sugar_network.db.metadata import \
         stored_property, indexed_property, Property, Numeric, Boolean, Dict, \
-        Enum, List, Aggregated, Blob, Localized
+        Enum, List, Aggregated, Blob, Localized, Reference
 from sugar_network.db.index import index_flush_timeout, \
         index_flush_threshold, index_write_queue
 from sugar_network.db.resource import Resource

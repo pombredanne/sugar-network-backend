@@ -69,6 +69,7 @@ class Application(application.Daemon):
                 auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
         self.jobs.spawn(volume.populate)
+        self.jobs.spawn(node_routes.populate)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)

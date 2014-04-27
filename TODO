@@ -1,15 +1,17 @@
-- proxying as a tool to sort out downstream content
-- push local offline changes to the node on getting online
+- auth while offline posts
+- do not return Context.releases while non-slave sync
 - deliver spawn events only to local subscribers
 - test/run presolve
 - if node relocates api calls, do it only once in toolkit.http
-- changed pulls should take into account accept_length
-- secure node-to-node sync
-- cache init sync pull
 - switch auth from WWW-AUTHENTICATE to mutual authentication over the HTTPS
 - restrict ACL.LOCAL routes only to localhost clients
-- prevent calling diff api cmd from clients to avoid disclosuring private props
 - pull node changes periodically for checked-in contexts
+- refount blobs on node and client sides to delete orphaned ones
+- secure node-to-node sync
+
+v1.0
+====
+- move API docs to sources to share them from `GET /` route
 
 v2.0
 ====

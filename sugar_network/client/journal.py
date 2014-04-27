@@ -141,13 +141,13 @@ class Routes(object):
         subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='preview')
         subrequest.content_type = 'image/png'
-        with file(preview_path, 'rb') as subrequest.content_stream:
+        with file(preview_path, 'rb') as subrequest.content:
             self.fallback(subrequest)
 
         subrequest = Request(method='PUT', document='artifact',
                 guid=subguid, prop='data')
         subrequest.content_type = get(guid, 'mime_type') or 'application/octet'
-        with file(data_path, 'rb') as subrequest.content_stream:
+        with file(data_path, 'rb') as subrequest.content:
             self.fallback(subrequest)
 
     def journal_update(self, guid, data=None, **kwargs):

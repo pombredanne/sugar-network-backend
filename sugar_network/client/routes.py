@@ -20,11 +20,12 @@ from os.path import join
 
 from sugar_network import db, client, node, toolkit
 from sugar_network.model import FrontRoutes
+from sugar_network.client import model
 from sugar_network.client.journal import Routes as JournalRoutes
 from sugar_network.toolkit.router import Request, Router, Response
 from sugar_network.toolkit.router import route, fallbackroute
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import netlink, zeroconf, coroutine, http, parcel
+from sugar_network.toolkit import netlink, zeroconf, coroutine, http, packets
 from sugar_network.toolkit import ranges, lsb_release, enforce
 
 
@@ -54,10 +55,6 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         self._no_subscription = no_subscription
         self._pull_r = toolkit.Bin(
                 join(home_volume.root, 'var', 'pull'), [[1, None]])
-        self._push_r = toolkit.Bin(
-                join(home_volume.root, 'var', 'push'), [[1, None]])
-        self._push_guids_map = toolkit.Bin(
-                join(home_volume.root, 'var', 'push-guids'), {})
 
     def connect(self, api=None):
         if self._connect_jobs:
@@ -123,7 +120,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             result = self.fallback()
             result['route'] = 'proxy'
         else:
-            result = {'roles': [], 'route': 'offline'}
+            result = {'route': 'offline'}
         result['guid'] = self._creds.login
         return result
 
@@ -141,7 +138,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         for logfile in logs:
             with file(logfile) as f:
                 self.fallback(method='POST', path=['report', guid, 'logs'],
-                        content_stream=f, content_type='text/plain')
+                        content=f, content_type='text/plain')
         yield {'event': 'done', 'guid': guid}
 
     @route('GET', ['context', None], cmd='launch', arguments={'args': list},
@@ -196,7 +193,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             if pins and item['mtime'] > checkin['mtime']:
                 pull = Request(method='GET',
                         path=[checkin.metadata.name, checkin.guid], cmd='diff')
-                self._sync_jobs.spawn(self._pull_checkin, pull, None, 'range')
+                self._sync_jobs.spawn(self._pull_checkin, pull, None, 'ranges')
         return result
 
     @route('GET', [None, None], mime_type='application/json')
@@ -353,7 +350,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             _logger.debug('Checkin %r context', local_context.guid)
             pull = Request(method='GET',
                     path=['context', local_context.guid], cmd='diff')
-            self._pull_checkin(pull, None, 'range')
+            self._pull_checkin(pull, None, 'ranges')
         pins = local_context['pins']
         if pin and pin not in pins:
             contexts.update(local_context.guid, {'pins': pins + [pin]})
@@ -374,79 +371,69 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
 
     def _pull_checkin(self, request, response, header_key):
         request.headers[header_key] = self._pull_r.value
-        patch = self.fallback(request, response)
-        __, committed = self._local.volume.patch(next(parcel.decode(patch)),
-                shift_seqno=False)
-        ranges.exclude(self._pull_r.value, committed)
+        packet = packets.decode(self.fallback(request, response))
 
-    def _sync(self):
-        _logger.info('Start pulling updates')
+        volume = self._local.volume
+        volume[request.resource].patch(request.guid, packet['patch'])
+        for blob in packet:
+            volume.blobs.patch(blob)
+        ranges.exclude(self._pull_r.value, packet['ranges'])
 
+    def _pull(self):
+        _logger.debug('Start pulling checkin updates')
+
+        response = Response()
         for directory in self._local.volume.values():
             if directory.empty:
                 continue
             request = Request(method='GET',
                     path=[directory.metadata.name], cmd='diff')
-            response = Response()
             while True:
-                request.headers['range'] = self._pull_r.value
-                r, guids = self.fallback(request, response)
-                if not r:
+                request.headers['ranges'] = self._pull_r.value
+                diff = self.fallback(request, response)
+                if not diff:
                     break
-                for guid in guids:
+                for guid, r in diff.items():
                     checkin = Request(method='GET',
                             path=[request.resource, guid], cmd='diff')
-                    self._pull_checkin(checkin, response, 'range')
-                ranges.exclude(self._pull_r.value, r)
-        self._pull_r.commit()
-        this.localcast({'event': 'sync', 'state': 'pull'})
+                    self._pull_checkin(checkin, response, 'ranges')
+                    ranges.exclude(self._pull_r.value, r)
 
-        """
-        resource = None
-        metadata = None
+    def _push(self):
+        volume = self._local.volume
 
-        for diff in self._local.volume.diff(self._push_r.value, blobs=False):
-            if 'resource' in diff:
-                resource = diff['resource']
-                metadata = self._local.volume[resource]
-            elif 'commit' in diff:
-                ranges.exclude(self._push_r.value, diff['commit'])
-                self._push_r.commit()
-                # No reasons to keep failure reports after pushing
-                self._local.volume['report'].wipe()
+        _logger.debug('Start pushing offline updates')
+
+        dump = packets.encode(model.dump_volume(volume))
+        request = Request(method='POST', cmd='apply', content=dump)
+        self.fallback(request, Response())
+
+        _logger.debug('Wipeout offline updates')
+
+        for directory in volume.values():
+            if directory.empty:
+                continue
+            if directory.has_noseqno:
+                directory.dilute()
             else:
-                props = {}
-                blobs = []
-                for prop, meta in diff['patch'].items():
-                    if isinstance(metadata[prop], db.Blob):
-                        blobs.application
+                directory.wipe()
 
+        _logger.debug('Wipeout offline blobs')
 
+        for blob in volume.blobs.walk():
+            if int(blob.meta['x-seqno']):
+                volume.blobs.wipe(blob)
 
-                    props[prop] = meta['value']
-
-
-
-            if isinstance(diff, File):
-                with file(diff.path, 'rb') as f:
-                    self.fallback(method='POST')
-
-
-
-
-
-
-                pass
-
-
-                if 'guid' in props:
-                    request = Request(method='POST', path=[resource])
-                else:
-                    request = Request(method='PUT', path=[resource, guid])
-                request.content_type = 'application/json'
-                request.content = props
-                self.fallback(request)
-        """
+    def _sync(self):
+        try:
+            self._pull()
+            if self._local.volume.has_seqno:
+                self._push()
+        except:
+            this.localcast({'event': 'sync', 'state': 'failed'})
+            raise
+        else:
+            this.localcast({'event': 'sync', 'state': 'done'})
 
 
 class _LocalRoutes(db.Routes, Router):

@@ -12,10 +12,9 @@ from os.path import exists, join, basename
 from __init__ import tests
 
 from sugar_network import db, client
-from sugar_network.client import Connection, keyfile, api, packagekit, injector as injector_, model
+from sugar_network.client import Connection, api, packagekit, injector as injector_, model
 from sugar_network.client.injector import _PreemptivePool, Injector
 from sugar_network.client.model import Volume as LocalVolume
-from sugar_network.client.auth import SugarCreds
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, lsb_release
 
@@ -352,7 +351,7 @@ class InjectorTest(tests.Test):
     def test_solve(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -386,7 +385,7 @@ class InjectorTest(tests.Test):
     def test_solve_FailInOffline(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = None
         injector.seqno = 0
@@ -408,7 +407,7 @@ class InjectorTest(tests.Test):
     def test_solve_ReuseCachedSolution(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -432,7 +431,7 @@ class InjectorTest(tests.Test):
     def test_solve_InvalidateCachedSolution(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = 'http://127.0.0.1:7777'
         injector.seqno = 1
@@ -499,7 +498,7 @@ class InjectorTest(tests.Test):
     def test_solve_ForceUsingStaleCachedSolutionInOffline(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -527,7 +526,7 @@ class InjectorTest(tests.Test):
     def test_download_SetExecPermissions(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -561,7 +560,7 @@ class InjectorTest(tests.Test):
     def test_checkin(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -613,7 +612,7 @@ class InjectorTest(tests.Test):
     def test_checkin_PreemptivePool(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -671,7 +670,7 @@ class InjectorTest(tests.Test):
     def test_checkin_Refresh(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -706,7 +705,7 @@ class InjectorTest(tests.Test):
     def test_launch(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -755,7 +754,7 @@ class InjectorTest(tests.Test):
     def test_launch_PreemptivePool(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -797,7 +796,7 @@ class InjectorTest(tests.Test):
     def test_launch_DonntAcquireCheckins(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector('client')
         injector.api = client.api.value
         injector.seqno = 0
@@ -825,7 +824,7 @@ class InjectorTest(tests.Test):
     def test_launch_RefreshCheckins(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
@@ -896,7 +895,7 @@ class InjectorTest(tests.Test):
 
         self.fork_master(cb=master_cb)
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
@@ -922,7 +921,7 @@ class InjectorTest(tests.Test):
     def test_launch_Document(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1
@@ -957,7 +956,7 @@ class InjectorTest(tests.Test):
     def test_launch_DocumentWithDetectingAppByMIMEType(self):
         self.fork_master()
         this.volume = LocalVolume('client')
-        conn = Connection(creds=SugarCreds(keyfile.value))
+        conn = Connection()
         injector = Injector(tests.tmpdir + '/client')
         injector.api = client.api.value
         injector.seqno = 1

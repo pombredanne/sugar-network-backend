@@ -680,9 +680,9 @@ class RouterTest(tests.Test):
             'CONTENT_LENGTH': '3',
             'wsgi.input': Stream('123'),
             })
-        self.assertEqual('123', request.content_stream.read())
-        self.assertEqual('', request.content_stream.read())
-        self.assertEqual('', request.content_stream.read(10))
+        self.assertEqual('123', request.content.read())
+        self.assertEqual('', request.content.read())
+        self.assertEqual('', request.content.read(10))
 
         request = Request({
             'PATH_INFO': '/',
@@ -690,7 +690,7 @@ class RouterTest(tests.Test):
             'CONTENT_LENGTH': '3',
             'wsgi.input': Stream('123'),
             })
-        self.assertEqual('123', request.content_stream.read(10))
+        self.assertEqual('123', request.content.read(10))
 
         request = Request({
             'PATH_INFO': '/',
@@ -698,10 +698,10 @@ class RouterTest(tests.Test):
             'CONTENT_LENGTH': '3',
             'wsgi.input': Stream('123'),
             })
-        self.assertEqual('1', request.content_stream.read(1))
-        self.assertEqual('2', request.content_stream.read(1))
-        self.assertEqual('3', request.content_stream.read())
-        self.assertEqual('', request.content_stream.read())
+        self.assertEqual('1', request.content.read(1))
+        self.assertEqual('2', request.content.read(1))
+        self.assertEqual('3', request.content.read())
+        self.assertEqual('', request.content.read())
 
     def test_IntArguments(self):
 
@@ -1415,7 +1415,7 @@ class RouterTest(tests.Test):
             @route('GET', mime_type='text/event-stream')
             def get(self):
                 yield {'event': 'probe'}
-                yield {'event': 'probe', 'request': this.request.content}
+                yield {'event': 'probe', 'request': this.request.content.read()}
 
         events = []
         def localcast(event):
