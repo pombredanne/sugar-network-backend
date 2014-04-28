@@ -46,5 +46,5 @@ mode = Option(
         default='slave')
 
 master_api = Option(
-        'master API url either to connect to (for slave or proxy nodes), or,'
+        'master API url either to connect to (for slave or proxy nodes), or, '
         'to provide from (for master nodes)')

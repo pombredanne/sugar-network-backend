@@ -20,7 +20,6 @@ from sugar_network.client import Connection
 from sugar_network.toolkit import http, coroutine
 from sugar_network.node import routes as node_routes
 from sugar_network.node.routes import NodeRoutes
-from sugar_network.node.master import MasterRoutes
 from sugar_network.model.context import Context
 from sugar_network.node.model import User
 from sugar_network.node.auth import Principal
@@ -45,7 +44,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, **kwargs):
+            def __init__(self, master_api, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('GET', [None, None], cmd='probe1', acl=ACL.AUTH)
@@ -74,7 +73,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, **kwargs):
+            def __init__(self, master_api, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('GET', [None, None], cmd='probe1', acl=ACL.AUTH | ACL.AUTHOR)
@@ -126,7 +125,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, **kwargs):
+            def __init__(self, master_api, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -187,7 +186,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, **kwargs):
+            def __init__(self, master_api, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -210,7 +209,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, **kwargs):
+            def __init__(self, master_api, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -225,7 +224,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, **kwargs):
+            def __init__(self, master_api, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -362,7 +361,8 @@ class NodeRoutesTest(tests.Test):
         client = Connection()
 
         self.touch(('master/files/packages/repo/arch/package', 'file'))
-        volume.blobs.populate()
+        for __ in volume.blobs.populate():
+            pass
 
         self.assertEqual([], client.get(['packages']))
         self.assertEqual([], client.get(['packages', 'repo']))
@@ -374,9 +374,11 @@ class NodeRoutesTest(tests.Test):
         ipc = Connection()
 
         self.touch('master/files/packages/repo/1', 'master/files/packages/repo/1.1')
-        volume.blobs.populate()
+        for __ in volume.blobs.populate():
+            pass
         self.touch('master/files/packages/repo/2', 'master/files/packages/repo/2.2')
-        volume.blobs.populate()
+        for __ in volume.blobs.populate():
+            pass
 
         self.assertEqual(
                 sorted(['1', '2']),

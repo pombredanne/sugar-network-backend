@@ -50,6 +50,8 @@ class Application(application.Daemon):
                 'No write access to %r directory', node.data_root.value)
 
     def run(self):
+        enforce(node.master_api.value, 'Option --master-api missed')
+
         ssl_args = {}
         if node.keyfile.value:
             ssl_args['keyfile'] = node.keyfile.value
@@ -65,11 +67,10 @@ class Application(application.Daemon):
             resources = slave.RESOURCES
             logging.info('Start slave node')
         volume = Volume(node.data_root.value, resources)
-        node_routes = node_routes_class(volume=volume,
-                auth=SugarAuth(node.data_root.value),
+        node_routes = node_routes_class(node.master_api.value,
+                volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
         self.jobs.spawn(volume.populate)
-        self.jobs.spawn(node_routes.populate)
 
         logging.info('Listening for requests on %s:%s',
                 node.host.value, node.port.value)

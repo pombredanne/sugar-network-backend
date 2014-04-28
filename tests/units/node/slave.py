@@ -50,7 +50,7 @@ class SlaveTest(tests.Test):
 
         self.Document = Document
         self.slave_volume = Volume('slave', [User, Document])
-        self.slave_routes = SlaveRoutes(volume=self.slave_volume, auth=SugarAuth('slave'))
+        self.slave_routes = SlaveRoutes(master_api.value, volume=self.slave_volume, auth=SugarAuth('slave'))
         self.slave_server = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.slave_routes))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()
@@ -418,7 +418,8 @@ class SlaveTest(tests.Test):
         slave.put(['document', guid, 'title'], 'probe')
         self.slave_volume.blobs.post('a')
         self.touch(('slave/files/foo/bar', 'bb'))
-        self.slave_volume.blobs.populate()
+        for __ in self.slave_volume.blobs.populate():
+            pass
 
         slave.post(cmd='offline_sync', path=tests.tmpdir + '/sync')
 

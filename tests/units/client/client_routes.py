@@ -1039,7 +1039,7 @@ class ClientRoutesTest(tests.Test):
 
             subscribe_tries = 0
 
-            def __init__(self, volume, auth, *args):
+            def __init__(self, master_api, volume, auth, *args):
                 pass
 
             @route('GET', cmd='status', mime_type='application/json')

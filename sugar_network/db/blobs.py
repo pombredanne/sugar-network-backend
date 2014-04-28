@@ -170,11 +170,11 @@ class Blobs(object):
             _logger.debug('Wipe %r file', path)
             os.unlink(path)
 
-    def populate(self, path=None, recursive=True):
-        for __ in self.diff([[1, None]], path or '', recursive):
-            pass
+    def populate(self, path=None):
+        for __ in self.diff([[1, None]], path or '', yield_files=False):
+            yield
 
-    def diff(self, r, path=None, recursive=True):
+    def diff(self, r, path=None, recursive=True, yield_files=True):
         is_files = path is not None
         checkin_seqno = None
 
@@ -220,7 +220,10 @@ class Blobs(object):
                     continue
                 digest = join(rel_root, filename)
                 meta.append(('path', digest))
-            yield File(path, digest, meta)
+            if yield_files:
+                yield File(path, digest, meta)
+            else:
+                yield
 
     def patch(self, patch, seqno=0):
         if 'path' in patch.meta:

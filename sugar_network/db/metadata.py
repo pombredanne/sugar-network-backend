@@ -438,6 +438,6 @@ class Authors(Dict):
     def encode(self, value):
         for guid, props in value.items():
             if 'name' in props:
-                yield props['name']
+                yield toolkit.ascii(props['name'])
             if not (props['role'] & ACL.INSYSTEM):
                 yield guid

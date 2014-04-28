@@ -284,7 +284,7 @@ class Test(unittest.TestCase):
             classes = master.RESOURCES
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
         self.node_volume = NodeVolume('master', classes)
-        self.node_routes = routes(volume=self.node_volume, auth=SugarAuth('master'))
+        self.node_routes = routes(node.master_api.value, volume=self.node_volume, auth=SugarAuth('master'))
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
@@ -297,14 +297,14 @@ class Test(unittest.TestCase):
         if classes is None:
             classes = master.RESOURCES
 
-        def node():
+        def _node():
             volume = NodeVolume('master', classes)
             if cb is not None:
                 cb(volume)
-            node = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(volume=volume, auth=SugarAuth('master'))))
-            node.serve_forever()
+            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(node.master_api.value, volume=volume, auth=SugarAuth('master'))))
+            anode.serve_forever()
 
-        pid = self.fork(node)
+        pid = self.fork(_node)
         coroutine.sleep(.1)
         return pid
 

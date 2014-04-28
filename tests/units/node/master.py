@@ -19,7 +19,6 @@ from __init__ import tests
 from sugar_network.client import Connection as Connection_, api
 from sugar_network.db.directory import Directory
 from sugar_network import db, node, toolkit
-from sugar_network.node.master import MasterRoutes
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
 from sugar_network.toolkit.router import Response, File

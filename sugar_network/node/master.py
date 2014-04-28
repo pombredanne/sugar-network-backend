@@ -19,7 +19,7 @@ from urlparse import urlsplit
 from sugar_network import toolkit
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
-from sugar_network.node import obs, master_api, model
+from sugar_network.node import obs, model
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
 from sugar_network.toolkit.coroutine import this
@@ -33,8 +33,8 @@ _logger = logging.getLogger('node.master')
 
 class MasterRoutes(NodeRoutes):
 
-    def __init__(self, **kwargs):
-        NodeRoutes.__init__(self, urlsplit(master_api.value).netloc, **kwargs)
+    def __init__(self, master_api, **kwargs):
+        NodeRoutes.__init__(self, urlsplit(master_api).netloc, **kwargs)
         self._pulls = pylru.lrucache(1024)
 
     @route('POST', cmd='sync', arguments={'accept_length': int})

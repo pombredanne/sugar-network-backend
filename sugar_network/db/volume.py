@@ -91,9 +91,10 @@ class Volume(dict):
             cls.close()
 
     def populate(self):
-        for cls in self.values():
-            for __ in cls.populate():
-                coroutine.dispatch()
+        for resource in self.resources:
+            self.__getitem__(resource)
+        for __ in self.blobs.populate():
+            pass
 
     def broadcast(self, event):
         if not self.mute:

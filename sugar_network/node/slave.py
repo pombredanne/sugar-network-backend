@@ -25,7 +25,7 @@ from sugar_network import toolkit
 from sugar_network.model.context import Context
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
-from sugar_network.node import master_api, model
+from sugar_network.node import model
 from sugar_network.node.routes import NodeRoutes
 from sugar_network.toolkit.router import route, ACL
 from sugar_network.toolkit.coroutine import this
@@ -39,7 +39,7 @@ _logger = logging.getLogger('node.slave')
 
 class SlaveRoutes(NodeRoutes):
 
-    def __init__(self, volume, **kwargs):
+    def __init__(self, master_api, volume, **kwargs):
         guid_path = join(volume.root, 'etc', 'node')
         if exists(guid_path):
             with file(guid_path) as f:
@@ -54,12 +54,13 @@ class SlaveRoutes(NodeRoutes):
         vardir = join(volume.root, 'var')
         self._push_r = toolkit.Bin(join(vardir, 'push.ranges'), [[1, None]])
         self._pull_r = toolkit.Bin(join(vardir, 'pull.ranges'), [[1, None]])
-        self._master_guid = urlsplit(master_api.value).netloc
+        self._master_guid = urlsplit(master_api).netloc
+        self._master_api = master_api
 
     @route('POST', cmd='online_sync', acl=ACL.LOCAL,
             arguments={'no_pull': bool})
     def online_sync(self, no_pull=False):
-        conn = http.Connection(master_api.value)
+        conn = http.Connection(self._master_api)
         response = conn.request('POST',
                 data=packets.encode(self._export(not no_pull), header={
                     'from': self.guid,
