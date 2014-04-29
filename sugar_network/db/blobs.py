@@ -247,7 +247,8 @@ class Blobs(object):
             return
         if not exists(dirname(path)):
             os.makedirs(dirname(path))
-        os.rename(patch.path, path)
+        if patch.path:
+            os.rename(patch.path, path)
         if exists(path + _META_SUFFIX):
             meta = _read_meta(path)
             meta.update(patch.meta)
@@ -282,7 +283,7 @@ def _write_meta(path, meta, seqno):
         for key, value in meta.items() if isinstance(meta, dict) else meta:
             if seqno is None and key == 'x-seqno':
                 seqno = int(value)
-            f.write('%s: %s\n' % (key, toolkit.ascii(value)))
+            f.write(toolkit.ascii(key) + ': ' + toolkit.ascii(value) + '\n')
     os.utime(path, (seqno, seqno))
 
 

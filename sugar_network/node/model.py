@@ -84,7 +84,7 @@ class _Release(object):
 class Context(_context.Context):
 
     @db.stored_property(db.Aggregated, subtype=_Release(),
-            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE | ACL.LOCAL)
+            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.REPLACE)
     def releases(self, value):
         return value
 
@@ -423,9 +423,11 @@ def presolve(presolve_path):
 
 
 def load_bundle(blob, context=None, initial=False, extra_deps=None,
-        license=None, release_notes=None):
+        license=None, release_notes=None, update_context=True):
     context_type = None
     context_meta = None
+    context_icon = None
+    context_updated = False
     version = None
     release = _ReleaseValue()
     release.guid = blob.digest
@@ -456,7 +458,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
                     changelog = None
                 unpack_size += bundle.getmember(arcname).size
             spec = bundle.get_spec()
-            context_meta = _load_context_metadata(bundle, spec)
+            context_meta, context_icon = _load_context_metadata(bundle, spec)
 
         if not context:
             context = spec['context']
@@ -489,10 +491,13 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
         enforce(context_meta, http.BadRequest, 'No way to initate context')
         context_meta['guid'] = context
         context_meta['type'] = [context_type]
+        if context_icon:
+            _generate_icons(context_icon, context_meta)
         with this.principal as principal:
             principal.cap_create_with_guid = True
             this.call(method='POST', path=['context'], content=context_meta,
                     principal=principal)
+        context_updated = True
     else:
         enforce(doc.available, http.NotFound, 'No context')
         enforce(context_type in doc['type'],
@@ -513,12 +518,15 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
 
     _logger.debug('Load %r release: %r', context, release)
 
-    if this.principal in doc['author']:
-        patch = doc.format_patch(context_meta)
-        if patch:
-            this.call(method='PUT', path=['context', context], content=patch,
-                    principal=this.principal)
-            doc.posts.update(patch)
+    if this.principal in doc['author'] or this.principal.cap_author_override:
+        if not context_updated and update_context:
+            patch = doc.format_patch(context_meta) or {}
+            if context_icon and doc['artefact_icon'] == 'assets/missing.svg':
+                _generate_icons(context_icon, patch)
+            if patch:
+                this.call(method='PUT', path=['context', context],
+                        content=patch, principal=this.principal)
+                doc.posts.update(patch)
         # TRANS: Release notes title
         title = i18n._('%(name)s %(version)s release')
     else:
@@ -571,21 +579,12 @@ def _load_context_metadata(bundle, spec):
         if spec[prop]:
             result[prop] = spec[prop]
     result['guid'] = spec['context']
+    icon_svg = None
 
     try:
         from sugar_network.toolkit.sugar import color_svg
-
         icon_file = bundle.extractfile(join(bundle.rootdir, spec['icon']))
-        svg = color_svg(icon_file.read(), result['guid'])
-        blobs = this.volume.blobs
-
-        result['artefact_icon'] = \
-                blobs.post(svg, 'image/svg+xml').digest
-        result['icon'] = \
-                blobs.post(svg_to_png(svg, ICON_SIZE), 'image/png').digest
-        result['logo'] = \
-                blobs.post(svg_to_png(svg, LOGO_SIZE), 'image/png').digest
-
+        icon_svg = color_svg(icon_file.read(), result['guid'])
         icon_file.close()
     except Exception:
         _logger.exception('Failed to load icon')
@@ -618,7 +617,7 @@ def _load_context_metadata(bundle, spec):
             except Exception:
                 _logger.exception('Gettext failed to read %r', mo_path[-1])
 
-    return result
+    return result, icon_svg
 
 
 def _resolve_package_alias(doc, value):
@@ -667,6 +666,16 @@ def _resolve_package_alias(doc, value):
     if to_presolve and _presolve_queue is not None:
         _presolve_queue.put(to_presolve)
     doc.post('releases', {'resolves': resolves})
+
+
+def _generate_icons(svg, props):
+    blobs = this.volume.blobs
+    props['artefact_icon'] = \
+            blobs.post(svg, 'image/svg+xml').digest
+    props['icon'] = \
+            blobs.post(svg_to_png(svg, ICON_SIZE), 'image/png').digest
+    props['logo'] = \
+            blobs.post(svg_to_png(svg, LOGO_SIZE), 'image/png').digest
 
 
 _STABILITY_RATES = {

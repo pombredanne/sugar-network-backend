@@ -53,8 +53,8 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         self._connect_jobs = coroutine.Pool()
         self._sync_jobs = coroutine.Pool()
         self._no_subscription = no_subscription
-        self._pull_r = toolkit.Bin(
-                join(home_volume.root, 'var', 'pull'), [[1, None]])
+        self._refresh_r = toolkit.Bin(
+                join(home_volume.root, 'var', 'refresh'), [[1, None]])
 
     def connect(self, api=None):
         if self._connect_jobs:
@@ -71,7 +71,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         self._connect_jobs.kill()
         self._got_offline()
         self._local.volume.close()
-        self._pull_r.commit()
+        self._refresh_r.commit()
 
     @fallbackroute('GET', ['hub'])
     def hub(self):
@@ -370,14 +370,14 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             contexts.delete(local_context.guid)
 
     def _pull_checkin(self, request, response, header_key):
-        request.headers[header_key] = self._pull_r.value
+        request.headers[header_key] = self._refresh_r.value
         packet = packets.decode(self.fallback(request, response))
 
         volume = self._local.volume
         volume[request.resource].patch(request.guid, packet['patch'])
         for blob in packet:
             volume.blobs.patch(blob)
-        ranges.exclude(self._pull_r.value, packet['ranges'])
+        ranges.exclude(self._refresh_r.value, packet['ranges'])
 
     def _pull(self):
         _logger.debug('Start pulling checkin updates')
@@ -389,7 +389,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             request = Request(method='GET',
                     path=[directory.metadata.name], cmd='diff')
             while True:
-                request.headers['ranges'] = self._pull_r.value
+                request.headers['ranges'] = self._refresh_r.value
                 diff = self.fallback(request, response)
                 if not diff:
                     break
@@ -397,7 +397,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
                     checkin = Request(method='GET',
                             path=[request.resource, guid], cmd='diff')
                     self._pull_checkin(checkin, response, 'ranges')
-                    ranges.exclude(self._pull_r.value, r)
+                    ranges.exclude(self._refresh_r.value, r)
 
     def _push(self):
         volume = self._local.volume

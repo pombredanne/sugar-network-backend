@@ -23,7 +23,7 @@ from gettext import translation
 _ = lambda x: x
 
 _logger = logging.getLogger('i18n')
-_i18n = {}
+_i18n = None
 
 
 def default_lang():
@@ -107,10 +107,18 @@ def decode(value, accept_language=None):
 
 
 def encode(msgid, *args, **kwargs):
-    if not _i18n:
+    global _i18n
+
+    if _i18n is None:
         from sugar_network.toolkit.languages import LANGUAGES
+
+        _i18n = {}
         for lang in LANGUAGES:
-            _i18n[lang] = translation('sugar-network', languages=[lang])
+            try:
+                _i18n[lang] = translation('sugar-network', languages=[lang])
+            except IOError, error:
+                _logger.error('Failed to open %r locale: %s', lang, error)
+
     result = {}
 
     for lang, trans in _i18n.items():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,16 +21,20 @@ import time
 import getpass
 import hashlib
 import traceback
-from cStringIO import StringIO
 from os.path import join
 
 import MySQLdb as mdb
 
-from sugar_network import db, client, model, toolkit
-from sugar_network.node import data_root
+from sugar_network import db, toolkit
+from sugar_network.node import data_root, master_api
+from sugar_network.node.auth import Principal
+from sugar_network.node.master import RESOURCES
 from sugar_network.node.slave import SlaveRoutes
-from sugar_network.node.routes import load_bundle
-from sugar_network.toolkit import spec, licenses, application, Option
+from sugar_network.node.model import load_bundle
+from sugar_network.toolkit.spec import parse_version
+from sugar_network.toolkit.router import Request, Router
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import licenses, application, Option
 
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
@@ -41,6 +45,15 @@ ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
 PACKAGES_GUID = 'packages'
+
+SUGAR_API_COMPATIBILITY = {
+        '0.94': [
+            parse_version('0.86'),
+            parse_version('0.88'),
+            parse_version('0.90'),
+            parse_version('0.92'),
+            ],
+        }
 
 CATEGIORIES_TO_TAGS = {
         'Search & Discovery': 'discovery',
@@ -94,6 +107,12 @@ IGNORE_VERSIONS = frozenset([
         30703,  # Bad license
         31164,  # Bad bundle_id
         31512,  # Bad license
+        30749,  # Changed bundle_id
+        31238,  # Changed bundle_id
+        31418,  # Changed bundle_id
+        31369,  # Malformed version
+        31557,  # Malformed version
+        31454,  # Malformed version
         ])
 
 IGNORE_PREVIEWS = frozenset([
@@ -138,19 +157,22 @@ LICENSES_MAP = {
 class Application(application.Application):
 
     _my_connection = None
-    _volume = None
     _client = None
+    _router = None
 
-    @property
-    def volume(self):
-        if self._volume is None:
-            self._volume = db.Volume(data_root.value, model.RESOURCES)
-            self._volume.populate()
-        return self._volume
+    def prolog(self):
+        this.volume = db.Volume(data_root.value, RESOURCES)
+        this.volume.populate()
+        this.broadcast = lambda event: None
+        this.localcast = lambda event: None
+        this.request = Request({'HTTP_HOST': master_api.value})
+        auth = _Auth()
+        routes = SlaveRoutes(master_api.value, this.volume, auth=auth)
+        self._router = Router(routes)
+        this.principal = auth.logon()
 
     def epilog(self):
-        if self._volume is not None:
-            self._volume.close()
+        this.volume.close()
 
     @application.command(
             'consecutively launch pull and push commands')
@@ -161,27 +183,25 @@ class Application(application.Application):
     @application.command(
             'pull activities.sugarlabs.org content to local db')
     def pull(self):
-        if not self.volume['context'].exists(SN_GUID):
-            self.volume['context'].create({
+        if not this.volume['context'][SN_GUID].exists:
+            this.volume['context'].create({
                     'guid': SN_GUID,
-                    'implement': SN_GUID,
-                    'type': 'project',
-                    'title': 'Sugar Network',
-                    'summary': 'Sugar Network',
-                    'description': 'Sugar Network',
-                    'ctime': time.time(),
-                    'mtime': time.time(),
+                    'type': ['group'],
+                    'title': {'en': 'Sugar Network'},
+                    'summary': {'en': 'Sugar Network'},
+                    'description': {'en': 'Sugar Network'},
+                    'ctime': int(time.time()),
+                    'mtime': int(time.time()),
                     'author': ASLO_AUTHOR,
                     })
 
-        if not self.volume['context'].exists(SUGAR_GUID):
-            self.volume['context'].create({
+        if not this.volume['context'][SUGAR_GUID].exists:
+            this.volume['context'].create({
                     'guid': SUGAR_GUID,
-                    'implement': SUGAR_GUID,
-                    'type': 'package',
-                    'title': 'sugar',
-                    'summary': 'Constructionist learning platform',
-                    'description':
+                    'type': ['package'],
+                    'title': {'en': 'sugar'},
+                    'summary': {'en': 'Constructionist learning platform'},
+                    'description': {'en':
                         'Sugar provides simple yet powerful means of engaging '
                         'young children in the world of learning that is '
                         'opened up by computers and the Internet. With Sugar, '
@@ -190,26 +210,28 @@ class Application(application.Application):
                         'in authentic problem-solving. Sugar promotes '
                         'sharing, collaborative learning, and reflection, '
                         'developing skills that help them in all aspects '
-                        'of life.',
-                    'ctime': time.time(),
-                    'mtime': time.time(),
+                        'of life.'},
+                    'ctime': int(time.time()),
+                    'mtime': int(time.time()),
                     'author': ASLO_AUTHOR,
                     })
 
-        if not self.volume['context'].exists(PACKAGES_GUID):
-            self.volume['context'].create({
+        if not this.volume['context'][PACKAGES_GUID].exists:
+            this.volume['context'].create({
                     'guid': PACKAGES_GUID,
-                    'implement': PACKAGES_GUID,
-                    'type': 'project',
-                    'title': 'Packages',
-                    'summary': 'Collection of GNU/Linux packages metadata',
-                    'description': 'Collection of GNU/Linux packages metadata',
-                    'ctime': time.time(),
-                    'mtime': time.time(),
-                    'author': ASLO_AUTHOR,
-                    'icon': {
-                        'url': '/static/images/package.png',
+                    'type': ['group'],
+                    'title': {'en': 'Packages'},
+                    'summary': {
+                        'en': 'Collection of GNU/Linux packages metadata',
                         },
+                    'description': {
+                        'en': 'Collection of GNU/Linux packages metadata',
+                        },
+                    'ctime': int(time.time()),
+                    'mtime': int(time.time()),
+                    'author': ASLO_AUTHOR,
+                    'icon': 'assets/package.png',
+                    'logo': 'assets/package-logo.png',
                     })
 
         if self.args:
@@ -222,13 +244,12 @@ class Application(application.Application):
             'submit pulled activities.sugarlabs.org content to '
             'Sugar Network server')
     def push(self):
-        node = SlaveRoutes(join(data_root.value, 'key'), self.volume)
-        node.online_sync(no_pull=True)
+        this.call(method='POST', cmd='online_sync', no_pull=True)
 
     def sync_activities(self, addon_id=None):
-        directory = self.volume['context']
+        directory = this.volume['context']
         items, __ = directory.find(type='activity', guid=addon_id,
-                not_layer='deleted')
+                not_state='deleted')
         existing_activities = set([i.guid for i in items])
 
         sql = """
@@ -251,7 +272,6 @@ class Application(application.Application):
                 self.sync_versions(addon_id, bundle_id)
                 self.sync_reviews(addon_id, bundle_id)
                 self.sync_previews(addon_id, bundle_id, authors)
-                self.sync_comments(addon_id, bundle_id)
             except Exception:
                 print '-- Failed to sync %s addon' % addon_id
                 traceback.print_exception(*sys.exc_info())
@@ -260,116 +280,52 @@ class Application(application.Application):
 
         for guid in existing_activities:
             print '-- Hide %r deleted activity' % guid
-            directory.update(guid, {'layer': ['deleted']})
+            directory.update(guid, {'state': 'deleted'})
 
     def sync_previews(self, addon_id, bundle_id, authors):
-        directory = self.volume['artifact']
-        items, __ = directory.find(context=bundle_id, type='preview',
-                not_layer='deleted')
-        existing = set([i.guid for i in items])
+        existing = this.volume['context'][bundle_id]['previews']
+        updates = {}
 
         sql = """
             SELECT
                 id,
-                created,
                 modified,
-                caption,
                 filedata
             FROM
                 previews
             WHERE
                 addon_id = %s
             """ % addon_id
-        for guid, created, modified, caption, data in self.sqlexec(sql):
+        for guid, modified, data in self.sqlexec(sql):
             if guid in IGNORE_PREVIEWS:
                 continue
             guid = str(guid)
-            if directory.exists(guid):
-                existing.remove(guid)
+            if guid in existing:
+                del existing[guid]
                 continue
             try:
                 preview = scale_png(data, 200, 200)
             except Exception:
                 print '-- Failed to load %s preview for %s' % (guid, bundle_id)
                 continue
-            directory.create({
-                    'guid': guid,
-                    'ctime': int(time.mktime(created.timetuple())),
-                    'mtime': int(time.mktime(modified.timetuple())),
-                    'context': bundle_id,
-                    'type': 'preview',
-                    'title': self.get_i18n_field(caption),
-                    'description': self.get_i18n_field(caption),
+            preview = this.volume.blobs.post(preview, 'image/png')
+            updates[guid] = {
                     'author': authors,
-                    'preview': {
-                        'blob': StringIO(preview),
-                        'mime_type': 'image/png',
-                        'digest': hashlib.sha1(preview).hexdigest(),
-                        },
-                    'data': {
-                        'blob': StringIO(data),
-                        'mime_type': 'image/png',
-                        'digest': hashlib.sha1(data).hexdigest(),
-                        },
-                    })
+                    'value': preview.digest,
+                    'ctime': int(time.mktime(modified.timetuple())),
+                    }
 
         for guid in existing:
             print '-- Hide %s %s deleted preview' % (bundle_id, guid)
-            directory.update(guid, {'layer': ['deleted']})
+            updates[guid] = {}
 
-    def sync_comments(self, addon_id, bundle_id):
-        directory = self.volume['comment']
-        items, __ = directory.find(context=bundle_id, not_layer='deleted')
-        existing = set([i.guid for i in items])
-
-        sql = """
-            SELECT
-                reviews.id,
-                reviews.created,
-                reviews.modified,
-                reviews.body,
-                users.email,
-                users.nickname,
-                CONCAT_WS(' ', users.firstname, users.lastname),
-                reviews.reply_to
-            FROM
-                reviews
-                INNER JOIN versions ON versions.id = reviews.version_id
-                INNER JOIN users ON users.id=reviews.user_id
-            WHERE
-                reply_to IS NOT NULL AND versions.addon_id = %s
-            """ % addon_id
-        for guid, created, modified, content, email, nickname, fullname, \
-                reply_to in self.sqlexec(sql):
-            guid = str(guid)
-            if directory.exists(guid):
-                existing.remove(guid)
-                continue
-            if not nickname:
-                nickname = email.split('@')[0]
-            fullname = fullname.strip()
-            if not fullname:
-                fullname = nickname
-            directory.create({
-                    'guid': guid,
-                    'ctime': int(time.mktime(created.timetuple())),
-                    'mtime': int(time.mktime(modified.timetuple())),
-                    'context': bundle_id,
-                    'review': str(reply_to),
-                    'message': self.get_i18n_field(content),
-                    'author': {nickname: {
-                        'order': 0, 'role': 3, 'name': fullname,
-                        }},
-                    })
-
-        for guid in existing:
-            print '-- Hide %s %s deleted comment' % (bundle_id, guid)
-            directory.update(guid, {'layer': ['deleted']})
+        this.volume['context'].update(bundle_id, {'previews': updates})
 
     def sync_reviews(self, addon_id, bundle_id):
-        directory = self.volume['review']
-        items, __ = directory.find(context=bundle_id, not_layer='deleted')
-        existing = set([i.guid for i in items])
+        directory = this.volume['post']
+        items, __ = directory.find(context=bundle_id, type='review',
+                not_state='deleted')
+        existing_topics = set([i.guid for i in items])
 
         sql = """
             SELECT
@@ -389,38 +345,81 @@ class Application(application.Application):
             WHERE
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
-        for guid, created, modified, title, content, rating, email, nickname, \
+        for topic, created, modified, title, content, vote, email, nickname, \
                 fullname in self.sqlexec(sql):
-            guid = str(guid)
-            if directory.exists(guid):
-                existing.remove(guid)
-                continue
-            if not nickname:
-                nickname = email.split('@')[0]
-            fullname = fullname.strip()
-            if not fullname:
-                fullname = nickname
-            directory.create({
-                    'guid': guid,
-                    'ctime': int(time.mktime(created.timetuple())),
-                    'mtime': int(time.mktime(modified.timetuple())),
-                    'context': bundle_id,
-                    'title': self.get_i18n_field(title),
-                    'content': self.get_i18n_field(content),
-                    'rating': rating,
-                    'author': {nickname: {
-                        'order': 0, 'role': 3, 'name': fullname,
-                        }},
-                    })
+            topic = str(topic)
+            if topic in existing_topics:
+                existing_topics.remove(topic)
+            else:
+                if not nickname:
+                    nickname = email.split('@')[0]
+                fullname = fullname.strip()
+                if not fullname:
+                    fullname = nickname
+                directory.create({
+                        'guid': topic,
+                        'ctime': int(time.mktime(created.timetuple())),
+                        'mtime': int(time.mktime(modified.timetuple())),
+                        'context': bundle_id,
+                        'type': 'review',
+                        'title': self.get_i18n_field(title),
+                        'message': self.get_i18n_field(content),
+                        'vote': vote,
+                        'author': {nickname: {
+                            'order': 0, 'role': 3, 'name': fullname,
+                            }},
+                        })
 
-        for guid in existing:
+                existing_comments = directory[topic]['comments']
+                updates = {}
+                sql = """
+                    SELECT
+                        reviews.id,
+                        reviews.modified,
+                        reviews.body,
+                        users.email,
+                        users.nickname,
+                        CONCAT_WS(' ', users.firstname, users.lastname)
+                    FROM
+                        reviews
+                        INNER JOIN versions ON versions.id = reviews.version_id
+                        INNER JOIN users ON users.id=reviews.user_id
+                    WHERE
+                        reply_to = %s
+                    ORDER BY
+                        reviews.created
+                    """ % topic
+                for guid, modified, content, email, nickname, fullname, \
+                        in self.sqlexec(sql):
+                    guid = str(guid)
+                    if guid in existing_comments:
+                        del existing_comments[guid]
+                        continue
+                    if not nickname:
+                        nickname = email.split('@')[0]
+                    fullname = fullname.strip()
+                    if not fullname:
+                        fullname = nickname
+                    updates[guid] = {
+                            'author': {nickname: {
+                                'order': 0, 'role': 3, 'name': fullname,
+                                }},
+                            'value': self.get_i18n_field(content),
+                            'ctime': int(time.mktime(modified.timetuple())),
+                            }
+                for guid in existing_comments:
+                    print '-- Hide %s %s deleted comment' % (bundle_id, guid)
+                    updates[guid] = {}
+                directory.update(topic, {'comments': updates})
+
+        for guid in existing_topics:
             print '-- Hide %s %s deleted review' % (bundle_id, guid)
-            directory.update(guid, {'layer': ['deleted']})
+            directory.update(guid, {'state': 'deleted'})
 
     def sync_versions(self, addon_id, bundle_id):
-        directory = self.volume['release']
-        items, __ = directory.find(context=bundle_id, not_layer='deleted')
-        existing = set([i.guid for i in items])
+        existing = this.volume['context'][bundle_id]['releases']
+        updates = {}
+        most_recent = True
 
         sql = """
             SELECT
@@ -438,8 +437,7 @@ class Application(application.Application):
                     id=applications_versions.max),
                 users.email,
                 users.nickname,
-                CONCAT_WS(' ', users.firstname, users.lastname),
-                addons.status
+                CONCAT_WS(' ', users.firstname, users.lastname)
             FROM addons
                 INNER JOIN versions ON versions.addon_id=addons.id
                 LEFT JOIN licenses ON licenses.id=versions.license_id
@@ -450,15 +448,19 @@ class Application(application.Application):
             WHERE
                 addons.status > 0 AND addons.status < 5 AND addons.id = %s
             ORDER BY
-                versions.id ASC
+                versions.id DESC
             """ % addon_id
 
         for version_id, version, license_id, alicense, release_date, \
                 releasenotes, filename, sugar_min, sugar_max, \
-                email, nickname, fullname, status in self.sqlexec(sql):
+                email, nickname, fullname in self.sqlexec(sql):
             if version_id in IGNORE_VERSIONS:
                 continue
+
             version_id = str(version_id)
+            if version_id in existing:
+                del existing[version_id]
+                continue
 
             if filename.endswith('.xol'):
                 print '-- Ignore %r[%s] library bundle' % \
@@ -466,7 +468,7 @@ class Application(application.Application):
                 continue
 
             try:
-                spec.parse_version(version)
+                parse_version(version)
             except Exception, error:
                 print '-- Cannot parse %r version for %r[%s]: %s' % \
                         (version, filename, version_id, error)
@@ -501,46 +503,49 @@ class Application(application.Application):
             if not alicense and bundle_id in LICENSES_MAP:
                 alicense = LICENSES_MAP[bundle_id]
 
-            layers = ['origin']
-            if status == 4:
-                layers.append('public')
-
             if not nickname:
                 nickname = email.split('@')[0]
             fullname = fullname.strip()
             if not fullname:
                 fullname = nickname
 
-            if directory.exists(version_id):
-                if set(directory.get(version_id).layer) != set(layers) or \
-                        version_id not in existing:
-                    directory.update(version_id, {'layer': layers})
-                if version_id in existing:
-                    existing.remove(version_id)
-                continue
+            for max_version, sub_versions in SUGAR_API_COMPATIBILITY.items():
+                if parse_version(sugar_min) in sub_versions:
+                    if parse_version(sugar_max) < parse_version(max_version):
+                        sugar_max = max_version
+                elif parse_version(sugar_max) in sub_versions:
+                    sugar_max = max_version
 
             bundle_path = join(ACTIVITIES_PATH, str(addon_id), filename)
+            digest = hashlib.sha1()
+            with file(bundle_path, 'rb') as f:
+                while True:
+                    chunk = f.read(toolkit.BUFFER_SIZE)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+            blob = this.volume.blobs.post({
+                'digest': digest.hexdigest(),
+                'location': '/'.join([DOWNLOAD_URL, str(addon_id), filename]),
+                'content-length': str(os.stat(bundle_path).st_size),
+                })
+            blob.path = bundle_path
+
             try:
-                with load_bundle(
-                        self.volume, Request(self.volume, {
-                            'requires': 'sugar>=%s<=%s' %
-                                    (sugar_min, sugar_max),
-                            'license': alicense,
-                            }),
-                        file(bundle_path, 'rb')) as (impl, data):
-                    impl['guid'] = version_id
-                    if 'notes' not in impl:
-                        impl['notes'] = self.get_i18n_field(releasenotes)
-                    impl['stability'] = 'stable'
-                    impl['ctime'] = int(time.mktime(release_date.timetuple()))
-                    impl['mtime'] = time.time()
-                    impl['author'] = {nickname: {
-                        'order': 0, 'role': 3, 'name': fullname,
-                        }}
-                    impl['layer'] = layers
-                    data['url'] = \
-                            '/'.join([DOWNLOAD_URL, str(addon_id), filename])
-                    data['size'] = os.stat(bundle_path).st_size
+                __, release = load_bundle(blob, license=alicense,
+                        extra_deps='sugar>=%s<=%s' % (sugar_min, sugar_max),
+                        release_notes=self.get_i18n_field(releasenotes),
+                        update_context=most_recent)
+                updates[version_id] = {
+                    'author': {
+                        nickname: {
+                            'order': 0, 'role': 3, 'name': fullname,
+                            },
+                        },
+                    'value': release,
+                    'ctime': int(time.mktime(release_date.timetuple())),
+                    }
+                most_recent = False
             except Exception, error:
                 print '-- Failed to sync %r[%s]' % (filename, version_id)
                 traceback.print_exception(*sys.exc_info())
@@ -549,10 +554,12 @@ class Application(application.Application):
 
         for guid in existing:
             print '-- Hide %s %s deleted version' % (bundle_id, guid)
-            directory.update(guid, {'layer': ['deleted']})
+            updates[guid] = {}
+
+        this.volume['context'].update(bundle_id, {'releases': updates})
 
     def sync_context(self, addon_id, bundle_id):
-        directory = self.volume['context']
+        directory = this.volume['context']
 
         created, modified, title, summary, description, homepage, \
                 featured = self.sqlexec("""
@@ -573,11 +580,11 @@ class Application(application.Application):
             """ % addon_id)[0]
         created = int(time.mktime(created.timetuple()))
         modified = int(time.mktime(modified.timetuple()))
-        layers = ['featured'] if featured else []
+        pins = ['featured'] if featured else []
 
-        if directory.exists(bundle_id) and \
+        if directory[bundle_id].exists and \
                 directory.get(bundle_id)['mtime'] >= modified and \
-                directory.get(bundle_id)['layer'] == layers:
+                directory.get(bundle_id)['pins'] == pins:
             return
 
         tags = set()
@@ -633,7 +640,7 @@ class Application(application.Application):
 
         directory.update(bundle_id, {
                 'guid': bundle_id,
-                'type': 'activity',
+                'type': ['activity'],
                 'title': self.get_i18n_field(title),
                 'summary': self.get_i18n_field(summary),
                 'description': self.get_i18n_field(description),
@@ -642,7 +649,7 @@ class Application(application.Application):
                 'author': authors,
                 'ctime': created,
                 'mtime': modified,
-                'layer': layers,
+                'pins': pins,
                 })
         print '-- Sync %r activity' % bundle_id
 
@@ -695,19 +702,10 @@ class Application(application.Application):
         return cursor.fetchall()
 
 
-class Request(dict):
+class _Auth(object):
 
-    def __init__(self, volume, props):
-        dict.__init__(self, props)
-        self._volume = volume
-
-    def call(self, method, path, content):
-        if method == 'POST':
-            resource, = path
-            return self._volume[resource].create(content)
-        elif method == 'PUT':
-            resource, guid = path
-            self._volume[resource].update(guid, content)
+    def logon(self, request=None):
+        return Principal(ASLO_AUTHOR.keys()[0], 0xF)
 
 
 def scale_png(data, w, h):
@@ -741,8 +739,7 @@ mysql_password = Option(
 
 Option.seek('main', [application.debug, toolkit.cachedir])
 Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
-Option.seek('node', [data_root])
-Option.seek('client', [client.api_url])
+Option.seek('node', [data_root, master_api])
 
 db.index_write_queue.value = 1024 * 10
 db.index_flush_threshold.value = 0

@@ -52,8 +52,8 @@ class SlaveRoutes(NodeRoutes):
                 f.write(guid)
         NodeRoutes.__init__(self, guid, volume=volume, **kwargs)
         vardir = join(volume.root, 'var')
-        self._push_r = toolkit.Bin(join(vardir, 'push.ranges'), [[1, None]])
-        self._pull_r = toolkit.Bin(join(vardir, 'pull.ranges'), [[1, None]])
+        self._push_r = toolkit.Bin(join(vardir, 'push'), [[1, None]])
+        self._pull_r = toolkit.Bin(join(vardir, 'pull'), [[1, None]])
         self._master_guid = urlsplit(master_api).netloc
         self._master_api = master_api
 

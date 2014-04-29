@@ -168,6 +168,9 @@ class Application(object):
 
         init_logging(debug.value)
 
+    def prolog(self):
+        pass
+
     def epilog(self):
         pass
 
@@ -186,6 +189,7 @@ class Application(object):
             if cmd.options.get('keep_stdout') and not foreground.value:
                 self._keep_stdout()
 
+            self.prolog()
             exit(cmd() or 0)
         except Exception:
             printf.exception('%s %s', _('Aborted'), self.name)

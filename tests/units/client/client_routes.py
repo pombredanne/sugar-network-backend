@@ -1078,7 +1078,7 @@ class ClientRoutesTest(tests.Test):
         local = IPCConnection()
         remote = Connection()
 
-        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         guid = remote.post(['context'], {
@@ -1092,14 +1092,14 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('1', local.get(['context', guid])['title'])
         coroutine.sleep(1.1)
 
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         remote.put(['context', guid, 'title'], '2')
         self.assertEqual('2', remote.get(['context', guid, 'title']))
         self.assertEqual('1', local.get(['context', guid])['title'])
 
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         self.assertEqual('2', local.get(['context'], reply='title')['result'][0]['title'])
@@ -1107,7 +1107,7 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('2', remote.get(['context', guid, 'title']))
         self.assertEqual('2', local.get(['context', guid])['title'])
 
-        self.assertEqual([[1, 1], [7, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [7, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
     def test_PullCheckinsOnGettingOnline(self):
@@ -1118,7 +1118,7 @@ class ClientRoutesTest(tests.Test):
         local = IPCConnection()
         remote = Connection()
 
-        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         guid = remote.post(['context'], {
@@ -1135,7 +1135,7 @@ class ClientRoutesTest(tests.Test):
         remote.put(['context', guid, 'title'], '2')
         self.assertEqual('2', remote.get(['context', guid, 'title']))
         self.assertEqual('1', local.get(['context', guid])['title'])
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         self.stop_master()
@@ -1144,7 +1144,7 @@ class ClientRoutesTest(tests.Test):
         self.wait_for_events(event='sync', state='done').wait()
 
         self.assertEqual('2', local.get(['context', guid])['title'])
-        self.assertEqual([[1, 1], [7, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [7, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
     def test_PullCheckinsOnUpdates(self):
@@ -1152,7 +1152,7 @@ class ClientRoutesTest(tests.Test):
         local = IPCConnection()
         remote = Connection()
 
-        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         guid = remote.post(['context'], {
@@ -1171,7 +1171,7 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('1', remote.get(['context', guid, 'summary']))
         self.assertEqual('1', local.get(['context', guid])['title'])
         self.assertEqual('1', local.get(['context', guid])['summary'])
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         local.put(['context', guid, 'summary'], '2')
@@ -1179,7 +1179,7 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('2', remote.get(['context', guid, 'summary']))
         self.assertEqual('2', local.get(['context', guid])['title'])
         self.assertEqual('2', local.get(['context', guid])['summary'])
-        self.assertEqual([[1, 1], [8, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, 1], [8, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
     def test_PushOfflineChanges(self):
@@ -1223,7 +1223,7 @@ class ClientRoutesTest(tests.Test):
         local = IPCConnection()
         remote = Connection()
 
-        self.assertEqual([[1, None]], self.client_routes._pull_r.value)
+        self.assertEqual([[1, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         guid = remote.post(['context'], {
