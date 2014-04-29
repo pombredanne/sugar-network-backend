@@ -81,7 +81,9 @@ class Routes(object):
     def find(self, reply, limit):
         self._preget()
         request = this.request
-        if self._find_limit and limit > self._find_limit:
+        if not limit:
+            request['limit'] = self._find_limit
+        elif self._find_limit and limit > self._find_limit:
             _logger.warning('The find limit is restricted to %s',
                     self._find_limit)
             request['limit'] = self._find_limit
@@ -168,7 +170,7 @@ class Routes(object):
 
     @fallbackroute('GET', ['blobs'])
     def blobs(self):
-        return self.volume.blobs.get(this.request.guid)
+        return self.volume.blobs.get(this.request.path[1:])
 
     @contextmanager
     def _post(self, access):

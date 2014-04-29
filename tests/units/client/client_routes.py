@@ -981,9 +981,11 @@ class ClientRoutesTest(tests.Test):
                 coroutine.sleep(1)
                 yield 'emote"'
 
+        trigger = self.wait_for_events(ipc, event='inline', state='online')
+        coroutine.dispatch()
         node_pid = self.fork_master([User], NodeRoutes)
         self.client_routes._remote_connect()
-        self.wait_for_events(ipc, event='inline', state='online').wait()
+        trigger.wait()
 
         ts = time.time()
         self.assertEqual('remote', ipc.get(cmd='sleep'))

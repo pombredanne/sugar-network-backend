@@ -40,12 +40,13 @@ class BlobsTest(tests.Test):
         self.assertEqual(
                 content,
                 file(blob.path).read())
-        self.assertEqual([
-            'content-type: application/octet-stream',
-            'content-length: %s' % len(content),
-            'x-seqno: 1',
-            ],
-            file(blob.path + '.meta').read().strip().split('\n'))
+        self.assertEqual(
+                sorted([
+                    'content-type: application/octet-stream',
+                    'content-length: %s' % len(content),
+                    'x-seqno: 1',
+                    ]),
+                sorted(file(blob.path + '.meta').read().strip().split('\n')))
 
         the_same_blob = blobs.get(blob.digest)
         assert the_same_blob is not blob
@@ -75,12 +76,13 @@ class BlobsTest(tests.Test):
         self.assertEqual(
                 content,
                 file(blob.path).read())
-        self.assertEqual([
-            'content-type: application/octet-stream',
-            'content-length: %s' % len(content),
-            'x-seqno: 1',
-            ],
-            file(blob.path + '.meta').read().strip().split('\n'))
+        self.assertEqual(
+                sorted([
+                    'content-type: application/octet-stream',
+                    'content-length: %s' % len(content),
+                    'x-seqno: 1',
+                    ]),
+                sorted(file(blob.path + '.meta').read().strip().split('\n')))
 
         the_same_blob = blobs.get(blob.digest)
         assert the_same_blob is not blob
@@ -93,7 +95,12 @@ class BlobsTest(tests.Test):
 
         self.assertRaises(http.BadRequest, blobs.post, {})
         self.assertRaises(http.BadRequest, blobs.post, {'digest': 'digest'})
-        blob = blobs.post({'location': 'location', 'digest': '0000000000000000000000000000000000000000', 'foo': 'bar'})
+        blob = blobs.post({
+            'location': 'location',
+            'digest': '0000000000000000000000000000000000000000',
+            'content-length': '101',
+            'foo': 'bar',
+            })
 
         self.assertEqual(
                 '0000000000000000000000000000000000000000',
@@ -105,20 +112,18 @@ class BlobsTest(tests.Test):
             'status': '301 Moved Permanently',
             'location': 'location',
             'content-type': 'application/octet-stream',
-            'content-length': '0',
+            'content-length': '101',
             'x-seqno': '1',
             },
             blob.meta)
 
-        self.assertEqual(
-                '',
-                file(blob.path).read())
+        assert not exists(blob.path)
         self.assertEqual(
                 sorted([
                     'status: 301 Moved Permanently',
                     'location: location',
                     'content-type: application/octet-stream',
-                    'content-length: 0',
+                    'content-length: 101',
                     'x-seqno: 1',
                     ]),
                 sorted(file(blob.path + '.meta').read().strip().split('\n')))

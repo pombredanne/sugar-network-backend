@@ -119,10 +119,12 @@ class Blobs(object):
             elif isinstance(content, dict):
                 enforce('location' in content, http.BadRequest, 'No location')
                 enforce('digest' in content, http.BadRequest, 'No digest')
+                enforce('content-length' in content, http.BadRequest,
+                        'No content-length')
                 meta.append(('status', '301 Moved Permanently'))
                 meta.append(('location', content['location']))
-                with toolkit.new_file(tmp_path) as blob:
-                    yield blob, content['digest']
+                meta.append(('content-length', content['content-length']))
+                yield None, content['digest']
             else:
                 with toolkit.new_file(tmp_path) as blob:
                     blob.write(content)
@@ -130,13 +132,15 @@ class Blobs(object):
 
         with write_blob() as (blob, digest):
             if digest_to_assert and digest != digest_to_assert:
-                blob.unlink()
+                if blob is not None:
+                    blob.unlink()
                 raise http.BadRequest('Digest mismatch')
             path = self._blob_path(digest)
             seqno = self._seqno.next()
-            meta.append(('content-length', str(blob.tell())))
             meta.append(('x-seqno', str(seqno)))
-            blob.name = path
+            if blob is not None:
+                meta.append(('content-length', str(blob.tell())))
+                blob.name = path
         _write_meta(path, meta, seqno)
 
         _logger.debug('Post %r file', path)
@@ -157,7 +161,10 @@ class Blobs(object):
         elif isdir(path):
             return _lsdir(path, digest)
         elif exists(path):
-            return File(path, digest)
+            blob = File(path, digest)
+            blob.meta.set('content-length', str(blob.size))
+            blob.meta.set('content-type', _guess_mime(path))
+            return blob
 
     def delete(self, path):
         self._delete(self.path(path), None)
@@ -206,12 +213,10 @@ class Blobs(object):
                 continue
             else:
                 _logger.debug('Found new %r blob', path)
-                mime_type = mimetypes.guess_type(filename)[0] or \
-                        'application/octet-stream'
                 if checkin_seqno is None:
                     checkin_seqno = self._seqno.next()
                 seqno = checkin_seqno
-                meta = [('content-type', mime_type),
+                meta = [('content-type', _guess_mime(filename)),
                         ('content-length', str(os.stat(path).st_size)),
                         ('x-seqno', str(seqno)),
                         ]
@@ -263,7 +268,7 @@ class Blobs(object):
 
 
 def _write_meta(path, meta, seqno):
-    if seqno:
+    if seqno and exists(path):
         os.utime(path, (seqno, seqno))
     path += _META_SUFFIX
     with toolkit.new_file(path) as f:
@@ -288,3 +293,7 @@ def _lsdir(root, rel_root):
         path = join(root, filename)
         if exists(path + _META_SUFFIX):
             yield File(path, join(rel_root, filename), _read_meta(path))
+
+
+def _guess_mime(path):
+    return mimetypes.guess_type(path)[0] or 'application/octet-stream'

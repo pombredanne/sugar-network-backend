@@ -422,10 +422,10 @@ def presolve(presolve_path):
         obs.presolve(repo_name, pkgs, presolve_path)
 
 
-def load_bundle(blob, context=None, initial=False, extra_deps=None):
+def load_bundle(blob, context=None, initial=False, extra_deps=None,
+        license=None, release_notes=None):
     context_type = None
     context_meta = None
-    release_notes = None
     version = None
     release = _ReleaseValue()
     release.guid = blob.digest
@@ -437,16 +437,12 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         if not context:
             context = this.request['context']
         version = this.request['version']
-        if 'license' in this.request:
-            release['license'] = this.request['license']
-            if isinstance(release['license'], basestring):
-                release['license'] = [release['license']]
-        release['stability'] = 'stable'
         release['bundles'] = {
                 '*-*': {
                     'blob': blob.digest,
                     },
                 }
+        release['stability'] = 'stable'
     else:
         context_type = 'activity'
         unpack_size = 0
@@ -454,7 +450,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         with bundle:
             changelog = join(bundle.rootdir, 'CHANGELOG')
             for arcname in bundle.get_names():
-                if changelog and arcname == changelog:
+                if not release_notes and changelog and arcname == changelog:
                     with bundle.extractfile(changelog) as f:
                         release_notes = f.read()
                     changelog = None
@@ -472,8 +468,6 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
 
         version = spec['version']
         release['stability'] = spec['stability']
-        if spec['license'] is not EMPTY_LICENSE:
-            release['license'] = spec['license']
         release['commands'] = spec.commands
         release['requires'] = spec.requires
         release['bundles'] = {
@@ -482,6 +476,8 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
                     'unpack_size': unpack_size,
                     },
                 }
+        if not license and spec['license'] is not EMPTY_LICENSE:
+            license = spec['license']
         blob.meta['content-type'] = 'application/vnd.olpc-sugar'
 
     enforce(context, http.BadRequest, 'Context is not specified')
@@ -502,12 +498,18 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
         enforce(context_type in doc['type'],
                 http.BadRequest, 'Inappropriate bundle type')
 
-    if 'license' not in release:
+    if not license:
+        license = this.request.get('license')
+    if license:
+        if isinstance(license, basestring):
+            license = [license]
+    else:
         releases = doc['releases'].values()
         enforce(releases, http.BadRequest, 'License is not specified')
         recent = max(releases, key=lambda x: x.get('value', {}).get('release'))
         enforce(recent, http.BadRequest, 'License is not specified')
-        release['license'] = recent['value']['license']
+        license = recent['value']['license']
+    release['license'] = license
 
     _logger.debug('Load %r release: %r', context, release)
 
@@ -522,17 +524,15 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None):
     else:
         # TRANS: 3rd party release notes title
         title = i18n._('%(name)s %(version)s third-party release')
+    announce = {
+        'context': context,
+        'type': 'notification',
+        'title': i18n.encode(title, name=doc['title'], version=version),
+        'message': release_notes or '',
+        }
     release['announce'] = this.call(method='POST', path=['post'],
-            content={
-                'context': context,
-                'type': 'notification',
-                'title': i18n.encode(title,
-                    name=doc['title'],
-                    version=version,
-                    ),
-                'message': release_notes or '',
-                },
-            content_type='application/json', principal=this.principal)
+            content=announce, content_type='application/json',
+            principal=this.principal)
 
     blob.meta['content-disposition'] = 'attachment; filename="%s-%s%s"' % (
             ''.join(i18n.decode(doc['title']).split()), version,
