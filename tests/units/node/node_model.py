@@ -719,6 +719,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual([[3, None]], r)
 
     def test_diff_volume_AggProps(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -740,13 +741,13 @@ class NodeModelTest(tests.Test):
                 'guid': {'value': '1', 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
-                'prop': {'value': {'1': {'prop': 1}}, 'mtime': 1},
+                'prop': {'value': {'1': {'prop': 1, 'ctime': 0}}, 'mtime': 1},
                 }},
             {'guid': '2', 'patch': {
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
-                'prop': {'value': {'2': {'prop': 2}}, 'mtime': 2},
+                'prop': {'value': {'2': {'prop': 2, 'ctime': 0}}, 'mtime': 2},
                 }},
             {'commit': [[1, 2]]},
             ],
@@ -760,7 +761,7 @@ class NodeModelTest(tests.Test):
                 'guid': {'value': '1', 'mtime': 1},
                 'ctime': {'value': 1, 'mtime': 1},
                 'mtime': {'value': 1, 'mtime': 1},
-                'prop': {'value': {'1': {'prop': 1}}, 'mtime': 1},
+                'prop': {'value': {'1': {'prop': 1, 'ctime': 0}}, 'mtime': 1},
                 }},
             {'commit': [[1, 1]]},
             ],
@@ -774,7 +775,7 @@ class NodeModelTest(tests.Test):
                 'guid': {'value': '2', 'mtime': 2},
                 'ctime': {'value': 2, 'mtime': 2},
                 'mtime': {'value': 2, 'mtime': 2},
-                'prop': {'value': {'2': {'prop': 2}}, 'mtime': 2},
+                'prop': {'value': {'2': {'prop': 2, 'ctime': 0}}, 'mtime': 2},
                 }},
             {'commit': [[2, 2]]},
             ],
@@ -789,11 +790,11 @@ class NodeModelTest(tests.Test):
         self.assertEqual([[3, None]], r)
 
         self.assertEqual({
-            '1': {'seqno': 1, 'prop': 1},
+            '1': {'seqno': 1, 'prop': 1, 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
         self.assertEqual({
-            '2': {'seqno': 2, 'prop': 2},
+            '2': {'seqno': 2, 'prop': 2, 'ctime': 0},
             },
             volume['document'].get('2')['prop'])
 
@@ -802,7 +803,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual([
             {'resource': 'document'},
             {'guid': '2', 'patch': {
-                'prop': {'value': {'2': {}, '3': {'prop': 3}}, 'mtime': int(os.stat('db/document/2/2/prop').st_mtime)},
+                'prop': {'value': {'2': {'ctime': 0}, '3': {'prop': 3, 'ctime': 0}}, 'mtime': int(os.stat('db/document/2/2/prop').st_mtime)},
                 }},
             {'commit': [[3, 3]]},
             ],
@@ -810,8 +811,8 @@ class NodeModelTest(tests.Test):
         self.assertEqual([[4, None]], r)
 
         self.assertEqual({
-            '2': {'seqno': 3},
-            '3': {'seqno': 3, 'prop': 3},
+            '2': {'seqno': 3, 'ctime': 0},
+            '3': {'seqno': 3, 'prop': 3, 'ctime': 0},
             },
             volume['document'].get('2')['prop'])
 
@@ -820,7 +821,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual([
             {'resource': 'document'},
             {'guid': '1', 'patch': {
-                'prop': {'value': {'1': {'foo': 'bar'}}, 'mtime': int(os.stat('db/document/1/1/prop').st_mtime)},
+                'prop': {'value': {'1': {'foo': 'bar', 'ctime': 0}}, 'mtime': int(os.stat('db/document/1/1/prop').st_mtime)},
                 }},
             {'commit': [[4, 4]]},
             ],
@@ -828,7 +829,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual([[5, None]], r)
 
         self.assertEqual({
-            '1': {'seqno': 4, 'foo': 'bar'},
+            '1': {'seqno': 4, 'foo': 'bar', 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
 
@@ -837,7 +838,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual([
             {'resource': 'document'},
             {'guid': '2', 'patch': {
-                'prop': {'value': {'2': {'restore': True}}, 'mtime': int(os.stat('db/document/2/2/prop').st_mtime)},
+                'prop': {'value': {'2': {'restore': True, 'ctime': 0}}, 'mtime': int(os.stat('db/document/2/2/prop').st_mtime)},
                 }},
             {'commit': [[5, 5]]},
             ],
@@ -845,8 +846,8 @@ class NodeModelTest(tests.Test):
         self.assertEqual([[6, None]], r)
 
         self.assertEqual({
-            '2': {'seqno': 5, 'restore': True},
-            '3': {'seqno': 3, 'prop': 3},
+            '2': {'seqno': 5, 'restore': True, 'ctime': 0},
+            '3': {'seqno': 3, 'prop': 3, 'ctime': 0},
             },
             volume['document'].get('2')['prop'])
 
@@ -863,12 +864,13 @@ class NodeModelTest(tests.Test):
         self.assertEqual([[7, None]], r)
 
         self.assertEqual({
-            '2': {'seqno': 5, 'restore': True},
-            '3': {'seqno': 3, 'prop': 3},
+            '2': {'seqno': 5, 'restore': True, 'ctime': 0},
+            '3': {'seqno': 3, 'prop': 3, 'ctime': 0},
             },
             volume['document'].get('2')['prop'])
 
     def test_patch_volume_Aggprops(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -885,58 +887,58 @@ class NodeModelTest(tests.Test):
                 'guid': {'mtime': 1, 'value': '1'},
                 'ctime': {'mtime': 1, 'value': 1},
                 'mtime': {'mtime': 1, 'value': 1},
-                'prop': {'mtime': 1, 'value': {'1': {}}},
+                'prop': {'mtime': 1, 'value': {'1': {'ctime': 0}}},
                 }},
             ])
         self.assertEqual({
-            '1': {'seqno': 1},
+            '1': {'seqno': 1, 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
 
         model.patch_volume([
             {'resource': 'document'},
             {'guid': '1', 'patch': {
-                'prop': {'mtime': 1, 'value': {'1': {'probe': False}}},
+                'prop': {'mtime': 1, 'value': {'1': {'probe': False, 'ctime': 0}}},
                 }},
             ])
         self.assertEqual({
-            '1': {'seqno': 1},
+            '1': {'seqno': 1, 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
 
         model.patch_volume([
             {'resource': 'document'},
             {'guid': '1', 'patch': {
-                'prop': {'mtime': 2, 'value': {'1': {'probe': True}}},
+                'prop': {'mtime': 2, 'value': {'1': {'probe': True, 'ctime': 0}}},
                 }},
             ])
         self.assertEqual({
-            '1': {'seqno': 2, 'probe': True},
+            '1': {'seqno': 2, 'probe': True, 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
 
         model.patch_volume([
             {'resource': 'document'},
             {'guid': '1', 'patch': {
-                'prop': {'mtime': 3, 'value': {'2': {'foo': 'bar'}}},
+                'prop': {'mtime': 3, 'value': {'2': {'foo': 'bar', 'ctime': 0}}},
                 }},
             ])
         self.assertEqual({
-            '1': {'seqno': 2, 'probe': True},
-            '2': {'seqno': 3, 'foo': 'bar'},
+            '1': {'seqno': 2, 'probe': True, 'ctime': 0},
+            '2': {'seqno': 3, 'foo': 'bar', 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
 
         model.patch_volume([
             {'resource': 'document'},
             {'guid': '1', 'patch': {
-                'prop': {'mtime': 4, 'value': {'2': {}, '3': {'foo': 'bar'}}},
+                'prop': {'mtime': 4, 'value': {'2': {'ctime': 0}, '3': {'foo': 'bar', 'ctime': 0}}},
                 }},
             ])
         self.assertEqual({
-            '1': {'seqno': 2, 'probe': True},
-            '2': {'seqno': 4},
-            '3': {'seqno': 4, 'foo': 'bar'},
+            '1': {'seqno': 2, 'probe': True, 'ctime': 0},
+            '2': {'seqno': 4, 'ctime': 0},
+            '3': {'seqno': 4, 'foo': 'bar', 'ctime': 0},
             },
             volume['document'].get('1')['prop'])
 

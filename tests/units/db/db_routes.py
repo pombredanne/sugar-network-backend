@@ -1524,13 +1524,13 @@ class DbRoutesTest(tests.Test):
         self.override(toolkit, 'uuid', lambda: '0')
         self.assertEqual('0', this.call(method='POST', path=['document', guid, 'prop3'], content=0))
         self.assertEqual({
-            '0': {'seqno': 2, 'value': 0},
+            '0': {'seqno': 2, 'ctime': 0, 'value': 0},
             },
             volume['document'].get(guid)['prop3'])
         self.assertEqual([
             {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
                 'mtime': 0,
-                'prop3': {'0': {'seqno': 2, 'value': 0}},
+                'prop3': {'0': {'seqno': 2, 'ctime': 0, 'value': 0}},
                 }},
             ],
             events)
@@ -1539,8 +1539,8 @@ class DbRoutesTest(tests.Test):
         self.override(toolkit, 'uuid', lambda: '1')
         self.assertEqual('1', this.call(method='POST', path=['document', guid, 'prop3'], content={'foo': 'bar'}))
         self.assertEqual({
-            '0': {'seqno': 2, 'value': 0},
-            '1': {'seqno': 3, 'value': {'foo': 'bar'}},
+            '0': {'seqno': 2, 'ctime': 0, 'value': 0},
+            '1': {'seqno': 3, 'ctime': 1, 'value': {'foo': 'bar'}},
             },
             volume['document'].get(guid)['prop3'])
 
@@ -1548,9 +1548,9 @@ class DbRoutesTest(tests.Test):
         self.override(toolkit, 'uuid', lambda: '2')
         self.assertEqual('2', this.call(method='POST', path=['document', guid, 'prop3'], content=None))
         self.assertEqual({
-            '0': {'seqno': 2, 'value': 0},
-            '1': {'seqno': 3, 'value': {'foo': 'bar'}},
-            '2': {'seqno': 4, 'value': None},
+            '0': {'seqno': 2, 'ctime': 0, 'value': 0},
+            '1': {'seqno': 3, 'ctime': 1, 'value': {'foo': 'bar'}},
+            '2': {'seqno': 4, 'ctime': 2, 'value': None},
             },
             volume['document'].get(guid)['prop3'])
 
@@ -1576,27 +1576,30 @@ class DbRoutesTest(tests.Test):
         agg_guid = this.call(method='POST', path=['document', guid, 'prop1'], content=2)
         del events[:]
         self.assertEqual(
-                {agg_guid: {'seqno': 2, 'value': 2}},
+                {agg_guid: {'seqno': 2, 'ctime': 0, 'value': 2}},
                 volume['document'].get(guid)['prop1'])
         self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg_guid])
         self.assertEqual(
-                {agg_guid: {'seqno': 2, 'value': 2}},
+                {agg_guid: {'seqno': 2, 'ctime': 0, 'value': 2}},
                 volume['document'].get(guid)['prop1'])
         self.assertEqual([], events)
 
+        self.override(time, 'time', lambda: 1)
         agg_guid = this.call(method='POST', path=['document', guid, 'prop2'], content=3)
         del events[:]
         self.assertEqual(
-                {agg_guid: {'seqno': 3, 'value': 3}},
+                {agg_guid: {'seqno': 3, 'ctime': 1, 'value': 3}},
                 volume['document'].get(guid)['prop2'])
+
+        self.override(time, 'time', lambda: 2)
         this.call(method='DELETE', path=['document', guid, 'prop2', agg_guid])
         self.assertEqual(
-                {agg_guid: {'seqno': 4}},
+                {agg_guid: {'seqno': 4, 'ctime': 2}},
                 volume['document'].get(guid)['prop2'])
         self.assertEqual([
             {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
-                'mtime': 0,
-                'prop2': {agg_guid: {'seqno': 4}},
+                'mtime': 2,
+                'prop2': {agg_guid: {'seqno': 4, 'ctime': 2}},
                 }},
             ],
             events)
@@ -1617,6 +1620,7 @@ class DbRoutesTest(tests.Test):
         self.assertRaises(http.Forbidden, this.call, method='PUT', path=['document', guid], content={'prop': {}})
 
     def test_AggpropSubtypeCasts(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -1637,9 +1641,9 @@ class DbRoutesTest(tests.Test):
         agg3 = this.call(method='POST', path=['document', guid, 'props'], content={'foo': 'bar'})
 
         self.assertEqual({
-            agg1: {'seqno': 2, 'value': -1},
-            agg2: {'seqno': 3, 'value': None},
-            agg3: {'seqno': 4, 'value': {'foo': 'bar'}},
+            agg1: {'seqno': 2, 'ctime': 0, 'value': -1},
+            agg2: {'seqno': 3, 'ctime': 0, 'value': None},
+            agg3: {'seqno': 4, 'ctime': 0, 'value': {'foo': 'bar'}},
             },
             volume['document'][guid]['props'])
         self.assertEqual({
@@ -1712,27 +1716,32 @@ class DbRoutesTest(tests.Test):
         agg_guid = this.call(method='POST', path=['document', guid, 'prop1'], content=1)
         del events[:]
         self.assertEqual(
-                {agg_guid: {'seqno': 2, 'value': 1}},
+                {agg_guid: {'seqno': 2, 'ctime': 0, 'value': 1}},
                 volume['document'].get(guid)['prop1'])
+
+        self.override(time, 'time', lambda: 1)
         self.assertRaises(http.Forbidden, this.call, method='PUT', path=['document', guid, 'prop1', agg_guid], content=2)
         self.assertEqual(
-                {agg_guid: {'seqno': 2, 'value': 1}},
+                {agg_guid: {'seqno': 2, 'ctime': 0, 'value': 1}},
                 volume['document'].get(guid)['prop1'])
         self.assertEqual([], events)
 
+        self.override(time, 'time', lambda: 2)
         agg_guid = this.call(method='POST', path=['document', guid, 'prop2'], content=2)
         del events[:]
         self.assertEqual(
-                {agg_guid: {'seqno': 3, 'value': 2}},
+                {agg_guid: {'seqno': 3, 'ctime': 2, 'value': 2}},
                 volume['document'].get(guid)['prop2'])
+
+        self.override(time, 'time', lambda: 3)
         this.call(method='PUT', path=['document', guid, 'prop2', agg_guid], content=3)
         self.assertEqual(
-                {agg_guid: {'seqno': 4, 'value': 3}},
+                {agg_guid: {'seqno': 4, 'ctime': 3, 'value': 3}},
                 volume['document'].get(guid)['prop2'])
         self.assertEqual([
             {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
-                'mtime': 0,
-                'prop2': {agg_guid: {'seqno': 4, 'value': 3}},
+                'mtime': 3,
+                'prop2': {agg_guid: {'seqno': 4, 'ctime': 3, 'value': 3}},
                 }},
             ],
             events)
@@ -1755,12 +1764,12 @@ class DbRoutesTest(tests.Test):
 
         this.call(method='PUT', path=['document', guid, 'prop', 'absent'], content='probe')
         self.assertEqual(
-                {'absent': {'seqno': 2, 'value': 'probe'}},
+                {'absent': {'seqno': 2, 'ctime': 0, 'value': 'probe'}},
                 volume['document'].get(guid)['prop'])
         self.assertEqual([
             {'event': 'update', 'resource': 'document', 'guid': guid, 'props': {
                 'mtime': 0,
-                'prop': {'absent': {'seqno': 2, 'value': 'probe'}},
+                'prop': {'absent': {'seqno': 2, 'ctime': 0, 'value': 'probe'}},
                 }},
             ],
             events)
@@ -1798,6 +1807,7 @@ class DbRoutesTest(tests.Test):
         assert not (ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
 
     def test_AggregatedBlobs(self):
+        self.override(time, 'time', lambda: 0)
 
         class Document(db.Resource):
 
@@ -1815,23 +1825,23 @@ class DbRoutesTest(tests.Test):
 
         agg1 = this.call(method='POST', path=['document', guid, 'blobs'], content='blob1')
         self.assertEqual({
-            agg1: {'seqno': 3, 'value': digest1},
+            agg1: {'seqno': 3, 'ctime': 0, 'value': digest1},
             },
             volume['document'].get(guid)['blobs'])
         assert volume.blobs.get(digest1)
 
         agg2 = this.call(method='POST', path=['document', guid, 'blobs'], content='blob2')
         self.assertEqual({
-            agg1: {'seqno': 3, 'value': digest1},
-            agg2: {'seqno': 5, 'value': digest2},
+            agg1: {'seqno': 3, 'ctime': 0, 'value': digest1},
+            agg2: {'seqno': 5, 'ctime': 0, 'value': digest2},
             },
             volume['document'].get(guid)['blobs'])
         assert volume.blobs.get(digest2)
 
         this.call(method='DELETE', path=['document', guid, 'blobs', agg1])
         self.assertEqual({
-            agg1: {'seqno': 7},
-            agg2: {'seqno': 5, 'value': digest2},
+            agg1: {'seqno': 7, 'ctime': 0},
+            agg2: {'seqno': 5, 'ctime': 0, 'value': digest2},
             },
             volume['document'].get(guid)['blobs'])
         assert not volume.blobs.get(digest1).exists
@@ -1839,8 +1849,8 @@ class DbRoutesTest(tests.Test):
 
         this.call(method='DELETE', path=['document', guid, 'blobs', agg2])
         self.assertEqual({
-            agg1: {'seqno': 7},
-            agg2: {'seqno': 9},
+            agg1: {'seqno': 7, 'ctime': 0},
+            agg2: {'seqno': 9, 'ctime': 0},
             },
             volume['document'].get(guid)['blobs'])
         assert not volume.blobs.get(digest1).exists
@@ -1848,9 +1858,9 @@ class DbRoutesTest(tests.Test):
 
         agg3 = this.call(method='POST', path=['document', guid, 'blobs'], content='blob3')
         self.assertEqual({
-            agg1: {'seqno': 7},
-            agg2: {'seqno': 9},
-            agg3: {'seqno': 11, 'value': digest3},
+            agg1: {'seqno': 7, 'ctime': 0},
+            agg2: {'seqno': 9, 'ctime': 0},
+            agg3: {'seqno': 11, 'ctime': 0, 'value': digest3},
             },
             volume['document'].get(guid)['blobs'])
         assert not volume.blobs.get(digest1).exists
