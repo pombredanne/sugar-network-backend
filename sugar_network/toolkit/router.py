@@ -413,21 +413,8 @@ class File(str):
             return basename(self.path)
 
     def iter_content(self):
-        if self.path:
-            return self._iter_content()
-        url = self.meta.get('location')
-        enforce(url, http.NotFound, 'No location')
-        blob = this.http.request('GET', url, allow_redirects=True,
-                # Request for uncompressed data
-                headers={'accept-encoding': ''})
-        self.meta.clear()
-        for tag in ('content-length', 'content-type', 'content-disposition'):
-            value = blob.headers.get(tag)
-            if value:
-                self.meta[tag] = value
-        return blob.iter_content(toolkit.BUFFER_SIZE)
-
-    def _iter_content(self):
+        if not self.path:
+            return
         with file(self.path, 'rb') as f:
             while True:
                 chunk = f.read(toolkit.BUFFER_SIZE)

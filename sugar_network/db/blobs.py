@@ -145,11 +145,13 @@ class Blobs(object):
 
         _logger.debug('Post %r file', path)
 
+        if not exists(path):
+            path = None
         return File(path, digest, meta)
 
     def update(self, path, meta):
         path = self.path(path)
-        enforce(exists(path), http.NotFound, 'No such blob')
+        enforce(exists(path + _META_SUFFIX), http.NotFound, 'No such blob')
         orig_meta = _read_meta(path)
         orig_meta.update(meta)
         _write_meta(path, orig_meta, None)
@@ -157,7 +159,10 @@ class Blobs(object):
     def get(self, digest):
         path = self.path(digest)
         if exists(path + _META_SUFFIX):
-            return File(path, digest, _read_meta(path))
+            meta = _read_meta(path)
+            if not exists(path):
+                path = None
+            return File(path, digest, meta)
         elif isdir(path):
             return _lsdir(path, digest)
         elif exists(path):
@@ -226,6 +231,8 @@ class Blobs(object):
                 digest = join(rel_root, filename)
                 meta.append(('path', digest))
             if yield_files:
+                if not exists(path):
+                    path = None
                 yield File(path, digest, meta)
             else:
                 yield
@@ -275,7 +282,7 @@ def _write_meta(path, meta, seqno):
         for key, value in meta.items() if isinstance(meta, dict) else meta:
             if seqno is None and key == 'x-seqno':
                 seqno = int(value)
-            f.write('%s: %s\n' % (key, value))
+            f.write('%s: %s\n' % (key, toolkit.ascii(value)))
     os.utime(path, (seqno, seqno))
 
 

@@ -1466,34 +1466,6 @@ class RouterTest(tests.Test):
                 ['blob'],
                 [i for i in File('blob').iter_content()])
 
-    def test_File_IterContentByUrl(self):
-        this.http = http.Connection()
-
-        class Routes(object):
-
-            @route('GET')
-            def probe(self):
-                this.response['content-type'] = 'foo/bar'
-                this.response['content-length'] = str(len('probe'))
-                this.response['content-disposition'] = 'attachment; filename="foo"'
-
-                return 'probe'
-
-        server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(Routes()))
-        coroutine.spawn(server.serve_forever)
-        coroutine.dispatch()
-
-        blob = File(None, meta={'location': 'http://127.0.0.1:%s' % client.ipc_port.value})
-        self.assertEqual(
-                ['probe'],
-                [i for i in blob.iter_content()])
-        self.assertEqual({
-            'content-length': '5',
-            'content-type': 'foo/bar',
-            'content-disposition': 'attachment; filename="foo"',
-            },
-            blob.meta)
-
     def test_SetCookie(self):
 
         class Routes(object):

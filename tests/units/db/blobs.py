@@ -105,9 +105,7 @@ class BlobsTest(tests.Test):
         self.assertEqual(
                 '0000000000000000000000000000000000000000',
                 blob.digest)
-        self.assertEqual(
-                abspath('blobs/%s/%s' % (blob.digest[:3], blob.digest)),
-                blob.path)
+        assert blob.path is None
         self.assertEqual({
             'status': '301 Moved Permanently',
             'location': 'location',
@@ -116,8 +114,6 @@ class BlobsTest(tests.Test):
             'x-seqno': '1',
             },
             blob.meta)
-
-        assert not exists(blob.path)
         self.assertEqual(
                 sorted([
                     'status: 301 Moved Permanently',
@@ -126,7 +122,7 @@ class BlobsTest(tests.Test):
                     'content-length: 101',
                     'x-seqno: 1',
                     ]),
-                sorted(file(blob.path + '.meta').read().strip().split('\n')))
+                sorted(file('blobs/%s/%s.meta' % (blob.digest[:3], blob.digest)).read().strip().split('\n')))
 
         the_same_blob = blobs.get(blob.digest)
         assert the_same_blob is not blob
@@ -388,7 +384,7 @@ class BlobsTest(tests.Test):
 
         blobs.patch(File('./fake', '0000000000000000000000000000000000000001', {'n': 3, 'content-length': '0'}), -3)
         blob = blobs.get('0000000000000000000000000000000000000001')
-        assert not exists(blob.path)
+        assert blob.path is None
         self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, blob.meta)
 
     def test_patch_File(self):
@@ -406,7 +402,7 @@ class BlobsTest(tests.Test):
 
         blobs.patch(File('./fake', 'foo/bar', {'n': 3, 'content-length': '0', 'path': 'foo/bar'}), -3)
         blob = blobs.get('foo/bar')
-        assert not exists(blob.path)
+        assert blob.path is None
         self.assertEqual({'x-seqno': '-3', 'n': '1', 'status': '410 Gone'}, blob.meta)
 
     def test_walk_Blobs(self):

@@ -28,7 +28,6 @@ from os.path import dirname, exists, join
 
 from sugar_network import toolkit
 from sugar_network.toolkit.router import File
-from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, coroutine, BUFFER_SIZE, enforce
 
 
@@ -60,17 +59,14 @@ def decode(stream, limit=None):
 
 
 def encode(items, limit=None, header=None, compresslevel=None,
-        on_complete=None, **kwargs):
+        on_complete=None, download_blobs=False, **kwargs):
     _logger.debug('Encode %r limit=%r header=%r', items, limit, header)
 
     if compresslevel is 0:
         ostream = _Encoder()
     else:
         ostream = _ZippedEncoder(compresslevel)
-
-    # In case of downloading blobs
-    # (?) reuse current `this.http`
-    this.http = http.Connection()
+    connection = http.Connection()
 
     if limit is None:
         limit = sys.maxint
@@ -116,6 +112,8 @@ def encode(items, limit=None, header=None, compresslevel=None,
                     if isinstance(record, File):
                         blob_len = record.size
                         chunk = record.meta
+                        if not record.path:
+                            chunk['digest'] = record.digest
                     else:
                         chunk = record
                     chunk = ostream.write_record(chunk,
@@ -130,8 +128,14 @@ def encode(items, limit=None, header=None, compresslevel=None,
                         continue
                     if chunk:
                         yield chunk
-                    if blob_len:
-                        for chunk in record.iter_content():
+                    if blob_len and (record.path or download_blobs):
+                        if record.path:
+                            blob_content = record.iter_content()
+                        else:
+                            url = record.meta['location']
+                            enforce(url, http.NotFound, 'No location')
+                            blob_content = connection.download(url)
+                        for chunk in blob_content:
                             blob_len -= len(chunk)
                             if not blob_len:
                                 chunk += '\n'
@@ -243,6 +247,10 @@ class _DecodeIterator(object):
         blob_len = record.get('content-length')
         if blob_len is None:
             yield record
+            return
+
+        if 'location' in record:
+            yield File(None, digest=record.pop('digest'), meta=record)
             return
 
         blob_len = int(blob_len)

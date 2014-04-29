@@ -340,6 +340,28 @@ class PacketsTest(tests.Test):
         self.assertRaises(StopIteration, next, packets_iter)
         self.assertEqual(len(stream.getvalue()), stream.tell())
 
+    def test_decode_BlobUrls(self):
+        stream = zips(
+            json.dumps({}) + '\n' +
+            json.dumps({'segment': 1}) + '\n' +
+            json.dumps({'num': 1, 'content-length': 1}) + '\n' +
+            'a' +
+            json.dumps({'num': 2, 'content-length': 100, 'location': 'http://foo/bar', 'digest': 'digest'}) + '\n' +
+            json.dumps({'num': 3, 'content-length': 3}) + '\n' +
+            'ccc'
+            )
+        packets_iter = iter(packets.decode(stream))
+        with next(packets_iter) as packet:
+            self.assertEqual(1, packet.name)
+            self.assertEqual([
+                (1, 'a'),
+                (2, None),
+                (3, 'ccc'),
+                ],
+                [(i.meta['num'], file(i.path).read() if i.path else None) for i in packet])
+        self.assertRaises(StopIteration, packets_iter.next)
+        self.assertEqual(len(stream.getvalue()), stream.tell())
+
     def test_encode_Zipped(self):
         stream = ''.join([i for i in packets.encode([])])
         self.assertEqual(
@@ -593,7 +615,7 @@ class PacketsTest(tests.Test):
                 'ccc' + '\n',
                 unzips(stream))
 
-    def test_encode_BlobWithUrls(self):
+    def test_encode_BlobUrls(self):
 
         class Routes(object):
 
@@ -607,37 +629,46 @@ class PacketsTest(tests.Test):
         url = 'http://127.0.0.1:%s' % client.ipc_port.value
 
         stream = ''.join([i for i in packets.encode([
-            (1, None, [File(None, meta={'location': 'fake'})]),
+            (1, None, [File(None, digest='digest', meta={'location': 'fake'})]),
             ])])
         self.assertEqual(
                 json.dumps({}) + '\n' +
                 json.dumps({'segment': 1}) + '\n' +
-                json.dumps({'location': 'fake'}) + '\n',
+                json.dumps({'digest': 'digest', 'location': 'fake'}) + '\n',
                 unzips(stream))
 
         stream = ''.join([i for i in packets.encode([
-            (1, None, [File(None, meta={'location': 'fake', 'content-length': '0'})]),
+            (1, None, [File(None, digest='digest', meta={'location': 'fake', 'content-length': '0'})]),
             ])])
         self.assertEqual(
                 json.dumps({}) + '\n' +
                 json.dumps({'segment': 1}) + '\n' +
-                json.dumps({'location': 'fake', 'content-length': '0'}) + '\n',
+                json.dumps({'location': 'fake', 'content-length': '0', 'digest': 'digest'}) + '\n',
                 unzips(stream))
 
         stream = ''.join([i for i in packets.encode([
-            (1, None, [File(None, meta={'location': url, 'content-length': str(len('probe'))})]),
+            (1, None, [File(None, digest='digest', meta={'location': url, 'content-length': str(len('probe'))})]),
             ])])
         self.assertEqual(
                 json.dumps({}) + '\n' +
                 json.dumps({'segment': 1}) + '\n' +
-                json.dumps({'location': url, 'content-length': str(len('probe'))}) + '\n' +
+                json.dumps({'location': url, 'content-length': str(len('probe')), 'digest': 'digest'}) + '\n',
+                unzips(stream))
+
+        stream = ''.join([i for i in packets.encode([
+            (1, None, [File(None, digest='digest', meta={'location': url, 'content-length': str(len('probe'))})]),
+            ], download_blobs=True)])
+        self.assertEqual(
+                json.dumps({}) + '\n' +
+                json.dumps({'segment': 1}) + '\n' +
+                json.dumps({'location': url, 'content-length': str(len('probe')), 'digest': 'digest'}) + '\n' +
                 'probe' + '\n',
                 unzips(stream))
 
         def encode():
             stream = ''.join([i for i in packets.encode([
-                (1, None, [File(None, meta={'location': 'http://127.0.0.1:108', 'content-length': str(len('probe'))})]),
-                ])])
+                (1, None, [File(None, digest='digest', meta={'location': 'http://127.0.0.1:108', 'content-length': str(len('probe'))})]),
+                ], download_blobs=True)])
         self.assertRaises(http.ConnectionError, encode)
 
     def test_limited_encode_Blobs(self):
