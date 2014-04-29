@@ -165,28 +165,6 @@ class VolumeTest(tests.Test):
                 {'value': '2', 'mtime': 0},
                 directory['1'].meta('prop2'))
 
-    def test_patch_CallSetters(self):
-
-        class Document(db.Resource):
-
-            @db.stored_property(db.Numeric)
-            def prop(self, value):
-                return value
-
-            @prop.setter
-            def prop(self, value):
-                return value + 1
-
-        directory = Directory('document', Document, IndexWriter, _SessionSeqno(), this.localcast)
-
-        directory.patch('1', {
-            'guid': {'mtime': 1, 'value': '1'},
-            'ctime': {'mtime': 1, 'value': 1},
-            'mtime': {'mtime': 1, 'value': 1},
-            'prop': {'mtime': 1, 'value': 1},
-            })
-        self.assertEqual(2, directory.get('1')['prop'])
-
 
 class _SessionSeqno(object):
 

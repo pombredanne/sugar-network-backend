@@ -610,6 +610,55 @@ class ResourceTest(tests.Test):
                 sorted([guid1, guid2, guid3]),
                 sorted([i.guid for i in directory]))
 
+    def test_patch_CallSetters(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Numeric)
+            def prop(self, value):
+                return value
+
+            @prop.setter
+            def prop(self, value):
+                return value + 1
+
+        directory = Directory('document', Document, IndexWriter, _SessionSeqno(), this.localcast)
+
+        directory.patch('1', {
+            'guid': {'mtime': 1, 'value': '1'},
+            'ctime': {'mtime': 1, 'value': 1},
+            'mtime': {'mtime': 1, 'value': 1},
+            'prop': {'mtime': 1, 'value': 1},
+            })
+        self.assertEqual(2, directory.get('1')['prop'])
+
+    def test_patch_AllPropsInResourceObject(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Numeric)
+            def prop1(self, value):
+                return value
+
+            @prop1.setter
+            def prop1(self, value):
+                return self['prop2'] + 1
+
+            @db.stored_property(db.Numeric)
+            def prop2(self, value):
+                return value
+
+        directory = Directory('document', Document, IndexWriter, _SessionSeqno(), this.localcast)
+
+        directory.patch('1', {
+            'guid': {'mtime': 1, 'value': '1'},
+            'ctime': {'mtime': 1, 'value': 1},
+            'mtime': {'mtime': 1, 'value': 1},
+            'prop1': {'mtime': 1, 'value': 1},
+            'prop2': {'mtime': 1, 'value': 2},
+            })
+        self.assertEqual(3, directory.get('1')['prop1'])
+
 
 class _SessionSeqno(object):
 

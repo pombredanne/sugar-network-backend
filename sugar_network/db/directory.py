@@ -231,20 +231,23 @@ class Directory(object):
     def patch(self, guid, patch, seqno=False):
         """Apply changes for documents."""
         doc = self.resource(guid, self._storage.get(guid))
-        merged = False
+        merge = []
 
         for prop, meta in patch.items():
             orig_meta = doc.meta(prop)
             if orig_meta and orig_meta['mtime'] >= meta['mtime']:
                 continue
+            doc.posts[prop] = meta['value']
+            merge.append((prop, meta))
+
+        for prop, meta in merge:
             if doc.post_seqno is None and seqno is not False:
                 if not seqno:
                     seqno = self._seqno.next()
                 doc.post_seqno = seqno
             doc.post(prop, **meta)
-            merged = True
 
-        if merged and doc.exists:
+        if merge and doc.exists:
             # No need in after-merge event, further commit event
             # is enough to avoid increasing events flow
             self._index.store(guid, doc.posts, self._preindex)
