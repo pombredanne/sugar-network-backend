@@ -65,24 +65,26 @@ def dump_volume(volume):
                 if meta is None or 'seqno' not in meta:
                     continue
                 if isinstance(prop, db.Aggregated):
-                    for aggid, value in doc.repr(name):
+                    for agg in doc.repr(name):
                         aggop = {
                             'method': 'POST',
-                            'path': [resource, doc.guid, name, aggid],
+                            'path': [resource, doc.guid, name, agg['key']],
                             }
-                        if isinstance(value, File):
-                            value.meta['op'] = aggop
-                            postfix.append(value)
+                        aggvalue = agg['value']
+                        if isinstance(aggvalue, File):
+                            aggvalue.meta['op'] = aggop
+                            postfix.append(aggvalue)
                         else:
-                            postfix.append({'op': aggop, 'content': value})
+                            postfix.append({'op': aggop, 'content': aggvalue})
                 elif prop.acl & (ACL.WRITE | ACL.CREATE):
                     if isinstance(prop, db.Blob):
                         blob = volume.blobs.get(doc[name])
-                        blob.meta['op'] = {
-                            'method': 'PUT',
-                            'path': [resource, doc.guid, name],
-                            }
-                        postfix.append(blob)
+                        if blob is not None:
+                            blob.meta['op'] = {
+                                'method': 'PUT',
+                                'path': [resource, doc.guid, name],
+                                }
+                            postfix.append(blob)
                     else:
                         if isinstance(prop, db.Reference):
                             keys.append(name)

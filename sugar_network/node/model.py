@@ -56,6 +56,7 @@ class _ReleaseValue(dict):
 
 class _Release(object):
 
+    _subcast = db.Dict()
     _package_subcast = db.Dict(db.List())
 
     def typecast(self, value):
@@ -70,6 +71,9 @@ class _Release(object):
         bundle = this.volume.blobs.post(value, this.request.content_type)
         __, value = load_bundle(bundle, context=this.request.guid)
         return value.guid, value
+
+    def reprcast(self, value):
+        return self._subcast.reprcast(value)
 
     def encode(self, value):
         return []
@@ -205,7 +209,7 @@ def diff_resource(in_r):
     blobs = []
 
     def add_blob(blob):
-        if not isinstance(blob, File):
+        if not isinstance(blob, File) or 'x-seqno' not in blob.meta:
             return
         seqno = int(blob.meta['x-seqno'])
         ranges.include(out_r, seqno, seqno)
@@ -215,8 +219,8 @@ def diff_resource(in_r):
         prop = doc.metadata[prop]
         value = prop.reprcast(meta['value'])
         if isinstance(prop, db.Aggregated):
-            for __, aggvalue in value:
-                add_blob(aggvalue)
+            for aggvalue in value:
+                add_blob(aggvalue['value'])
         else:
             add_blob(value)
 

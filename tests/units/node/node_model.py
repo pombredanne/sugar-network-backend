@@ -1132,6 +1132,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual(1, volume.release_seqno.value)
 
     def test_Packages(self):
+        self.override(time, 'time', lambda: 0)
         self.override(obs, 'get_repos', lambda: [
             {'lsb_id': 'Gentoo', 'lsb_release': '2.1', 'name': 'Gentoo-2.1', 'arches': ['x86', 'x86_64']},
             {'lsb_id': 'Debian', 'lsb_release': '6.0', 'name': 'Debian-6.0', 'arches': ['x86']},
@@ -1156,6 +1157,8 @@ class NodeModelTest(tests.Test):
             '*': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+                'ctime': 0,
+                'seqno': 3,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
@@ -1179,6 +1182,8 @@ class NodeModelTest(tests.Test):
             'Gentoo': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+                'ctime': 0,
+                'seqno': 5,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
@@ -1200,6 +1205,8 @@ class NodeModelTest(tests.Test):
             'Debian-6.0': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+                'ctime': 0,
+                'seqno': 7,
                 },
             'resolves': {
                 'Debian-6.0': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
@@ -1208,6 +1215,7 @@ class NodeModelTest(tests.Test):
             volume['context'][guid]['releases'])
 
     def test_UnresolvedPackages(self):
+        self.override(time, 'time', lambda: 0)
         self.override(obs, 'get_repos', lambda: [
             {'lsb_id': 'Gentoo', 'lsb_release': '2.1', 'name': 'Gentoo-2.1', 'arches': ['x86', 'x86_64']},
             ])
@@ -1230,6 +1238,8 @@ class NodeModelTest(tests.Test):
             '*': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
+                'ctime': 0,
+                'seqno': 3,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': 'resolve failed'},
@@ -1238,6 +1248,7 @@ class NodeModelTest(tests.Test):
             volume['context'][guid]['releases'])
 
     def test_PackageOverrides(self):
+        self.override(time, 'time', lambda: 0)
         self.override(obs, 'get_repos', lambda: [
             {'lsb_id': 'Gentoo', 'lsb_release': '2.1', 'name': 'Gentoo-2.1', 'arches': ['x86', 'x86_64']},
             {'lsb_id': 'Debian', 'lsb_release': '6.0', 'name': 'Debian-6.0', 'arches': ['x86']},
@@ -1259,6 +1270,8 @@ class NodeModelTest(tests.Test):
             '*': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
+                'ctime': 0,
+                'seqno': 3,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': '1'},
@@ -1274,10 +1287,14 @@ class NodeModelTest(tests.Test):
             '*': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
+                'ctime': 0,
+                'seqno': 3,
                 },
             'Debian': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['2']},
+                'ctime': 0,
+                'seqno': 4,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': '1'},
@@ -1293,14 +1310,20 @@ class NodeModelTest(tests.Test):
             '*': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
+                'ctime': 0,
+                'seqno': 3,
                 },
             'Debian': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['2']},
+                'ctime': 0,
+                'seqno': 4,
                 },
             'Debian-6.0': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['3']},
+                'ctime': 0,
+                'seqno': 5,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': '1'},
@@ -1316,14 +1339,20 @@ class NodeModelTest(tests.Test):
             '*': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['1']},
+                'ctime': 0,
+                'seqno': 3,
                 },
             'Debian': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['4']},
+                'ctime': 0,
+                'seqno': 6,
                 },
             'Debian-6.0': {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
                 'value': {'binary': ['3']},
+                'ctime': 0,
+                'seqno': 5,
                 },
             'resolves': {
                 'Gentoo-2.1': {'status': '1'},
@@ -1918,7 +1947,7 @@ class NodeModelTest(tests.Test):
             'content-type': 'application/vnd.olpc-sugar',
             'content-disposition': 'attachment; filename="Activity-1%s"' % (mimetypes.guess_extension('application/vnd.olpc-sugar') or ''),
             'content-length': str(len(bundle)),
-            'x-seqno': '6',
+            'x-seqno': '3',
             }, blobs.get(blob.digest).meta)
         self.assertEqual(bundle_id, context)
         self.assertEqual([[1], 0], release['version'])
@@ -1973,7 +2002,7 @@ class NodeModelTest(tests.Test):
             'content-type': 'application/pdf',
             'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
             'content-length': str(len(bundle)),
-            'x-seqno': '6',
+            'x-seqno': '3',
             }, blobs.get(blob.digest).meta)
         self.assertEqual(bundle_id, context)
         self.assertEqual([[2], 0], release['version'])

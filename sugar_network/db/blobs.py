@@ -172,7 +172,7 @@ class Blobs(object):
             return blob
 
     def delete(self, path):
-        self._delete(self.path(path), None)
+        self._delete(path, self.path(path), None)
 
     def wipe(self, path):
         path = self.path(path)
@@ -243,7 +243,7 @@ class Blobs(object):
         else:
             path = self._blob_path(patch.digest)
         if not patch.size:
-            self._delete(path, seqno)
+            self._delete(path.digest, path, seqno)
             return
         if not exists(dirname(path)):
             os.makedirs(dirname(path))
@@ -257,7 +257,9 @@ class Blobs(object):
         meta['x-seqno'] = str(seqno)
         _write_meta(path, meta, seqno)
 
-    def _delete(self, path, seqno):
+    def _delete(self, digest, path, seqno):
+        if digest.startswith('assets/'):
+            return
         if exists(path + _META_SUFFIX):
             if seqno is None:
                 seqno = self._seqno.next()

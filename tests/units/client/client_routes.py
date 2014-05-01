@@ -848,7 +848,7 @@ class ClientRoutesTest(tests.Test):
             'content2',
             'content3',
             ]),
-            sorted([''.join(ipc.download(i[1])) for i in ipc.get(['report', guid, 'logs'])]))
+            sorted([''.join(ipc.download(i['value'])) for i in ipc.get(['report', guid, 'logs'])]))
         assert not home_volume['report'][guid].exists
 
         self.stop_master()
@@ -872,7 +872,7 @@ class ClientRoutesTest(tests.Test):
             'content2',
             'content3',
             ]),
-            sorted([''.join(ipc.download(i[1])) for i in ipc.get(['report', guid, 'logs'])]))
+            sorted([''.join(ipc.download(i['value'])) for i in ipc.get(['report', guid, 'logs'])]))
         assert home_volume['report'][guid].exists
 
     def test_inline(self):
@@ -1092,14 +1092,14 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('1', local.get(['context', guid])['title'])
         coroutine.sleep(1.1)
 
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [3, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         remote.put(['context', guid, 'title'], '2')
         self.assertEqual('2', remote.get(['context', guid, 'title']))
         self.assertEqual('1', local.get(['context', guid])['title'])
 
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [3, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         self.assertEqual('2', local.get(['context'], reply='title')['result'][0]['title'])
@@ -1107,7 +1107,7 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('2', remote.get(['context', guid, 'title']))
         self.assertEqual('2', local.get(['context', guid])['title'])
 
-        self.assertEqual([[1, 1], [7, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [4, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
     def test_PullCheckinsOnGettingOnline(self):
@@ -1135,7 +1135,7 @@ class ClientRoutesTest(tests.Test):
         remote.put(['context', guid, 'title'], '2')
         self.assertEqual('2', remote.get(['context', guid, 'title']))
         self.assertEqual('1', local.get(['context', guid])['title'])
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [3, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         self.stop_master()
@@ -1144,7 +1144,7 @@ class ClientRoutesTest(tests.Test):
         self.wait_for_events(event='sync', state='done').wait()
 
         self.assertEqual('2', local.get(['context', guid])['title'])
-        self.assertEqual([[1, 1], [7, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [4, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
     def test_PullCheckinsOnUpdates(self):
@@ -1171,7 +1171,7 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('1', remote.get(['context', guid, 'summary']))
         self.assertEqual('1', local.get(['context', guid])['title'])
         self.assertEqual('1', local.get(['context', guid])['summary'])
-        self.assertEqual([[1, 1], [6, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [3, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
         local.put(['context', guid, 'summary'], '2')
@@ -1179,7 +1179,7 @@ class ClientRoutesTest(tests.Test):
         self.assertEqual('2', remote.get(['context', guid, 'summary']))
         self.assertEqual('2', local.get(['context', guid])['title'])
         self.assertEqual('2', local.get(['context', guid])['summary'])
-        self.assertEqual([[1, 1], [8, None]], self.client_routes._refresh_r.value)
+        self.assertEqual([[1, 1], [5, None]], self.client_routes._refresh_r.value)
         self.assertEqual(0, local_volume.seqno.value)
 
     def test_PushOfflineChanges(self):
@@ -1190,10 +1190,10 @@ class ClientRoutesTest(tests.Test):
         local = IPCConnection()
         remote = Connection()
 
-        guid1 = local.post(['context'], {'type': 'activity', 'title': '1', 'summary': '1', 'description': '1'})
-        guid2 = local.post(['context'], {'type': 'activity', 'title': '2', 'summary': '2', 'description': '2'})
+        guid1 = local.post(['context'], {'type': 'activity', 'title': '1', 'summary': '1', 'description': '1', 'icon': '1'})
+        guid2 = local.post(['context'], {'type': 'activity', 'title': '2', 'summary': '2', 'description': '2', 'icon': '2'})
         local.put(['context', guid2], {'summary': '2_'})
-        guid3 = local.post(['context'], {'type': 'activity', 'title': '3', 'summary': '3', 'description': '3'})
+        guid3 = local.post(['context'], {'type': 'activity', 'title': '3', 'summary': '3', 'description': '3', 'icon': '3'})
         local.delete(['context', guid3])
 
         assert not local_volume.empty

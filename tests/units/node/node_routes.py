@@ -409,6 +409,8 @@ class NodeRoutesTest(tests.Test):
         assert 'last-modified' not in response.headers
 
     def test_SubmitReleasesViaAggpropsIface(self):
+        ts = int(time.time())
+        self.override(time, 'time', lambda: ts)
         volume = self.start_master()
         conn = Connection()
 
@@ -443,6 +445,8 @@ class NodeRoutesTest(tests.Test):
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle1).hexdigest()), 'unpack_size': len(activity_info1)}},
                     'stability': 'stable',
                     },
+                'ctime': ts,
+                'seqno': 6,
                 },
             }, volume['context'][context]['releases'])
         assert volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
@@ -471,6 +475,8 @@ class NodeRoutesTest(tests.Test):
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle1).hexdigest()), 'unpack_size': len(activity_info1)}},
                     'stability': 'stable',
                     },
+                'ctime': ts,
+                'seqno': 6,
                 },
             release2: {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
@@ -483,6 +489,8 @@ class NodeRoutesTest(tests.Test):
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle2).hexdigest()), 'unpack_size': len(activity_info2)}},
                     'stability': 'stable',
                     },
+                'ctime': ts,
+                'seqno': 9,
                 },
             }, volume['context'][context]['releases'])
         assert volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
@@ -492,6 +500,8 @@ class NodeRoutesTest(tests.Test):
         self.assertEqual({
             release1: {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': ts,
+                'seqno': 11,
                 },
             release2: {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
@@ -504,6 +514,8 @@ class NodeRoutesTest(tests.Test):
                     'bundles': {'*-*': {'blob': str(hashlib.sha1(bundle2).hexdigest()), 'unpack_size': len(activity_info2)}},
                     'stability': 'stable',
                     },
+                'ctime': ts,
+                'seqno': 9,
                 },
             }, volume['context'][context]['releases'])
         assert not volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
@@ -513,9 +525,13 @@ class NodeRoutesTest(tests.Test):
         self.assertEqual({
             release1: {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': ts,
+                'seqno': 11,
                 },
             release2: {
                 'author': {tests.UID: {'name': 'test', 'order': 0, 'role': 3}},
+                'ctime': ts,
+                'seqno': 13,
                 },
             }, volume['context'][context]['releases'])
         assert not volume.blobs.get(str(hashlib.sha1(bundle1).hexdigest())).exists
@@ -540,6 +556,7 @@ class NodeRoutesTest(tests.Test):
                 ('topdir/activity/activity.info', activity_info),
                 ('topdir/CHANGELOG', changelog),
                 )
+        self.override(time, 'time', lambda: 0)
         release = json.load(conn.request('POST', ['context'], bundle, params={'cmd': 'submit', 'initial': True}).raw)
         announce = next(volume['post'].find(query='1', limit=1)[0]).guid
 
@@ -555,6 +572,8 @@ class NodeRoutesTest(tests.Test):
                     'commands': {'activity': {'exec': 'true'}},
                     'stability': 'developer',
                     },
+                'ctime': 0,
+                'seqno': 5,
                 },
             }, volume['context']['bundle_id']['releases'])
 

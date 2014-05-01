@@ -1639,42 +1639,42 @@ class DbRoutesTest(tests.Test):
         agg1 = this.call(method='POST', path=['document', guid, 'props'], content=-1)
         agg2 = this.call(method='POST', path=['document', guid, 'props'], content=None)
         agg3 = this.call(method='POST', path=['document', guid, 'props'], content={'foo': 'bar'})
+        this.call(method='DELETE', path=['document', guid, 'props', agg2])
 
         self.assertEqual({
             agg1: {'seqno': 2, 'ctime': 0, 'value': -1},
-            agg2: {'seqno': 3, 'ctime': 0, 'value': None},
+            agg2: {'seqno': 5, 'ctime': 0},
             agg3: {'seqno': 4, 'ctime': 0, 'value': {'foo': 'bar'}},
             },
             volume['document'][guid]['props'])
-        self.assertEqual({
-            agg1: -1,
-            agg2: None,
-            agg3: {'foo': 'bar'},
-            },
-            dict(this.call(method='GET', path=['document', guid, 'props'])))
-        self.assertEqual({
-            agg1: -1,
-            agg2: None,
-            agg3: {'foo': 'bar'},
-            },
-            dict(this.call(method='GET', path=['document', guid], reply=['props'])['props']))
-        self.assertEqual({
-            agg1: -1,
-            agg2: None,
-            agg3: {'foo': 'bar'},
-            },
-            dict(this.call(method='GET', path=['document'], reply=['props'])['result'][0]['props']))
+        self.assertEqual(
+                sorted([
+                    {'key': agg1, 'seqno': 2, 'ctime': 0, 'value': -1},
+                    {'key': agg3, 'seqno': 4, 'ctime': 0, 'value': {'foo': 'bar'}},
+                    ]),
+                sorted(this.call(method='GET', path=['document', guid, 'props'])))
+        self.assertEqual(
+                sorted([
+                    {'key': agg1, 'seqno': 2, 'ctime': 0, 'value': -1},
+                    {'key': agg3, 'seqno': 4, 'ctime': 0, 'value': {'foo': 'bar'}},
+                    ]),
+                sorted(this.call(method='GET', path=['document', guid], reply=['props'])['props']))
+        self.assertEqual(
+                sorted([
+                    {'key': agg1, 'seqno': 2, 'ctime': 0, 'value': -1},
+                    {'key': agg3, 'seqno': 4, 'ctime': 0, 'value': {'foo': 'bar'}},
+                    ]),
+                sorted(this.call(method='GET', path=['document'], reply=['props'])['result'][0]['props']))
 
         agg1 = this.call(method='POST', path=['document', guid, 'blobs'], content='1')
-        agg2 = this.call(method='POST', path=['document', guid, 'blobs'], content='2')
         agg3 = this.call(method='POST', path=['document', guid, 'blobs'], content='3')
 
-        self.assertEqual({
-            agg1: 'http://localhost/blobs/' + hashlib.sha1('1').hexdigest(),
-            agg2: 'http://localhost/blobs/' + hashlib.sha1('2').hexdigest(),
-            agg3: 'http://localhost/blobs/' + hashlib.sha1('3').hexdigest(),
-            },
-            dict(this.call(method='GET', path=['document', guid, 'blobs'], environ={'HTTP_HOST': 'localhost'})))
+        self.assertEqual(
+                sorted([
+                    {'key': agg1, 'seqno': 7, 'ctime': 0, 'value': 'http://localhost/blobs/' + hashlib.sha1('1').hexdigest()},
+                    {'key': agg3, 'seqno': 9, 'ctime': 0, 'value': 'http://localhost/blobs/' + hashlib.sha1('3').hexdigest()},
+                    ]),
+                sorted(this.call(method='GET', path=['document', guid, 'blobs'], environ={'HTTP_HOST': 'localhost'})))
 
     def test_FailOnAbsentAggprops(self):
 
