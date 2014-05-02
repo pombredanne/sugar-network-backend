@@ -315,11 +315,11 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
             top_context.guid, lsb_id, lsb_release, stability, top_requires,
             assume)
 
-    def rate_release(digest, release):
+    def rate_release(key, release):
         return [command in release.get('commands', []),
                 _STABILITY_RATES.get(release['stability']) or 0,
                 release['version'],
-                digest,
+                key,
                 ]
 
     def add_deps(v_usage, deps):
@@ -361,7 +361,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                 varset.append((context.guid, pkg_info))
         else:
             candidates = []
-            for digest, release in releases.items():
+            for key, release in releases.items():
                 if 'value' not in release:
                     continue
                 release = release['value']
@@ -369,21 +369,24 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                         context.guid == top_context.guid and \
                             not ensure_version(release['version'], top_cond):
                     continue
-                bisect.insort(candidates, rate_release(digest, release))
+                bisect.insort(candidates, rate_release(key, release))
             for release in reversed(candidates):
-                digest = release[-1]
-                release = releases[digest]['value']
+                release = releases[release[-1]]['value']
+                # TODO Assume we have only noarch bundles
+                bundle = release['bundles']['*-*']
+                blob = volume.blobs.get(bundle['blob'])
+                if blob is None:
+                    _logger.debug('Absent blob for %r release', release)
+                    continue
                 release_info = {
                         'title': i18n.decode(context['title'],
                             this.request.accept_language),
                         'version': release['version'],
-                        'blob': digest,
+                        'blob': blob,
+                        'size': blob.size,
+                        'content-type': blob.meta['content-type'],
                         }
-                blob = volume.blobs.get(digest)
-                if blob is not None:
-                    release_info['size'] = blob.size
-                    release_info['content-type'] = blob.meta['content-type']
-                unpack_size = release['bundles']['*-*'].get('unpack_size')
+                unpack_size = bundle.get('unpack_size')
                 if unpack_size is not None:
                     release_info['unpack_size'] = unpack_size
                 requires = release.get('requires') or {}

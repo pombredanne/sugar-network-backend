@@ -98,7 +98,7 @@ class Injector(object):
                 self._progress_in(ctx)
             releases.extend(solution.values())
             release = solution[ctx]
-            return release, self._pool.path(release['blob'])
+            return release, self._pool.path(release['blob'].split('/')[-1])
 
         try:
             yield {'event': 'launch', 'state': 'solve'}
@@ -258,8 +258,10 @@ class Injector(object):
         size = 0
 
         for release in solution:
-            digest = release.get('blob')
-            if not digest or exists(self._pool.path(digest)):
+            if 'blob' not in release:
+                continue
+            digest = release.get('blob').split('/')[-1]
+            if exists(self._pool.path(digest)):
                 continue
             enforce(self._api is not None, 'Cannot download in offline')
             download_size = max(download_size, release['size'])
@@ -338,9 +340,9 @@ class _PreemptivePool(object):
         if self._lru is None:
             self._init()
         for release in solution:
-            digest = release.get('blob')
-            if not digest:
+            if 'blob' not in release:
                 continue
+            digest = release.get('blob').split('/')[-1]
             path = join(self._root, digest)
             if not exists(path):
                 continue
@@ -354,8 +356,10 @@ class _PreemptivePool(object):
             self._init()
         found = False
         for release in solution:
-            digest = release.get('blob')
-            if digest and digest in self._lru:
+            if 'blob' not in release:
+                continue
+            digest = release.get('blob').split('/')[-1]
+            if digest in self._lru:
                 self._pop(digest, False)
                 found = True
         return found

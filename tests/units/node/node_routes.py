@@ -630,7 +630,7 @@ class NodeRoutesTest(tests.Test):
         self.assertEqual({
             'activity': {
                 'title': 'activity',
-                'blob': activity_blob,
+                'blob': 'http://127.0.0.1:7777/blobs/' + activity_blob,
                 'command': ['activity', 'true'],
                 'version': [[1], 0],
                 'size': len(activity_pack),
@@ -639,7 +639,7 @@ class NodeRoutesTest(tests.Test):
                 },
             'dep': {
                 'title': 'dep',
-                'blob': dep_blob,
+                'blob': 'http://127.0.0.1:7777/blobs/' + dep_blob,
                 'version': [[2], 0],
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),
@@ -710,7 +710,7 @@ class NodeRoutesTest(tests.Test):
         self.assertEqual({
             'activity': {
                 'title': 'activity',
-                'blob': activity_blob,
+                'blob': 'http://127.0.0.1:7777/blobs/' + activity_blob,
                 'command': ['activity', 'true'],
                 'version': [[1], 0],
                 'size': len(activity_pack),
@@ -719,7 +719,7 @@ class NodeRoutesTest(tests.Test):
                 },
             'dep': {
                 'title': 'dep',
-                'blob': dep_blob,
+                'blob': 'http://127.0.0.1:7777/blobs/' + dep_blob,
                 'version': [[2], 0],
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),

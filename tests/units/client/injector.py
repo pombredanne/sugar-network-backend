@@ -370,7 +370,7 @@ class InjectorTest(tests.Test):
 
         solution = {
             'context': {
-                'blob': release,
+                'blob': 'http://127.0.0.1:7777/blobs/' + release,
                 'command': ['activity', 'true'],
                 'content-type': 'application/vnd.olpc-sugar',
                 'size': len(activity_bundle),
@@ -426,7 +426,7 @@ class InjectorTest(tests.Test):
         conn.delete(['context', 'context'])
         assert 'context' in injector._solve('context', 'stable')
         os.unlink('client/solutions/context')
-        self.assertRaises(http.NotFound, injector._solve, 'context', 'stable')
+        self.assertRaises(RuntimeError, injector._solve, 'context', 'stable')
 
     def test_solve_InvalidateCachedSolution(self):
         self.fork_master()
@@ -592,7 +592,7 @@ class InjectorTest(tests.Test):
                 'unpack_size': len(activity_info),
                 'version': [[1], 0],
                 'command': ['activity', 'true'],
-                'blob': release,
+                'blob': 'http://127.0.0.1:7777/blobs/' + release,
                 'size': len(activity_bundle),
                 'content-type': 'application/vnd.olpc-sugar',
                 }}],
@@ -734,7 +734,7 @@ class InjectorTest(tests.Test):
                         'title': 'Activity',
                         'command': ['activity', 'true'],
                         'content-type': 'application/vnd.olpc-sugar',
-                        'blob': hashlib.sha1(activity_bundle).hexdigest(),
+                        'blob': 'http://127.0.0.1:7777/blobs/' + hashlib.sha1(activity_bundle).hexdigest(),
                         'size': len(activity_bundle),
                         'unpack_size': len(activity_info),
                         'version': [[1], 0],

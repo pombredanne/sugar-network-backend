@@ -712,7 +712,7 @@ class ClientRoutesTest(tests.Test):
             {'activity_id': 'activity_id'},
             {'event': 'launch', 'state': 'init'},
             {'event': 'launch', 'state': 'solve'},
-            {'error': 'Context not found', 'event': 'failure', 'exception': 'NotFound'},
+            {'error': 'Failed to solve', 'event': 'failure', 'exception': 'RuntimeError'},
             ],
             [i for i in ipc.get(['context', 'context'], cmd='launch')])
 
@@ -758,7 +758,7 @@ class ClientRoutesTest(tests.Test):
                     ],
                 'solution': {
                     'context2': {
-                        'blob': release,
+                        'blob': 'http://127.0.0.1:7777/blobs/' + release,
                         'command': ['activity', 'false'],
                         'content-type': 'application/vnd.olpc-sugar',
                         'size': len(activity_bundle),
@@ -808,7 +808,7 @@ class ClientRoutesTest(tests.Test):
                     ],
                 'solution': {
                     'context2': {
-                        'blob': release,
+                        'blob': 'http://127.0.0.1:7777/blobs/' + release,
                         'command': ['activity', 'false'],
                         'content-type': 'application/vnd.olpc-sugar',
                         'size': len(activity_bundle),
