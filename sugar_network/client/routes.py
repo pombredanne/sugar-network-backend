@@ -14,7 +14,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import json
 import logging
+from urlparse import urlsplit
 from httplib import IncompleteRead
 from os.path import join
 
@@ -303,8 +305,16 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         def handshake(url):
             _logger.debug('Connecting to %r node', url)
             self._remote = client.Connection(url, creds=self._creds)
-            status = self._remote.get(cmd='status')
-            seqno = status.get('seqno')
+
+            reply = self._remote.request('GET', params={'cmd': 'status'})
+            reply_url = urlsplit(reply.url)
+            reply_url = '%s://%s' % (reply_url.scheme, reply_url.netloc)
+            if reply_url != url:
+                _logger.info('Replace %r API url by %r',
+                        self._remote.url, reply_url)
+                self._remote.url = reply_url
+
+            seqno = json.loads(reply.content).get('seqno')
             if seqno and 'releases' in seqno:
                 this.injector.seqno = seqno['releases']
             if self.inline():
