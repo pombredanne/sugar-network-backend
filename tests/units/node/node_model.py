@@ -1910,6 +1910,24 @@ class NodeModelTest(tests.Test):
             })
         self.assertEqual(None, model.solve(volume, context))
 
+    def test_solve_IgnoreAbsentContexts(self):
+        volume = Volume('master', [Context])
+        this.volume = volume
+
+        volume['context'].create({
+            'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                '2': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}},
+                    'requires': spec.parse_requires('absent'), 'commands': {'activity': {'exec': 2}}}},
+                '1': {'value': {'bundles': {'*-*': {}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}},
+                    'commands': {'activity': {'exec': 1}}}},
+                },
+            })
+
+        self.assertEqual({
+            'context': {'title': '', 'blob': '1', 'version': [[1], 0], 'command': ('activity', 1)},
+            },
+            model.solve(volume, 'context'))
+
     def test_load_bundle_Activity(self):
         volume = self.start_master()
         blobs = volume.blobs

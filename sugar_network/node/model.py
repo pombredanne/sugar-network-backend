@@ -334,7 +334,11 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         if context in context_clauses:
             return context_clauses[context]
         context = volume['context'][context]
-        enforce(context.available, http.NotFound, 'Context not found')
+
+        if not context.available:
+            _logger.trace('No %r context', context.guid)
+            return []
+
         releases = context['releases']
         clause = []
 
