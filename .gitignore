@@ -14,3 +14,4 @@ sugar_network/lib/requests/build/**
 sugar_network/lib/requests/docs/**
 sugar_network/lib/requests/tests/**
 sugar_network/toolkit/languages.py
+sugar_network/__init__.py

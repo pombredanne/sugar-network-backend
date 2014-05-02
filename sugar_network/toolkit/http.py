@@ -16,9 +16,10 @@
 import sys
 import json
 import logging
+import platform
 from os.path import join, dirname
 
-from sugar_network import toolkit
+from sugar_network import toolkit, version
 from sugar_network.toolkit import i18n, enforce
 
 
@@ -331,6 +332,12 @@ class Connection(object):
         self._session = Connection._Session()
         self._session.headers['accept-language'] = \
                 ','.join(i18n.default_langs())
+        self._session.headers['user-agent'] = \
+                'sugar-network-client/%s %s/%s' % (
+                        version,
+                        platform.system(),
+                        platform.release(),
+                        )
         for arg, value in self._session_args.items():
             setattr(self._session, arg, value)
         self._session.stream = True
