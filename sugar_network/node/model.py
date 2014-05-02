@@ -286,7 +286,7 @@ def apply_batch(path):
 
 
 def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
-        stability=None, requires=None):
+        stability=None, requires=None, assume=None):
     top_context = volume['context'][top_context]
     if stability is None:
         stability = ['stable']
@@ -309,8 +309,11 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
     context_clauses = {}
     clauses = []
 
-    _logger.debug('Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r',
-            top_context.guid, lsb_id, lsb_release, stability, top_requires)
+    _logger.debug(
+            'Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r '
+            'assume=%r',
+            top_context.guid, lsb_id, lsb_release, stability, top_requires,
+            assume)
 
     def rate_release(digest, release):
         return [command in release.get('commands', []),
@@ -336,25 +339,22 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         clause = []
 
         if 'package' in context['type']:
-            pkg_lst = None
-            pkg_ver = []
-            pkg = None
-            if 'resolves' in releases:
-                pkg = releases['resolves']['value'].get(lsb_distro)
-            if pkg:
-                pkg_ver = pkg['version']
-                pkg_lst = pkg['packages']
+            pkg_info = {}
+            if assume and context.guid in assume:
+                pkg_info['version'] = assume[context.guid]
+            elif 'resolves' in releases and \
+                    lsb_distro in releases['resolves']['value']:
+                pkg = releases['resolves']['value'][lsb_distro]
+                pkg_info['version'] = pkg['version']
+                pkg_info['packages'] = pkg['packages']
             else:
                 alias = releases.get(lsb_id) or releases.get('*')
                 if alias:
-                    alias = alias['value']
-                    pkg_lst = alias.get('binary', []) + alias.get('devel', [])
-            if pkg_lst:
+                    pkg_info['version'] = []
+                    pkg_info['packages'] = alias['value']['binary']
+            if pkg_info:
                 clause.append(len(varset))
-                varset.append((
-                    context.guid,
-                    {'version': pkg_ver, 'packages': pkg_lst},
-                    ))
+                varset.append((context.guid, pkg_info))
         else:
             candidates = []
             for digest, release in releases.items():
@@ -408,6 +408,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
     if not top_clause:
         _logger.debug('No versions for %r', top_context.guid)
         return None
+
     result = sat.solve(clauses + [top_clause], context_clauses)
     if not result:
         _logger.debug('Failed to solve %r', top_context.guid)

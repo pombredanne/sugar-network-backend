@@ -18,7 +18,6 @@
 import os
 import re
 import json
-import time
 import shutil
 import logging
 from os.path import join, exists
@@ -26,12 +25,11 @@ from os.path import join, exists
 from sugar_network import db, toolkit
 from sugar_network.model import FrontRoutes
 from sugar_network.node import model
-from sugar_network.toolkit.router import ACL, File, Request, Response, route
+from sugar_network.toolkit.router import ACL, File, route
 from sugar_network.toolkit.router import fallbackroute, preroute, postroute
-from sugar_network.toolkit.spec import parse_requires, parse_version
-from sugar_network.toolkit.bundle import Bundle
+from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, coroutine, ranges, packets, enforce
+from sugar_network.toolkit import http, coroutine, ranges, enforce
 
 
 _GROUPED_DIFF_LIMIT = 1024
@@ -160,9 +158,15 @@ class NodeRoutes(db.Routes, FrontRoutes):
         return blob.digest
 
     @route('GET', ['context', None], cmd='solve',
-            arguments={'requires': list, 'stability': list},
+            arguments={'requires': list, 'stability': list, 'assume': list},
             mime_type='application/json')
-    def solve(self):
+    def solve(self, assume=None):
+        assume_ = this.request['assume'] = {}
+        for item in assume or []:
+            enforce('-' in item, http.BadRequest,
+                    "'assume' should be formed as '<CONTEXT>-<VERSION>")
+            context, version = item.split('-', 1)
+            assume_[context] = parse_version(version)
         solution = model.solve(self.volume, this.request.guid, **this.request)
         enforce(solution is not None, 'Failed to solve')
         return solution

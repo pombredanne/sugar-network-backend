@@ -6,6 +6,7 @@
 - pull node changes periodically for checked-in contexts
 - refount blobs on node and client sides to delete orphaned ones
 - secure node-to-node sync
+- detailed error messages for broken solves
 
 v1.0
 ====

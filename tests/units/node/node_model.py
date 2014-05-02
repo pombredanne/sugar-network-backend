@@ -1830,7 +1830,7 @@ class NodeModelTest(tests.Test):
             })
         self.assertEqual({
             'context': {'title': '', 'blob': '1', 'command': ('activity', 'command'), 'version': [[1], 0]},
-            'package1': {'packages': ['bin1', 'bin2', 'devel1', 'devel2'], 'version': []},
+            'package1': {'packages': ['bin1', 'bin2'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu'))
 
