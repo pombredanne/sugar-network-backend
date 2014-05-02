@@ -111,7 +111,7 @@ class ObsTest(tests.Test):
             ('http://pkg2-2.prm', ['4']),
             ]))
 
-        obs.presolve(None, ['pkg1', 'pkg2'], '.')
+        obs.presolve('Fedora-14', ['pkg1', 'pkg2'], '.')
 
         self.assertEqual({
             'arch': [

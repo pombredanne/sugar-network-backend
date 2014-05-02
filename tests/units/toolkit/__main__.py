@@ -15,6 +15,7 @@ from i18n import *
 from sat import *
 from packets import *
 from ranges import *
+from packagekit import *
 
 if __name__ == '__main__':
     tests.main()

@@ -12,11 +12,11 @@ from os.path import exists, join, basename
 from __init__ import tests
 
 from sugar_network import db, client
-from sugar_network.client import Connection, api, packagekit, injector as injector_, model
+from sugar_network.client import Connection, api, injector as injector_, model
 from sugar_network.client.injector import _PreemptivePool, Injector
 from sugar_network.client.model import Volume as LocalVolume
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import http, lsb_release
+from sugar_network.toolkit import http, lsb_release, packagekit
 
 
 class InjectorTest(tests.Test):
@@ -880,16 +880,16 @@ class InjectorTest(tests.Test):
             distro = '%s-%s' % (lsb_release.distributor_id(), lsb_release.release())
             volume['context'].create({
                 'guid': 'package1', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                    'resolves': {
+                    'resolves': {'value': {
                         distro: {'version': [[1], 0], 'packages': ['pkg1', 'pkg2']},
-                        },
+                        }},
                     },
                 })
             volume['context'].create({
                 'guid': 'package2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                    'resolves': {
+                    'resolves': {'value': {
                         distro: {'version': [[1], 0], 'packages': ['pkg3', 'pkg4']},
-                        },
+                        }},
                     },
                 })
 

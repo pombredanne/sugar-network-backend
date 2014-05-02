@@ -1160,11 +1160,11 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 3,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
                 'Debian-6.0': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
                 'Debian-7.0': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1185,9 +1185,9 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 5,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1208,9 +1208,9 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 7,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Debian-6.0': {'status': 'success', 'packages': ['pkg1.bin', 'pkg2.bin', 'pkg3.devel'], 'version': [[1, 0], 0]},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1241,9 +1241,9 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 3,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': 'resolve failed'},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1273,11 +1273,11 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 3,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': '1'},
                 'Debian-6.0': {'status': '1'},
                 'Debian-7.0': {'status': '1'},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1296,11 +1296,11 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 4,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': '1'},
                 'Debian-6.0': {'status': '2'},
                 'Debian-7.0': {'status': '2'},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1325,11 +1325,11 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 5,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': '1'},
                 'Debian-6.0': {'status': '3'},
                 'Debian-7.0': {'status': '2'},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1354,11 +1354,11 @@ class NodeModelTest(tests.Test):
                 'ctime': 0,
                 'seqno': 5,
                 },
-            'resolves': {
+            'resolves': {'value': {
                 'Gentoo-2.1': {'status': '1'},
                 'Debian-6.0': {'status': '3'},
                 'Debian-7.0': {'status': '4'},
-                },
+                }},
             },
             volume['context'][guid]['releases'])
 
@@ -1781,9 +1781,9 @@ class NodeModelTest(tests.Test):
             })
         volume['context'].create({
             'guid': 'package', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                'resolves': {
+                'resolves': {'value': {
                     'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['pkg1', 'pkg2']},
-                    },
+                    }},
                 },
             })
         self.assertEqual({
@@ -1844,9 +1844,9 @@ class NodeModelTest(tests.Test):
         volume['context'].create({
             'guid': 'package2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
                 'Ubuntu': {'value': {'binary': ['bin']}},
-                'resolves': {
+                'resolves': {'value': {
                     'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['pkg1', 'pkg2']},
-                    },
+                    }},
                 },
             })
         self.assertEqual({
@@ -1871,9 +1871,9 @@ class NodeModelTest(tests.Test):
             'guid': 'package1', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
                 '*': {'value': {'binary': ['pkg1']}},
                 'Ubuntu': {'value': {'binary': ['pkg2']}},
-                'resolves': {
+                'resolves': {'value': {
                     'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['pkg3']},
-                    },
+                    }},
                 },
             })
         self.assertEqual({

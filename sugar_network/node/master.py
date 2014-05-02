@@ -19,9 +19,9 @@ from urlparse import urlsplit
 from sugar_network import toolkit
 from sugar_network.model.post import Post
 from sugar_network.model.report import Report
-from sugar_network.node import obs, model
+from sugar_network.node import model
 from sugar_network.node.routes import NodeRoutes
-from sugar_network.toolkit.router import route, ACL
+from sugar_network.toolkit.router import route
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, packets, pylru, ranges, enforce
 
@@ -54,13 +54,6 @@ class MasterRoutes(NodeRoutes):
             return None
         return packets.encode(reply, limit=accept_length,
                 header={'from': self.guid}, on_complete=this.cookie.clear)
-
-    @route('PUT', ['context', None], cmd='presolve',
-            acl=ACL.AUTH, mime_type='application/json')
-    def presolve(self):
-        aliases = this.volume['context'].get(this.request.guid)['aliases']
-        enforce(aliases, http.BadRequest, 'Nothing to presolve')
-        return obs.presolve(None, aliases, this.volume.blobs.path('packages'))
 
     def status(self):
         result = NodeRoutes.status(self)

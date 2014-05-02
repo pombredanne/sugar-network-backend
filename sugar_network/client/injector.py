@@ -24,12 +24,12 @@ import logging
 from os.path import exists, join
 
 from sugar_network import toolkit
-from sugar_network.client import packagekit, journal, profile_path
+from sugar_network.client import journal, profile_path
 from sugar_network.toolkit.spec import format_version
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import lsb_release, coroutine, i18n, pylru, http
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import packagekit, enforce
 
 
 _PREEMPTIVE_POOL_SIZE = 256

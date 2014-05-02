@@ -54,6 +54,29 @@ def install(names):
                 resp.error_details, resp.error_code)
 
 
+def cleanup_distro_version(version):
+    if ':' in version:
+        # Skip 'epoch'
+        version = version.split(':', 1)[1]
+    version = version.replace('_', '-')
+    if '~' in version:
+        version, suffix = version.split('~', 1)
+        if suffix.startswith('pre'):
+            suffix = suffix[3:]
+        suffix = '-pre' + (cleanup_distro_version(suffix) or '')
+    else:
+        suffix = ''
+    match = _VERSION_RE.match(version)
+    if match:
+        major, version, revision = match.groups()
+        if major is not None:
+            version = major[:-1].rstrip('.') + '.' + version
+        if revision is not None:
+            version = '%s-%s' % (version, revision[2:])
+        return version + suffix
+    return None
+
+
 def _resolve(names):
     result = {}
 
@@ -106,7 +129,7 @@ def _pk(result, op, *args):
 
     def Package_cb(status, pk_id, summary):
         package_name, version, arch, __ = pk_id.split(';')
-        clean_version = _cleanup_distro_version(version)
+        clean_version = cleanup_distro_version(version)
         if not clean_version:
             _logger.warn('Cannot parse distribution version "%s" '
                     'for package "%s"', version, package_name)
@@ -157,29 +180,6 @@ def _canonicalize_machine(arch):
         return 'ppc'
     elif arch == 'i86pc':
         return 'i686'
-
-
-def _cleanup_distro_version(version):
-    if ':' in version:
-        # Skip 'epoch'
-        version = version.split(':', 1)[1]
-    version = version.replace('_', '-')
-    if '~' in version:
-        version, suffix = version.split('~', 1)
-        if suffix.startswith('pre'):
-            suffix = suffix[3:]
-        suffix = '-pre' + (_cleanup_distro_version(suffix) or '')
-    else:
-        suffix = ''
-    match = _VERSION_RE.match(version)
-    if match:
-        major, version, revision = match.groups()
-        if major is not None:
-            version = major[:-1].rstrip('.') + '.' + version
-        if revision is not None:
-            version = '%s-%s' % (version, revision[2:])
-        return version + suffix
-    return None
 
 
 _DOTTED_RE = r'[0-9]+(?:\.[0-9]+)*'

@@ -29,18 +29,18 @@ from sugar_network.model import ICON_SIZE, LOGO_SIZE
 from sugar_network.node import obs
 from sugar_network.node.auth import Principal
 from sugar_network.toolkit.router import ACL, File, Request, Response
-from sugar_network.toolkit.coroutine import Queue, this
+from sugar_network.toolkit.coroutine import Queue, Empty, this
 from sugar_network.toolkit.spec import EMPTY_LICENSE, ensure_version
 from sugar_network.toolkit.spec import parse_requires, parse_version
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import sat, http, i18n, ranges, packets
+from sugar_network.toolkit import sat, http, i18n, ranges, packets, packagekit
 from sugar_network.toolkit import svg_to_png, enforce
 
 
 BATCH_SUFFIX = '.meta'
 
 _logger = logging.getLogger('node.model')
-_presolve_queue = None
+_presolve_queue = Queue()
 
 
 class User(_user.User):
@@ -64,9 +64,11 @@ class _Release(object):
             return value.guid, value
         doc = this.volume['context'][this.request.guid]
         if 'package' in doc['type']:
+            enforce(this.request.key, http.BadRequest, 'No distro in path')
             value = _ReleaseValue(self._package_subcast.typecast(value))
             value.guid = this.request.key
-            _resolve_package_alias(doc, value)
+            resolve_package(doc, this.request.key, value)
+            doc.post('releases')
             return value
         bundle = this.volume.blobs.post(value, this.request.content_type)
         __, value = load_bundle(bundle, context=this.request.guid)
@@ -336,7 +338,9 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         if 'package' in context['type']:
             pkg_lst = None
             pkg_ver = []
-            pkg = releases.get('resolves', {}).get(lsb_distro)
+            pkg = None
+            if 'resolves' in releases:
+                pkg = releases['resolves']['value'].get(lsb_distro)
             if pkg:
                 pkg_ver = pkg['version']
                 pkg_lst = pkg['packages']
@@ -418,12 +422,61 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
     return solution
 
 
-def presolve(presolve_path):
-    global _presolve_queue
-    _presolve_queue = Queue()
+def resolve_package(doc, distro, alias):
+    enforce(alias.get('binary'), http.BadRequest, 'No binary aliases')
 
-    for repo_name, pkgs in _presolve_queue:
-        obs.presolve(repo_name, pkgs, presolve_path)
+    if distro == '*':
+        lsb_id = None
+        lsb_release = None
+    elif '-' in distro:
+        lsb_id, lsb_release = distro.split('-', 1)
+    else:
+        lsb_id = distro
+        lsb_release = None
+    releases = doc['releases']
+    resolves = releases['resolves']['value'] if 'resolves' in releases else {}
+    to_presolve = []
+
+    for repo in obs.get_repos():
+        if lsb_id and lsb_id != repo['lsb_id'] or \
+                lsb_release and lsb_release != repo['lsb_release']:
+            continue
+        # Make sure there are no alias overrides
+        if not lsb_id and repo['lsb_id'] in releases or \
+                not lsb_release and repo['name'] in releases:
+            continue
+        pkgs = sum([alias.get(i, []) for i in ('binary', 'devel')], [])
+        version = None
+        try:
+            for arch in repo['arches']:
+                version = obs.resolve(repo['name'], arch, pkgs)['version']
+        except Exception, error:
+            _logger.warning('Failed to resolve %r on %s',
+                    pkgs, repo['name'])
+            resolve = {'status': str(error)}
+        else:
+            to_presolve.append((repo['name'], pkgs))
+            version = packagekit.cleanup_distro_version(version)
+            resolve = {
+                    'version': parse_version(version),
+                    'packages': pkgs,
+                    'status': 'success',
+                    }
+        resolves.setdefault(repo['name'], {}).update(resolve)
+
+    if to_presolve and _presolve_queue is not None:
+        _presolve_queue.put(to_presolve)
+    doc.posts.setdefault('releases', {})['resolves'] = {'value': resolves}
+
+
+def presolve(presolve_path, **pop_kwargs):
+    while True:
+        try:
+            value = _presolve_queue.get(**pop_kwargs)
+        except Empty:
+            break
+        for repo_name, pkgs in value:
+            obs.presolve(repo_name, pkgs, presolve_path)
 
 
 def load_bundle(blob, context=None, initial=False, extra_deps=None,
@@ -622,54 +675,6 @@ def _load_context_metadata(bundle, spec):
                 _logger.exception('Gettext failed to read %r', mo_path[-1])
 
     return result, icon_svg
-
-
-def _resolve_package_alias(doc, value):
-    enforce(value.get('binary'), http.BadRequest, 'No binary aliases')
-
-    distro = this.request.key
-    enforce(distro, http.BadRequest, 'No distro in path')
-    if distro == '*':
-        lsb_id = None
-        lsb_release = None
-    elif '-' in this.request.key:
-        lsb_id, lsb_release = distro.split('-', 1)
-    else:
-        lsb_id = distro
-        lsb_release = None
-    releases = doc['releases']
-    resolves = releases.get('resolves') or {}
-    to_presolve = []
-
-    for repo in obs.get_repos():
-        if lsb_id and lsb_id != repo['lsb_id'] or \
-                lsb_release and lsb_release != repo['lsb_release']:
-            continue
-        # Make sure there are no alias overrides
-        if not lsb_id and repo['lsb_id'] in releases or \
-                not lsb_release and repo['name'] in releases:
-            continue
-        pkgs = sum([value.get(i, []) for i in ('binary', 'devel')], [])
-        version = None
-        try:
-            for arch in repo['arches']:
-                version = obs.resolve(repo['name'], arch, pkgs)['version']
-        except Exception, error:
-            _logger.warning('Failed to resolve %r on %s',
-                    pkgs, repo['name'])
-            resolve = {'status': str(error)}
-        else:
-            to_presolve.append((repo['name'], pkgs))
-            resolve = {
-                    'version': parse_version(version),
-                    'packages': pkgs,
-                    'status': 'success',
-                    }
-        resolves.setdefault(repo['name'], {}).update(resolve)
-
-    if to_presolve and _presolve_queue is not None:
-        _presolve_queue.put(to_presolve)
-    doc.post('releases', {'resolves': resolves})
 
 
 def _generate_icons(svg, props):

@@ -208,7 +208,11 @@ class Resource(object):
             patch[prop] = value
         return patch
 
-    def post(self, prop, value, **meta):
+    def post(self, prop, value=None, **meta):
+        if value is None:
+            if prop not in self.posts:
+                return
+            value = self.posts[prop]
         prop = self.metadata[prop]
         if prop.on_set is not None:
             value = prop.on_set(self, value)

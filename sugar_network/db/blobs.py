@@ -243,7 +243,7 @@ class Blobs(object):
         else:
             path = self._blob_path(patch.digest)
         if not patch.size:
-            self._delete(path.digest, path, seqno)
+            self._delete(patch.digest, path, seqno)
             return
         if not exists(dirname(path)):
             os.makedirs(dirname(path))

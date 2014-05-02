@@ -19,15 +19,14 @@ import os
 import locale
 import gettext
 import logging
-from os.path import exists
+from os.path import exists, join
 
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
 from sugar_network import db, node, toolkit
 from sugar_network.node.auth import SugarAuth
-from sugar_network.node.model import Volume
-from sugar_network.node import obs, master, slave
+from sugar_network.node import obs, master, slave, model
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import application, Option, enforce
@@ -66,7 +65,7 @@ class Application(application.Daemon):
             node_routes_class = slave.SlaveRoutes
             resources = slave.RESOURCES
             logging.info('Start slave node')
-        volume = Volume(node.data_root.value, resources)
+        volume = model.Volume(node.data_root.value, resources)
         node_routes = node_routes_class(node.master_api.value,
                 volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
@@ -101,6 +100,26 @@ class Application(application.Daemon):
         enforce(self.args, 'PATH was not specified')
         path = self.args.pop(0)
         self._ensure_instance().post(cmd='offline-sync', path=path)
+
+    @application.command(
+            'resolve/presolve packages for all package-type Contexts',
+            name='resolve')
+    def resolve(self):
+        enforce(not self.check_for_instance(), 'Node should be stopped')
+        enforce(node.mode.value == 'master', 'Node is not master')
+        volume = model.Volume(node.data_root.value, master.RESOURCES)
+        try:
+            for doc in volume['context']:
+                if 'package' not in doc['type']:
+                    continue
+                for key, agg in doc['releases'].items():
+                    if key == 'resolves' or 'value' not in agg:
+                        continue
+                    model.resolve_package(doc, key, agg['value'])
+                doc.post('releases')
+        finally:
+            volume.close()
+        model.presolve(join(node.data_root.value, 'files'), block=False)
 
     def _ensure_instance(self):
         enforce(self.check_for_instance(), 'Node is not started')

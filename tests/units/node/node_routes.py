@@ -702,10 +702,10 @@ class NodeRoutesTest(tests.Test):
             'description': 'description',
             }, principal=Principal('admin', 0xF))
         volume['context'].update('package', {'releases': {
-            'resolves': {
+            'resolves': {'value': {
                 'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['package.bin']},
                 'Ubuntu-12.04': {'version': [[2], 0], 'packages': ['package-fake.bin']},
-            }}})
+            }}}})
 
         self.assertEqual({
             'activity': {

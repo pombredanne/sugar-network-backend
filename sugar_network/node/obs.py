@@ -56,6 +56,9 @@ def resolve(repo, arch, packages):
 
 
 def presolve(repo_name, packages, dst_path):
+    # TODO The only repo is OLPC which is Fedora-14 based
+    if repo_name != 'Fedora-14':
+        return
     for repo in _get_repos(obs_presolve_project.value):
         dst_dir = join(dst_path, 'packages',
                 obs_presolve_project.value, repo['name'])
@@ -68,7 +71,7 @@ def presolve(repo_name, packages, dst_path):
                 for repo_arch in repo['arches']:
                     response = _request('GET', ['resolve'], params={
                         'project': obs_presolve_project.value,
-                        'repository': '%(lsb_id)s-%(lsb_release)s' % repo,
+                        'repository': repo['name'],
                         'arch': repo_arch,
                         'package': package,
                         'withdeps': '1',
@@ -129,14 +132,13 @@ def _get_repos(project):
 
     repos = _repos[project] = []
     for repo in _request('GET', ['build', project]).findall('entry'):
-        repo = repo.get('name')
-        arches = _request('GET', ['build', project, repo])
-        lsb_id, lsb_release = repo.split('-', 1)
-        repos.append({
-            'lsb_id': lsb_id,
-            'lsb_release': lsb_release,
-            'name': repo,
-            'arches': [i.get('name') for i in arches.findall('entry')],
-            })
+        name = repo.get('name')
+        arches = _request('GET', ['build', project, name])
+        info = {'name': name,
+                'arches': [i.get('name') for i in arches.findall('entry')],
+                }
+        if '-' in name:
+            info['lsb_id'], info['lsb_release'] = name.split('-', 1)
+        repos.append(info)
 
     return repos
