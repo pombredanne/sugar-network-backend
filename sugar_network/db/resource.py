@@ -16,7 +16,7 @@
 import time
 
 from sugar_network.db.metadata import indexed_property, Localized
-from sugar_network.db.metadata import Numeric, List, Authors, Enum
+from sugar_network.db.metadata import Numeric, List, Author, Enum
 from sugar_network.db.metadata import Composite, Aggregated
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit import ranges
@@ -67,7 +67,7 @@ class Resource(object):
     def mtime(self, value):
         return value
 
-    @indexed_property(Authors, prefix='RA', default={}, full_text=True,
+    @indexed_property(Author, prefix='RA', default={}, full_text=True,
             acl=ACL.READ)
     def author(self, value):
         return value

@@ -413,38 +413,14 @@ class Guid(Property):
                 acl=ACL.CREATE | ACL.READ)
 
 
-class Authors(Dict):
+class Author(Dict):
 
-    def typecast(self, value):
-        if type(value) not in (list, tuple):
-            return dict(value)
-        result = {}
-        for order, author in enumerate(value):
-            user = author.pop('guid')
-            author['order'] = order
-            result[user] = author
-        return result
-
-    def reprcast(self, value):
-        result = []
-        for guid, props in sorted(value.items(),
-                cmp=lambda x, y: cmp(x[1]['order'], y[1]['order'])):
-            if 'name' in props:
-                result.append({
-                    'guid': guid,
-                    'name': props['name'],
-                    'role': props['role'],
-                    })
-            else:
-                result.append({
-                    'name': guid,
-                    'role': props['role'],
-                    })
-        return result
+    INSYSTEM = 1 << 0
+    ORIGINAL = 1 << 16
 
     def encode(self, value):
         for guid, props in value.items():
             if 'name' in props:
                 yield toolkit.ascii(props['name'])
-            if not (props['role'] & ACL.INSYSTEM):
+            if not (props['role'] & Author.INSYSTEM):
                 yield guid

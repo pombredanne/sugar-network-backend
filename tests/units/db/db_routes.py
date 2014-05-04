@@ -1108,20 +1108,20 @@ class DbRoutesTest(tests.Test):
 
         guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual(
-                [{'name': 'user', 'role': 2}],
+                {'user': {'role': db.Author.ORIGINAL}},
                 this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual(
-                {'user': {'role': 2, 'order': 0}},
+                {'user': {'role': db.Author.ORIGINAL}},
                 volume['document'].get(guid)['author'])
 
         volume['user'].create({'guid': 'user', 'pubkey': '', 'name': 'User'})
 
         guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual(
-                [{'guid': 'user', 'name': 'User', 'role': 3}],
+                {'user': {'name': 'User', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual(
-                {'user': {'name': 'User', 'role': 3, 'order': 0}},
+                {'user': {'name': 'User', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 volume['document'].get(guid)['author'])
 
     def test_FindByAuthor(self):
@@ -1174,97 +1174,6 @@ class DbRoutesTest(tests.Test):
             ]),
             sorted(this.call(method='GET', path=['document'], query='author:Name')['result']))
 
-    def test_PreserveAuthorsOrder(self):
-
-        class User(db.Resource):
-
-            @db.indexed_property(slot=1)
-            def name(self, value):
-                return value
-
-            @db.stored_property()
-            def pubkey(self, value):
-                return value
-
-        class Document(db.Resource):
-            pass
-
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
-
-        volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
-        volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
-        volume['user'].create({'guid': 'user3', 'pubkey': '', 'name': 'User3'})
-
-        this.principal = 'user1'
-        guid = this.call(method='POST', path=['document'], content={})
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=0)
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user3', role=0)
-
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            {'guid': 'user3', 'name': 'User3', 'role': 1},
-            ],
-            this.call(method='GET', path=['document', guid, 'author']))
-        self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user2': {'name': 'User2', 'role': 1, 'order': 1},
-            'user3': {'name': 'User3', 'role': 1, 'order': 2},
-            },
-            volume['document'].get(guid)['author'])
-
-        this.principal = 'user1'
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user2')
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=0)
-
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user3', 'name': 'User3', 'role': 1},
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            ],
-            this.call(method='GET', path=['document', guid, 'author']))
-        self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user3': {'name': 'User3', 'role': 1, 'order': 2},
-            'user2': {'name': 'User2', 'role': 1, 'order': 3},
-            },
-            volume['document'].get(guid)['author'])
-
-        this.principal = 'user1'
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user2')
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=0)
-
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user3', 'name': 'User3', 'role': 1},
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            ],
-            this.call(method='GET', path=['document', guid, 'author']))
-        self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user3': {'name': 'User3', 'role': 1, 'order': 2},
-            'user2': {'name': 'User2', 'role': 1, 'order': 3},
-            },
-            volume['document'].get(guid)['author'])
-
-        this.principal = 'user1'
-        this.call(method='PUT', path=['document', guid], cmd='userdel', user='user3')
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user3', role=0)
-
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            {'guid': 'user3', 'name': 'User3', 'role': 1},
-            ],
-            this.call(method='GET', path=['document', guid, 'author']))
-        self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user2': {'name': 'User2', 'role': 1, 'order': 3},
-            'user3': {'name': 'User3', 'role': 1, 'order': 4},
-            },
-            volume['document'].get(guid)['author'])
-
     def test_AddUser(self):
 
         class User(db.Resource):
@@ -1288,54 +1197,54 @@ class DbRoutesTest(tests.Test):
 
         this.principal = 'user1'
         guid = this.call(method='POST', path=['document'], content={})
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            ],
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=2)
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user2', 'name': 'User2', 'role': 3},
-            ],
+        this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2', role=db.Author.ORIGINAL)
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user2': {'name': 'User2', 'role': 3, 'order': 1},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='User3', role=3)
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user2', 'name': 'User2', 'role': 3},
-            {'name': 'User3', 'role': 2},
-            ],
+        this.call(method='PUT', path=['document', guid], cmd='useradd', user='User3', role=db.Author.INSYSTEM | db.Author.ORIGINAL)
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'User3': {'role': db.Author.ORIGINAL},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user2': {'name': 'User2', 'role': 3, 'order': 1},
-            'User3': {'role': 2, 'order': 2},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'User3': {'role': db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='User4', role=4)
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user2', 'name': 'User2', 'role': 3},
-            {'name': 'User3', 'role': 2},
-            {'name': 'User4', 'role': 0},
-            ],
+        this.call(method='PUT', path=['document', guid], cmd='useradd', user='User4', role=1 << 32)
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'User3': {'role': db.Author.ORIGINAL},
+            'User4': {'role': 0},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user2': {'name': 'User2', 'role': 3, 'order': 1},
-            'User3': {'role': 2, 'order': 2},
-            'User4': {'role': 0, 'order': 3},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'User3': {'role': db.Author.ORIGINAL},
+            'User4': {'role': 0},
             },
             volume['document'].get(guid)['author'])
 
@@ -1362,38 +1271,38 @@ class DbRoutesTest(tests.Test):
         guid = this.call(method='POST', path=['document'], content={})
 
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='User2', role=0)
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'name': 'User2', 'role': 0},
-            ],
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'User2': {'role': 0},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'User2': {'role': 0, 'order': 1},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'User2': {'role': 0},
             },
             volume['document'].get(guid)['author'])
 
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user1', role=0)
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 1},
-            {'name': 'User2', 'role': 0},
-            ],
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM},
+            'User2': {'role': 0},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 1, 'order': 0},
-            'User2': {'role': 0, 'order': 1},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM},
+            'User2': {'role': 0},
             },
             volume['document'].get(guid)['author'])
 
-        this.call(method='PUT', path=['document', guid], cmd='useradd', user='User2', role=2)
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 1},
-            {'name': 'User2', 'role': 2},
-            ],
+        this.call(method='PUT', path=['document', guid], cmd='useradd', user='User2', role=db.Author.ORIGINAL)
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM},
+            'User2': {'role': db.Author.ORIGINAL},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 1, 'order': 0},
-            'User2': {'role': 2, 'order': 1},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM},
+            'User2': {'role': db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
 
@@ -1421,16 +1330,16 @@ class DbRoutesTest(tests.Test):
         guid = this.call(method='POST', path=['document'], content={})
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='user2')
         this.call(method='PUT', path=['document', guid], cmd='useradd', user='User3')
-        self.assertEqual([
-            {'guid': 'user1', 'name': 'User1', 'role': 3},
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            {'name': 'User3', 'role': 0},
-            ],
+        self.assertEqual({
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM},
+            'User3': {'role': 0},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'name': 'User1', 'role': 3, 'order': 0},
-            'user2': {'name': 'User2', 'role': 1, 'order': 1},
-            'User3': {'role': 0, 'order': 2},
+            'user1': {'name': 'User1', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM},
+            'User3': {'role': 0},
             },
             volume['document'].get(guid)['author'])
 
@@ -1442,25 +1351,25 @@ class DbRoutesTest(tests.Test):
 
         this.principal = 'user2'
         this.call(method='PUT', path=['document', guid], cmd='userdel', user='user1')
-        self.assertEqual([
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            {'name': 'User3', 'role': 0},
-            ],
+        self.assertEqual({
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM},
+            'User3': {'role': 0},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user2': {'name': 'User2', 'role': 1, 'order': 1},
-            'User3': {'role': 0, 'order': 2},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM},
+            'User3': {'role': 0},
             },
             volume['document'].get(guid)['author'])
 
         this.principal = 'user2'
         this.call(method='PUT', path=['document', guid], cmd='userdel', user='User3')
-        self.assertEqual([
-            {'guid': 'user2', 'name': 'User2', 'role': 1},
-            ],
+        self.assertEqual({
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM},
+            },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user2': {'name': 'User2', 'role': 1, 'order': 1},
+            'user2': {'name': 'User2', 'role': db.Author.INSYSTEM},
             },
             volume['document'].get(guid)['author'])
 
@@ -1789,22 +1698,22 @@ class DbRoutesTest(tests.Test):
 
         this.principal = tests.UID
         guid = this.call(method='POST', path=['document'], content={})
-        assert ACL.ORIGINAL & volume['document'][guid]['author'][tests.UID]['role']
+        assert db.Author.ORIGINAL & volume['document'][guid]['author'][tests.UID]['role']
 
         this.principal = tests.UID
         agg_guid1 = this.call(method='POST', path=['document', guid, 'prop'], content=1)
         assert tests.UID2 not in volume['document'][guid]['prop'][agg_guid1]['author']
-        assert ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid1]['author'][tests.UID]['role']
+        assert db.Author.ORIGINAL & volume['document'][guid]['prop'][agg_guid1]['author'][tests.UID]['role']
 
         this.principal = tests.UID2
         agg_guid2 = this.call(method='POST', path=['document', guid, 'prop'], content=1)
         assert tests.UID not in volume['document'][guid]['prop'][agg_guid2]['author']
-        assert not (ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
+        assert not (db.Author.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
 
         this.principal = tests.UID2
         this.call(method='DELETE', path=['document', guid, 'prop', agg_guid2])
         assert tests.UID not in volume['document'][guid]['prop'][agg_guid2]['author']
-        assert not (ACL.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
+        assert not (db.Author.ORIGINAL & volume['document'][guid]['prop'][agg_guid2]['author'][tests.UID2]['role'])
 
     def test_AggregatedBlobs(self):
         self.override(time, 'time', lambda: 0)

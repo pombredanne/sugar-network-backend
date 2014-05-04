@@ -74,23 +74,20 @@ def postroute(func):
 
 class ACL(object):
 
-    INSYSTEM = 1 << 0
-    ORIGINAL = 1 << 1
-
-    CREATE = 1 << 2
-    WRITE = 1 << 3
-    READ = 1 << 4
-    DELETE = 1 << 5
-    INSERT = 1 << 6
-    REMOVE = 1 << 7
-    REPLACE = 1 << 8
+    CREATE = 1 << 0
+    WRITE = 1 << 1
+    READ = 1 << 2
+    DELETE = 1 << 3
+    INSERT = 1 << 4
+    REMOVE = 1 << 5
+    REPLACE = 1 << 6
     PUBLIC = CREATE | WRITE | READ | DELETE | INSERT | REMOVE
 
     AUTH = 1 << 10
     AUTHOR = 1 << 11
     AGG_AUTHOR = 1 << 12
 
-    LOCAL = 1 << 14
+    LOCAL = 1 << 20
 
     NAMES = {
             CREATE: 'Create',

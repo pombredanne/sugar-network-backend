@@ -19,7 +19,7 @@ import logging
 from contextlib import contextmanager
 
 from sugar_network import toolkit
-from sugar_network.db.metadata import Aggregated
+from sugar_network.db.metadata import Aggregated, Author
 from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.router import route, fallbackroute, preroute
 from sugar_network.toolkit.coroutine import this
@@ -46,7 +46,7 @@ class Routes(object):
             doc.created()
             if this.principal:
                 authors = doc.posts['author'] = {}
-                self._useradd(authors, this.principal, ACL.ORIGINAL)
+                self._useradd(authors, this.principal, Author.ORIGINAL)
             self.volume[this.request.resource].create(doc.posts)
             return doc['guid']
 
@@ -238,19 +238,14 @@ class Routes(object):
         user_doc = self.volume['user'][user]
         if user_doc.available:
             props['name'] = user_doc['name']
-            role |= ACL.INSYSTEM
+            role |= Author.INSYSTEM
         else:
-            role &= ~ACL.INSYSTEM
-        props['role'] = role & (ACL.INSYSTEM | ACL.ORIGINAL)
+            role &= ~Author.INSYSTEM
+        props['role'] = role & (Author.INSYSTEM | Author.ORIGINAL)
 
         if user in authors:
             authors[user].update(props)
         else:
-            if authors:
-                top = max(authors.values(), key=lambda x: x['order'])
-                props['order'] = top['order'] + 1
-            else:
-                props['order'] = 0
             authors[user] = props
 
     def _aggpost(self, acl):
@@ -282,7 +277,7 @@ class Routes(object):
 
         if this.principal:
             authors = aggvalue['author'] = {}
-            role = ACL.ORIGINAL if this.principal in doc['author'] else 0
+            role = Author.ORIGINAL if this.principal in doc['author'] else 0
             self._useradd(authors, this.principal, role)
         doc.posts[request.prop] = {aggid: aggvalue}
         doc.updated()
