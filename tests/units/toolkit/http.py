@@ -257,6 +257,32 @@ class HTTPTest(tests.Test):
             ], challenges)
         del challenges[:]
 
+    def test_UnixSocket(self):
+
+        def app(environ, start_response):
+            start_response('200', [('content-type', 'application/json')])
+            yield json.dumps([
+                environ['HTTP_HOST'],
+                environ['REQUEST_METHOD'],
+                environ['PATH_INFO'],
+                environ['QUERY_STRING'],
+                json.loads(environ['wsgi.input'].read()),
+                ])
+
+        server = coroutine.WSGIServer(coroutine.listen_unix_socket('./socket'), app)
+        coroutine.spawn(server.serve_forever)
+        coroutine.dispatch()
+
+        conn = http.Connection('file://socket')
+        self.assertEqual([
+            'localhost',
+            'POST',
+            '/path/subpath',
+            'foo=bar',
+            'payload',
+            ],
+            conn.post(['path', 'subpath'], 'payload', foo='bar'))
+
 
 if __name__ == '__main__':
     tests.main()

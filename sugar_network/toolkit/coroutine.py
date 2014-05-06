@@ -19,6 +19,7 @@
 
 import os
 import logging
+from os.path import dirname, exists
 
 import gevent
 from gevent import hub
@@ -77,6 +78,38 @@ def reset_resolver():
 def socket(*args, **kwargs):
     import gevent.socket
     return gevent.socket.socket(*args, **kwargs)
+
+
+def listen_unix_socket(path, backlog=5):
+    # pylint: disable-msg=E1101
+    from tempfile import NamedTemporaryFile
+    import _socket
+
+    if exists(path):
+        raise RuntimeError('The socket address is in use')
+
+    sock = socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+    sock.setblocking(0)
+
+    with NamedTemporaryFile(dir=dirname(path)) as tmp_path:
+        pass
+    sock.bind(tmp_path.name)
+    try:
+        os.rename(tmp_path.name, path)
+    except Exception, error:
+        sock.close()
+        os.unlink(tmp_path.name)
+        raise RuntimeError('Failed to create socket: %s' % error)
+    sock.listen(backlog)
+
+    def close():
+        os.unlink(path)
+        return orig_close()
+
+    orig_close = sock.close
+    sock.close = close
+
+    return sock
 
 
 def gethostbyname(host):

@@ -112,7 +112,7 @@ class Connection(object):
 
     def __init__(self, url='', creds=None, max_retries=0, auth_request=None,
             **session_args):
-        self.url = url
+        self.url = url.rstrip('/')
         self.creds = creds
         self._max_retries = max_retries
         self._session_args = session_args
@@ -208,7 +208,11 @@ class Connection(object):
         if not path:
             path = ['']
         if not isinstance(path, basestring):
-            path = '/'.join([i.strip('/') for i in [self.url] + path])
+            path = '/'.join([i.strip('/') for i in path])
+            if self.url.startswith('file://'):
+                path = self.url + '#' + path
+            else:
+                path = self.url + '/' + path
 
         # TODO Disable cookies on requests library level
         self._session.cookies.clear()
