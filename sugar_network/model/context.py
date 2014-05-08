@@ -33,7 +33,7 @@ class Context(db.Resource):
             self.post('logo', 'assets/package-logo.png')
             self.post('artefact_icon', 'assets/package.svg')
         elif 'activity' not in value:
-            if not self['artefact_icon']:
+            if self['artefact_icon'] == self.metadata['artefact_icon'].default:
                 self._generate_default_icons(value)
         return value
 
@@ -119,7 +119,7 @@ class Context(db.Resource):
                 ('icon', model.ICON_SIZE),
                 ('logo', model.LOGO_SIZE),
                 ):
-            if self[prop]:
+            if self[prop] != self.metadata[prop].default:
                 continue
             png = blobs.post(svg_to_png(svg, size), 'image/png').digest
             self.post(prop, png)

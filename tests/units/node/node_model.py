@@ -2033,7 +2033,7 @@ class NodeModelTest(tests.Test):
             'content-type': 'application/pdf',
             'content-disposition': 'attachment; filename="NonActivity-2.pdf"',
             'content-length': str(len(bundle)),
-            'x-seqno': '3',
+            'x-seqno': '6',
             }, blobs.get(blob.digest).meta)
         self.assertEqual(bundle_id, context)
         self.assertEqual([[2], 0], release['version'])

@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+# sugar-lint: disable
+
+from optparse import OptionParser
+
+from sugar_network import node
+from sugar_network.node import master, model
+from sugar_network.toolkit.router import Request
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import Option
+
+
+Option.seek('node', node)
+Option.parse_args(OptionParser(), config_files=['~/.config/sugar-network/config'])
+this.request = Request()
+
+this.volume = model.Volume(node.data_root.value, master.RESOURCES)
+try:
+    for doc in this.volume['context']:
+        if 'group' not in doc['type'] or doc['artefact_icon'] != 'assets/missing.svg':
+            continue
+        doc._generate_default_icons(['group'], True)
+finally:
+    this.volume.close()
