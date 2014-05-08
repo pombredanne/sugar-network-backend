@@ -172,6 +172,10 @@ class Routes(object):
     def blobs(self):
         return self.volume.blobs.get(this.request.path[1:])
 
+    @fallbackroute('GET', ['assets'])
+    def assets(self):
+        return self.volume.blobs.get(this.request.path)
+
     @contextmanager
     def _post(self, access):
         content = this.request.content

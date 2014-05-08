@@ -376,7 +376,11 @@ class File(str):
         if meta:
             url = meta.get('location')
         if not url and digest:
-            url = '%s/blobs/%s' % (this.request.static_prefix, digest)
+            url = '%s/' % this.request.static_prefix
+            if '/' in digest:
+                url += digest
+            else:
+                url += 'blobs/' + digest
         self = str.__new__(cls, url)
 
         self.meta = meta

@@ -158,6 +158,8 @@ class Blobs(object):
 
     def get(self, digest):
         path = self.path(digest)
+        if not isinstance(digest, basestring):
+            digest = os.sep.join(digest)
         if exists(path + _META_SUFFIX):
             meta = _read_meta(path)
             if not exists(path):
