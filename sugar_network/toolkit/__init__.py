@@ -34,7 +34,7 @@ BUFFER_SIZE = 1024 * 10
 cachedir = Option(
         'path to a directory to keep cached files; such files '
         'might take considerable number of bytes',
-        default='/var/cache/sugar-network', name='cachedir')
+        name='cachedir')
 
 _logger = logging.getLogger('toolkit')
 
@@ -390,7 +390,7 @@ def unique_filename(root, filename):
 class mkdtemp(str):
 
     def __new__(cls, *args, **kwargs):
-        if 'dir' not in kwargs:
+        if cachedir.value and 'dir' not in kwargs:
             kwargs['dir'] = cachedir.value
         if not exists(kwargs['dir']):
             os.makedirs(kwargs['dir'])
@@ -431,7 +431,7 @@ def svg_to_png(data, w, h=None):
 
 
 def TemporaryFile(*args, **kwargs):
-    if 'dir' not in kwargs:
+    if cachedir.value and 'dir' not in kwargs:
         kwargs['dir'] = cachedir.value
     if not exists(kwargs['dir']):
         os.makedirs(kwargs['dir'])
@@ -441,7 +441,7 @@ def TemporaryFile(*args, **kwargs):
 class NamedTemporaryFile(object):
 
     def __init__(self, *args, **kwargs):
-        if 'dir' not in kwargs:
+        if cachedir.value and 'dir' not in kwargs:
             kwargs['dir'] = cachedir.value
         if not exists(kwargs['dir']):
             os.makedirs(kwargs['dir'])

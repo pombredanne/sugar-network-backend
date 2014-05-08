@@ -19,18 +19,30 @@ import os
 import locale
 import gettext
 import logging
-from os.path import exists, join
+from os.path import exists, join, isabs
 
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
 from sugar_network import db, node, toolkit
-from sugar_network.node.auth import SugarAuth
+from sugar_network.node.auth import SugarAuth, RootAuth
 from sugar_network.node import obs, master, slave, model
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import application, Option, enforce
 
+
+backdoor = Option(
+        'path to a UNIX socket to serve administrative API requests; '
+        'the entry point is not authenticated and assumes root privileges, '
+        'thus, make sure that --backdoor path is accessible only by admins; '
+        'not absolute path will be prefixed by the --rundir',
+        default='backdoor', name='backdoor')
+
+http_logdir = Option(
+        'path to a directory to log HTTP requests; '
+        'not absolute path will be prefixed by the --logdir',
+        name='http-logdir')
 
 gettext.textdomain('sugar-network')
 
@@ -38,15 +50,29 @@ gettext.textdomain('sugar-network')
 class Application(application.Daemon):
 
     jobs = coroutine.Pool()
-    node = None
+    servers = []
 
-    def ensure_run(self):
-        if toolkit.cachedir.value and not exists(toolkit.cachedir.value):
-            os.makedirs(toolkit.cachedir.value)
+    def prolog(self):
         if not exists(node.data_root.value):
             os.makedirs(node.data_root.value)
         enforce(os.access(node.data_root.value, os.W_OK),
                 'No write access to %r directory', node.data_root.value)
+
+        for opt, dirname in [
+                (toolkit.cachedir, 'cache'),
+                (application.logdir, 'log'),
+                (application.rundir, 'run'),
+                ]:
+            if not opt.value:
+                opt.value = join(node.data_root.value, dirname)
+            if not exists(opt.value):
+                os.makedirs(opt.value)
+
+        if http_logdir.value and not isabs(http_logdir.value):
+            http_logdir.value = \
+                    join(application.logdir.value, http_logdir.value)
+        if not isabs(backdoor.value):
+            backdoor.value = join(application.rundir.value, backdoor.value)
 
     def run(self):
         enforce(node.master_api.value, 'Option --master-api missed')
@@ -66,40 +92,65 @@ class Application(application.Daemon):
             resources = slave.RESOURCES
             logging.info('Start slave node')
         volume = model.Volume(node.data_root.value, resources)
-        node_routes = node_routes_class(node.master_api.value,
+        routes = node_routes_class(node.master_api.value,
                 volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
         self.jobs.spawn(volume.populate)
+        self.jobs.spawn(model.presolve, join(node.data_root.value, 'files'))
 
-        logging.info('Listening for requests on %s:%s',
+        logging.info('Listen requests on %s:%s',
                 node.host.value, node.port.value)
-        server = coroutine.WSGIServer((node.host.value, node.port.value),
-                Router(node_routes), **ssl_args)
+        server = coroutine.WSGIServer(
+                (node.host.value, node.port.value), Router(routes),
+                http_log=_open_logfile('access'), **ssl_args)
         self.jobs.spawn(server.serve_forever)
-        self.accept()
+        self.servers.append(server)
 
+        logging.info('Listen admin requests on %s', backdoor.value)
+        sock = coroutine.listen_unix_socket(backdoor.value,
+                reuse_address=True, mode=0660)
+        routes = node_routes_class(node.master_api.value,
+                volume=volume, auth=RootAuth())
+        server = coroutine.WSGIServer(sock, Router(routes),
+                http_log=_open_logfile('backdoor'))
+        self.jobs.spawn(server.serve_forever)
+        self.servers.append(server)
+
+        self.accept()
         try:
             self.jobs.join()
         finally:
             volume.close()
+            os.unlink(backdoor.value)
 
     def shutdown(self):
         self.jobs.kill()
+
+    def reopen_logs(self):
+        application.Daemon.reopen_logs(self)
+        if http_logdir.value:
+            for server in self.servers:
+                if server.http_log is None:
+                    continue
+                server.http_log.close()
+                server.http_log = file(server.http_log.name, 'a+')
 
     @application.command(
             'direct synchronization with master node',
             name='online-sync')
     def online_sync(self):
-        self._ensure_instance().post(cmd='online-sync')
+        enforce(node.mode.value == 'slave', 'Node is not slave')
+        self._ensure_instance().post(cmd='online_sync')
 
     @application.command(
             'sneakernet synchronization with other nodes using files '
             'placed to the specified directory',
             args='PATH', name='offline-sync')
     def offline_sync(self):
+        enforce(node.mode.value == 'slave', 'Node is not slave')
         enforce(self.args, 'PATH was not specified')
         path = self.args.pop(0)
-        self._ensure_instance().post(cmd='offline-sync', path=path)
+        self._ensure_instance().post(cmd='offline_sync', path=path)
 
     @application.command(
             'resolve/presolve packages for all package-type Contexts',
@@ -123,15 +174,27 @@ class Application(application.Daemon):
 
     def _ensure_instance(self):
         enforce(self.check_for_instance(), 'Node is not started')
-        return Connection('http://localhost:%s' %
-                node.port.value, trust_env=False)
+        return Connection('file://' + backdoor.value)
+
+
+def _open_logfile(name):
+    if not http_logdir.value:
+        return None
+    if not exists(http_logdir.value):
+        os.makedirs(http_logdir.value)
+    return file(join(http_logdir.value, name + '.log'), 'a+')
 
 
 locale.setlocale(locale.LC_ALL, '')
 
+# New defaults
+application.logdir.value = None
+application.rundir.value = None
+
 Option.seek('main', application)
 Option.seek('main', [toolkit.cachedir])
 Option.seek('node', node)
+Option.seek('node', [http_logdir])
 Option.seek('obs', obs)
 Option.seek('db', db)
 

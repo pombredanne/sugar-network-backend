@@ -82,6 +82,9 @@ class NodeRoutes(db.Routes, FrontRoutes):
                 allowed = True
             enforce(allowed, http.Forbidden, 'Authors only')
 
+        if op.acl & ACL.ADMIN:
+            enforce(this.principal.cap_admin, http.Forbidden, 'Admins only')
+
     @postroute
     def postroute(self, result, exception):
         request = this.request
@@ -172,9 +175,9 @@ class NodeRoutes(db.Routes, FrontRoutes):
         return solution
 
     @route('GET', ['context', None], cmd='resolve',
-            arguments={'requires': list, 'stability': list})
-    def resolve(self):
-        solution = self.solve()
+            arguments={'requires': list, 'stability': list, 'assume': list})
+    def resolve(self, assume=None):
+        solution = self.solve(assume)
         return self.volume.blobs.get(solution[this.request.guid]['blob'])
 
     @route('GET', [None, None], cmd='diff')

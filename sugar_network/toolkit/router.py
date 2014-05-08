@@ -88,6 +88,7 @@ class ACL(object):
     AGG_AUTHOR = 1 << 12
 
     LOCAL = 1 << 20
+    ADMIN = 1 << 21
 
     NAMES = {
             CREATE: 'Create',
@@ -854,6 +855,8 @@ class _Route(object):
                 'ACL.AUTHOR requires longer path')
         enforce(acl ^ ACL.AGG_AUTHOR or len(path) >= 3,
                 'ACL.AGG_AUTHOR requires longer path')
+        enforce(acl ^ ACL.ADMIN or acl & ACL.AUTH,
+                'ACL.ADMIN without ACL.AUTH')
 
         self.op = (method, cmd)
         self.callback = callback

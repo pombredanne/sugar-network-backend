@@ -2,7 +2,6 @@
 - do not return Context.releases while non-slave sync
 - deliver spawn events only to local subscribers
 - switch auth from WWW-AUTHENTICATE to mutual authentication over the HTTPS
-- restrict ACL.LOCAL routes only to localhost clients
 - pull node changes periodically for checked-in contexts
 - refount blobs on node and client sides to delete orphaned ones
 - secure node-to-node sync

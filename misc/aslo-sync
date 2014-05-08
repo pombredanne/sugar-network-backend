@@ -39,7 +39,7 @@ from sugar_network.toolkit import licenses, application, Option
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
 ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {
-    'order': 0, 'role': 1, 'name': 'Activity Library',
+    'role': 1, 'name': 'Activity Library',
     }}
 ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
@@ -366,7 +366,7 @@ class Application(application.Application):
                         'message': self.get_i18n_field(content),
                         'vote': vote,
                         'author': {nickname: {
-                            'order': 0, 'role': 3, 'name': fullname,
+                            'role': 3, 'name': fullname,
                             }},
                         })
 
@@ -402,7 +402,7 @@ class Application(application.Application):
                         fullname = nickname
                     updates[guid] = {
                             'author': {nickname: {
-                                'order': 0, 'role': 3, 'name': fullname,
+                                'role': 3, 'name': fullname,
                                 }},
                             'value': self.get_i18n_field(content),
                             'ctime': int(time.mktime(modified.timetuple())),
@@ -539,7 +539,7 @@ class Application(application.Application):
                 updates[version_id] = {
                     'author': {
                         nickname: {
-                            'order': 0, 'role': 3, 'name': fullname,
+                            'role': 3, 'name': fullname,
                             },
                         },
                     'value': release,
@@ -612,7 +612,7 @@ class Application(application.Application):
             tags.add(row[0])
 
         authors = {}
-        for order, (role, email, nickname, fullname) in enumerate(self.sqlexec(
+        for role, email, nickname, fullname in self.sqlexec(
                 """
                 SELECT
                     addons_users.role,
@@ -626,14 +626,13 @@ class Application(application.Application):
                     addons_users.addon_id=%s
                 ORDER BY
                     position
-                """ % addon_id)):
+                """ % addon_id):
             if not nickname:
                 nickname = email.split('@')[0]
             fullname = fullname.strip()
             if not fullname:
                 fullname = nickname
             authors[nickname] = {
-                    'order': order,
                     'role': 3 if role == 5 else 1,
                     'name': fullname,
                     }

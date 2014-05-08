@@ -62,14 +62,25 @@ class Principal(str):
 
     @property
     def cap_create_with_guid(self):
-        return self._caps & 1
+        return self._caps & 2
 
     @cap_create_with_guid.setter
     def cap_create_with_guid(self, value):
         if value:
-            self._caps |= 1
+            self._caps |= 2
         else:
-            self._caps ^= 1
+            self._caps ^= 2
+
+    @property
+    def cap_admin(self):
+        return self._caps & 4
+
+    @cap_admin.setter
+    def cap_admin(self, value):
+        if value:
+            self._caps |= 4
+        else:
+            self._caps ^= 4
 
     def __enter__(self):
         self._backup = self._caps
@@ -141,3 +152,9 @@ class SugarAuth(object):
                 # TODO
 
         return principal
+
+
+class RootAuth(object):
+
+    def logon(self, request):
+        return Principal('root', 0xFFFF)

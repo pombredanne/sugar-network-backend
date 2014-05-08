@@ -119,6 +119,9 @@ class Connection(object):
         self._session = None
         self._auth_request = auth_request
 
+        if self.url and self.url.startswith('file://'):
+            self._session_args['trust_env'] = False
+
     def __repr__(self):
         return '<Connection url=%s>' % self.url
 

@@ -57,7 +57,7 @@ class SlaveRoutes(NodeRoutes):
         self._master_guid = urlsplit(master_api).netloc
         self._master_api = master_api
 
-    @route('POST', cmd='online_sync', acl=ACL.LOCAL,
+    @route('POST', cmd='online_sync', acl=ACL.AUTH | ACL.ADMIN,
             arguments={'no_pull': bool})
     def online_sync(self, no_pull=False):
         conn = http.Connection(self._master_api)
@@ -70,7 +70,7 @@ class SlaveRoutes(NodeRoutes):
                 headers={'Transfer-Encoding': 'chunked'})
         self._import(packets.decode(response.raw))
 
-    @route('POST', cmd='offline_sync', acl=ACL.LOCAL)
+    @route('POST', cmd='offline_sync', acl=ACL.AUTH | ACL.ADMIN)
     def offline_sync(self, path):
         enforce(isabs(path), "Argument 'path' is not an absolute path")
 

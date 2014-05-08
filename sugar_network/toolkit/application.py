@@ -175,8 +175,6 @@ class Application(object):
         pass
 
     def start(self):
-        self._rundir = abspath(rundir.value or '/var/run/' + self.name)
-
         cmd_name = self.args.pop(0)
         try:
             cmd = self._commands.get(cmd_name)
@@ -186,10 +184,11 @@ class Application(object):
                 logging.info('Load configuration from %s file(s)',
                         ', '.join(Option.config_files))
 
-            if cmd.options.get('keep_stdout') and not foreground.value:
-                self._keep_stdout()
-
             self.prolog()
+            self._rundir = abspath(rundir.value or '/var/run/' + self.name)
+
+            if cmd.options.get('keep_stdout') and not foreground.value:
+                self.reopen_logs()
             exit(cmd() or 0)
         except Exception:
             printf.exception('%s %s', _('Aborted'), self.name)
@@ -214,9 +213,6 @@ class Application(object):
                 pid = None
         return pid
 
-    def ensure_run(self):
-        pass
-
     def ensure_pidfile(self):
         if not exists(self._rundir):
             os.makedirs(self._rundir)
@@ -237,7 +233,7 @@ class Application(object):
         else:
             print Option.help()
 
-    def _keep_stdout(self):
+    def reopen_logs(self):
         log_dir = abspath(logdir.value)
         if not exists(log_dir):
             os.makedirs(log_dir)
@@ -280,7 +276,6 @@ class Daemon(Application):
                 pass
             time.sleep(.5)
 
-        self.ensure_run()
         if foreground.value:
             self._launch()
         else:
@@ -333,7 +328,7 @@ class Daemon(Application):
 
         def sighup_cb():
             logging.info('Reload %s on SIGHUP signal', self.name)
-            self._keep_stdout()
+            self.reopen_logs()
 
         coroutine.signal(signal.SIGINT, sigterm_cb, signal.SIGINT)
         coroutine.signal(signal.SIGTERM, sigterm_cb, signal.SIGTERM)
@@ -343,7 +338,6 @@ class Daemon(Application):
         try:
             self.run()
         finally:
-            self.epilog()
             os.unlink(pid_path)
 
     def _daemonize(self):

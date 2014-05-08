@@ -80,13 +80,15 @@ def socket(*args, **kwargs):
     return gevent.socket.socket(*args, **kwargs)
 
 
-def listen_unix_socket(path, backlog=5):
+def listen_unix_socket(path, backlog=5, reuse_address=False, mode=None):
     # pylint: disable-msg=E1101
     from tempfile import NamedTemporaryFile
     import _socket
 
     if exists(path):
-        raise RuntimeError('The socket address is in use')
+        if not reuse_address:
+            raise RuntimeError('The socket address is in use')
+        os.unlink(path)
 
     sock = socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
     sock.setblocking(0)
@@ -94,6 +96,8 @@ def listen_unix_socket(path, backlog=5):
     with NamedTemporaryFile(dir=dirname(path)) as tmp_path:
         pass
     sock.bind(tmp_path.name)
+    if mode is not None:
+        os.chmod(tmp_path.name, mode)
     try:
         os.rename(tmp_path.name, path)
     except Exception, error:
@@ -141,7 +145,11 @@ def Server(*args, **kwargs):
 def WSGIServer(*args, **kwargs):
     import gevent.wsgi
 
-    class WSGIHandler(gevent.wsgi.WSGIHandler):
+    class Server(gevent.wsgi.WSGIServer):
+
+        http_log = kwargs.pop('http_log') if 'http_log' in kwargs else None
+
+    class Handler(gevent.wsgi.WSGIHandler):
 
         def log_error(self, msg, *args):
             if args:
@@ -149,14 +157,16 @@ def WSGIServer(*args, **kwargs):
             _wsgi_logger.error('%s %s', self.format_request(), msg)
 
         def log_request(self):
-            _wsgi_logger.debug('%s', self.format_request())
+            logfile = server.http_log
+            if logfile is not None:
+                logfile.write(self.format_request())
+                logfile.write('\n')
 
     kwargs['spawn'] = Pool()
     if 'handler_class' not in kwargs:
-        if logging.getLogger().level >= logging.DEBUG:
-            WSGIHandler.log_request = lambda * args: None
-        kwargs['handler_class'] = WSGIHandler
-    return gevent.wsgi.WSGIServer(*args, **kwargs)
+        kwargs['handler_class'] = Handler
+    server = Server(*args, **kwargs)
+    return server
 
 
 def Event():

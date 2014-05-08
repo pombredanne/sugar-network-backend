@@ -99,6 +99,31 @@ class NodeRoutesTest(tests.Test):
         this.call(method='GET', cmd='probe2', path=['document', guid], environ=auth_env(tests.UID2))
         this.call(method='GET', cmd='probe2', path=['document', guid])
 
+    def test_CapAdmin(self):
+
+        class Routes(NodeRoutes):
+
+            def __init__(self, master_api, **kwargs):
+                NodeRoutes.__init__(self, 'node', **kwargs)
+
+            @route('PROBE', acl=ACL.AUTH | ACL.ADMIN)
+            def probe(self):
+                pass
+
+        class Auth(object):
+
+            caps = 0
+
+            def logon(self, request):
+                return Principal('user', Auth.caps)
+
+        volume = self.start_master([], Routes, auth=Auth())
+
+        Auth.caps = 0
+        self.assertRaises(http.Forbidden, this.call, method='PROBE')
+        Auth.caps = 0xFF
+        this.call(method='PROBE')
+
     def test_ForbiddenCommandsForUserResource(self):
         volume = self.start_master()
 

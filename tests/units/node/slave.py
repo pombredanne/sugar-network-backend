@@ -14,7 +14,7 @@ from sugar_network.client import Connection
 from sugar_network.node import master_api
 from sugar_network.node.master import MasterRoutes
 from sugar_network.node.slave import SlaveRoutes
-from sugar_network.node.auth import SugarAuth
+from sugar_network.node.auth import RootAuth
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
 from sugar_network.toolkit.router import Router, File
@@ -50,13 +50,13 @@ class SlaveTest(tests.Test):
 
         self.Document = Document
         self.slave_volume = Volume('slave', [User, Document])
-        self.slave_routes = SlaveRoutes(master_api.value, volume=self.slave_volume, auth=SugarAuth('slave'))
+        self.slave_routes = SlaveRoutes(master_api.value, volume=self.slave_volume, auth=RootAuth())
         self.slave_server = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.slave_routes))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()
 
     def test_online_sync_Push(self):
-        self.fork_master([User, self.Document])
+        self.fork_master([User, self.Document], auth=RootAuth())
         master = Connection('http://127.0.0.1:7777')
         slave = Connection('http://127.0.0.1:8888')
 
@@ -74,7 +74,7 @@ class SlaveTest(tests.Test):
             ],
             master.get(['document'], reply=['guid', 'message'])['result'])
         self.assertEqual([[2, None]], json.load(file('slave/var/pull')))
-        self.assertEqual([[4, None]], json.load(file('slave/var/push')))
+        self.assertEqual([[3, None]], json.load(file('slave/var/push')))
 
         guid3 = slave.post(['document'], {'message': '3', 'title': ''})
         slave.post(cmd='online_sync')
@@ -85,14 +85,14 @@ class SlaveTest(tests.Test):
             ],
             master.get(['document'], reply=['guid', 'message'])['result'])
         self.assertEqual([[3, None]], json.load(file('slave/var/pull')))
-        self.assertEqual([[5, None]], json.load(file('slave/var/push')))
+        self.assertEqual([[4, None]], json.load(file('slave/var/push')))
 
         coroutine.sleep(1)
         slave.put(['document', guid2], {'message': '22'})
         slave.post(cmd='online_sync')
         self.assertEqual('22', master.get(['document', guid2, 'message']))
         self.assertEqual([[4, None]], json.load(file('slave/var/pull')))
-        self.assertEqual([[6, None]], json.load(file('slave/var/push')))
+        self.assertEqual([[5, None]], json.load(file('slave/var/push')))
 
         coroutine.sleep(1)
         slave.delete(['document', guid1])
@@ -103,7 +103,7 @@ class SlaveTest(tests.Test):
             ],
             master.get(['document'], reply=['guid', 'message'])['result'])
         self.assertEqual([[5, None]], json.load(file('slave/var/pull')))
-        self.assertEqual([[7, None]], json.load(file('slave/var/push')))
+        self.assertEqual([[6, None]], json.load(file('slave/var/push')))
 
         coroutine.sleep(1)
         slave.put(['document', guid2], {'message': 'b'})
@@ -117,10 +117,10 @@ class SlaveTest(tests.Test):
             ]),
             sorted(master.get(['document'], reply=['guid', 'message'])['result']))
         self.assertEqual([[6, None]], json.load(file('slave/var/pull')))
-        self.assertEqual([[11, None]], json.load(file('slave/var/push')))
+        self.assertEqual([[10, None]], json.load(file('slave/var/push')))
 
     def test_online_sync_Pull(self):
-        self.fork_master([User, self.Document])
+        self.fork_master([User, self.Document], auth=RootAuth())
         master = Connection('http://127.0.0.1:7777')
         slave = Connection('http://127.0.0.1:8888')
 
@@ -138,7 +138,7 @@ class SlaveTest(tests.Test):
             {'guid': guid2, 'message': '2'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[4, None]], json.load(file('slave/var/pull')))
+        self.assertEqual([[3, None]], json.load(file('slave/var/pull')))
         self.assertEqual([[2, None]], json.load(file('slave/var/push')))
 
         guid3 = master.post(['document'], {'message': '3', 'title': ''})
@@ -149,14 +149,14 @@ class SlaveTest(tests.Test):
             {'guid': guid3, 'message': '3'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[5, None]], json.load(file('slave/var/pull')))
+        self.assertEqual([[4, None]], json.load(file('slave/var/pull')))
         self.assertEqual([[3, None]], json.load(file('slave/var/push')))
 
         coroutine.sleep(1)
         master.put(['document', guid2], {'message': '22'})
         slave.post(cmd='online_sync')
         self.assertEqual('22', slave.get(['document', guid2, 'message']))
-        self.assertEqual([[6, None]], json.load(file('slave/var/pull')))
+        self.assertEqual([[5, None]], json.load(file('slave/var/pull')))
         self.assertEqual([[4, None]], json.load(file('slave/var/push')))
 
         coroutine.sleep(1)
@@ -167,7 +167,7 @@ class SlaveTest(tests.Test):
             {'guid': guid3, 'message': '3'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[7, None]], json.load(file('slave/var/pull')))
+        self.assertEqual([[6, None]], json.load(file('slave/var/pull')))
         self.assertEqual([[5, None]], json.load(file('slave/var/push')))
 
         coroutine.sleep(1)
@@ -181,11 +181,11 @@ class SlaveTest(tests.Test):
             {'guid': guid4, 'message': 'd'},
             ],
             slave.get(['document'], reply=['guid', 'message'])['result'])
-        self.assertEqual([[11, None]], json.load(file('slave/var/pull')))
+        self.assertEqual([[10, None]], json.load(file('slave/var/pull')))
         self.assertEqual([[6, None]], json.load(file('slave/var/push')))
 
     def test_online_sync_PullBlobs(self):
-        self.fork_master([User, self.Document])
+        self.fork_master([User, self.Document], auth=RootAuth())
         master = Connection('http://127.0.0.1:7777')
         slave = Connection('http://127.0.0.1:8888')
 
@@ -203,7 +203,7 @@ class SlaveTest(tests.Test):
         self.assertEqual('file', file('slave/files/foo/bar').read())
 
     def test_online_sync_PullFromPreviouslyMergedRecord(self):
-        self.fork_master([User, self.Document])
+        self.fork_master([User, self.Document], auth=RootAuth())
         master = Connection('http://127.0.0.1:7777')
         slave = Connection('http://127.0.0.1:8888')
 

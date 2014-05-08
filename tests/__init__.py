@@ -279,12 +279,14 @@ class Test(unittest.TestCase):
     def create_mountset(self, classes=None):
         self.start_server(classes, root=False)
 
-    def start_master(self, classes=None, routes=MasterRoutes):
+    def start_master(self, classes=None, routes=MasterRoutes, auth=None):
         if classes is None:
             classes = master.RESOURCES
+        if auth is None:
+            auth = SugarAuth('master')
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
         self.node_volume = NodeVolume('master', classes)
-        self.node_routes = routes(node.master_api.value, volume=self.node_volume, auth=SugarAuth('master'))
+        self.node_routes = routes(node.master_api.value, volume=self.node_volume, auth=auth)
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
@@ -293,15 +295,17 @@ class Test(unittest.TestCase):
         this.call = self.node_router.call
         return self.node_volume
 
-    def fork_master(self, classes=None, routes=MasterRoutes, cb=None):
+    def fork_master(self, classes=None, routes=MasterRoutes, cb=None, auth=None):
         if classes is None:
             classes = master.RESOURCES
+        if auth is None:
+            auth = SugarAuth('master')
 
         def _node():
             volume = NodeVolume('master', classes)
             if cb is not None:
                 cb(volume)
-            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(node.master_api.value, volume=volume, auth=SugarAuth('master'))))
+            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(node.master_api.value, volume=volume, auth=auth)))
             anode.serve_forever()
 
         pid = self.fork(_node)
