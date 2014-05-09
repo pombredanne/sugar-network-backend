@@ -758,7 +758,7 @@ class NodeRoutesTest(tests.Test):
             conn.get(['context', 'activity'], cmd='solve',
                 stability='developer', lsb_id='Ubuntu', lsb_release='10.04', requires=['dep', 'package']))
 
-    def test_Resolve(self):
+    def test_Clone(self):
         volume = self.start_master()
         conn = Connection()
 
@@ -795,7 +795,7 @@ class NodeRoutesTest(tests.Test):
         conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         response = Response()
-        reply = conn.call(Request(method='GET', path=['context', 'activity'], cmd='resolve'), response)
+        reply = conn.call(Request(method='GET', path=['context', 'activity'], cmd='clone'), response)
         assert activity_blob == reply.read()
 
     def test_AggpropInsertAccess(self):

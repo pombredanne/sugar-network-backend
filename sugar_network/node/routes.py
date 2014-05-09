@@ -174,9 +174,9 @@ class NodeRoutes(db.Routes, FrontRoutes):
         enforce(solution is not None, 'Failed to solve')
         return solution
 
-    @route('GET', ['context', None], cmd='resolve',
+    @route('GET', ['context', None], cmd='clone',
             arguments={'requires': list, 'stability': list, 'assume': list})
-    def resolve(self, assume=None):
+    def clone(self, assume=None):
         solution = self.solve(assume)
         return self.volume.blobs.get(solution[this.request.guid]['blob'])
 
