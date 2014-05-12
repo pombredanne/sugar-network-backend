@@ -616,28 +616,6 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
     return context, release
 
 
-def generate_node_stats(volume):
-
-    def calc_rating(**kwargs):
-        rating = [0, 0]
-        alldocs, __ = volume['post'].find(**kwargs)
-        for post in alldocs:
-            if post['vote']:
-                rating[0] += 1
-                rating[1] += post['vote']
-        return rating
-
-    alldocs, __ = volume['context'].find()
-    for context in alldocs:
-        rating = calc_rating(type='review', context=context.guid)
-        volume['context'].update(context.guid, {'rating': rating})
-
-    alldocs, __ = volume['post'].find(topic='')
-    for topic in alldocs:
-        rating = calc_rating(type='feedback', topic=topic.guid)
-        volume['post'].update(topic.guid, {'rating': rating})
-
-
 def _load_context_metadata(bundle, spec):
     result = {}
     for prop in ('homepage', 'mime_types'):

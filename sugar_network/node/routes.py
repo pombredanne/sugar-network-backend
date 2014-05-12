@@ -25,6 +25,7 @@ from os.path import join, exists
 from sugar_network import db, toolkit
 from sugar_network.model import FrontRoutes
 from sugar_network.node import model
+from sugar_network.node.stats import StatRoutes
 from sugar_network.toolkit.router import ACL, File, route
 from sugar_network.toolkit.router import fallbackroute, preroute, postroute
 from sugar_network.toolkit.spec import parse_version
@@ -38,11 +39,12 @@ _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 _logger = logging.getLogger('node.routes')
 
 
-class NodeRoutes(db.Routes, FrontRoutes):
+class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
 
     def __init__(self, guid, auth=None, **kwargs):
         db.Routes.__init__(self, **kwargs)
         FrontRoutes.__init__(self)
+        StatRoutes.__init__(self)
         self._guid = guid
         self._auth = auth
         self._batch_dir = join(self.volume.root, 'batch')

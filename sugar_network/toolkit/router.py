@@ -168,6 +168,10 @@ class Request(dict):
     def method(self):
         return self.environ.get('REQUEST_METHOD')
 
+    @method.setter
+    def method(self, value):
+        self.environ['REQUEST_METHOD'] = value
+
     @property
     def url(self):
         result = self.environ['PATH_INFO']
@@ -223,6 +227,8 @@ class Request(dict):
 
     @resource.setter
     def resource(self, value):
+        while len(self.path) < 1:
+            self.path.append(None)
         self.path[0] = value
 
     @property
@@ -232,6 +238,8 @@ class Request(dict):
 
     @guid.setter
     def guid(self, value):
+        while len(self.path) < 2:
+            self.path.append(None)
         self.path[1] = value
 
     @property
@@ -241,6 +249,8 @@ class Request(dict):
 
     @prop.setter
     def prop(self, value):
+        while len(self.path) < 3:
+            self.path.append(None)
         self.path[2] = value
 
     @property
@@ -250,6 +260,8 @@ class Request(dict):
 
     @key.setter
     def key(self, value):
+        while len(self.path) < 4:
+            self.path.append(None)
         self.path[3] = value
 
     @property
@@ -535,6 +547,8 @@ class Router(object):
             # To populate `exception` only
             raise
         finally:
+            this.request = request
+            this.response = response
             for i in self._postroutes:
                 result = i(result, exception)
 

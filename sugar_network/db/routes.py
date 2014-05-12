@@ -48,7 +48,8 @@ class Routes(object):
                 authors = doc.posts['author'] = {}
                 self._useradd(authors, this.principal, Author.ORIGINAL)
             self.volume[this.request.resource].create(doc.posts)
-            return doc['guid']
+            this.request.guid = doc.guid
+            return doc.guid
 
     @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update(self):
@@ -194,7 +195,6 @@ class Routes(object):
                     'GUID in cannot be changed')
             doc = self.volume[this.request.resource][this.request.guid]
             enforce(doc.available, 'Resource not found')
-        this.resource = doc
 
         def teardown(new, old):
             for name, value in new.items():
@@ -254,7 +254,7 @@ class Routes(object):
 
     def _aggpost(self, acl):
         request = this.request
-        doc = this.resource = self.volume[request.resource][request.guid]
+        doc = self.volume[request.resource][request.guid]
         prop = doc.metadata[request.prop]
         enforce(isinstance(prop, Aggregated), http.BadRequest,
                 'Property is not aggregated')

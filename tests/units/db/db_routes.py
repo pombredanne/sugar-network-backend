@@ -19,7 +19,7 @@ from __init__ import tests
 from sugar_network import db, toolkit
 from sugar_network.db import routes as db_routes
 from sugar_network.model.user import User
-from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, File
+from sugar_network.toolkit.router import Router, Request, Response, fallbackroute, ACL, File, postroute
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine, http, i18n
 
@@ -1850,6 +1850,53 @@ class DbRoutesTest(tests.Test):
         self.assertEqual(
                 [{'event': 'delete', 'resource': 'document', 'guid': guid}],
                 events)
+
+    def test_ThisResourceInPostrouteOnCreation(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
+
+        class Routes(db.Routes):
+
+            @postroute
+            def postroute(self, result, exception):
+                return this.resource.properties(['guid', 'prop'])
+
+        volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(Routes(volume))
+
+        self.assertEqual({
+            'guid': 'guid',
+            'prop': 'probe',
+            },
+            this.call(method='POST', path=['document'], content={'guid': 'guid', 'prop': 'probe'}))
+
+    def test_ThisResourceInPostrouteOnDeletion(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property()
+            def prop(self, value):
+                return value
+
+        class Routes(db.Routes):
+
+            @postroute
+            def postroute(self, result, exception):
+                return this.resource.properties(['guid', 'prop'])
+
+        volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(Routes(volume))
+
+        this.call(method='POST', path=['document'], content={'guid': 'guid', 'prop': 'probe'})
+        self.assertEqual({
+            'guid': 'guid',
+            'prop': 'probe',
+            },
+            this.call(method='DELETE', path=['document', 'guid']))
 
 
 if __name__ == '__main__':

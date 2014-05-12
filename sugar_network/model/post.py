@@ -15,7 +15,6 @@
 
 from sugar_network import db, model
 from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit.coroutine import this
 
 
 class Post(db.Resource):
@@ -50,19 +49,6 @@ class Post(db.Resource):
     @db.indexed_property(db.Enum, prefix='V', items=range(5), default=0,
             acl=ACL.CREATE | ACL.READ)
     def vote(self, value):
-        return value
-
-    @vote.setter
-    def vote(self, value):
-        if value:
-            if self['topic']:
-                resource = this.volume['post']
-                guid = self['topic']
-            else:
-                resource = this.volume['context']
-                guid = self['context']
-            orig = resource[guid]['rating']
-            resource.update(guid, {'rating': [orig[0] + 1, orig[1] + value]})
         return value
 
     @db.indexed_property(db.Aggregated, prefix='D', full_text=True,

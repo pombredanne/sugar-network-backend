@@ -26,7 +26,7 @@ coroutine.inject()
 
 from sugar_network import db, node, toolkit
 from sugar_network.node.auth import SugarAuth, RootAuth
-from sugar_network.node import obs, master, slave, model
+from sugar_network.node import obs, master, slave, model, stats
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit import application, Option, enforce
@@ -95,8 +95,14 @@ class Application(application.Daemon):
         routes = node_routes_class(node.master_api.value,
                 volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
+
         self.jobs.spawn(volume.populate)
         self.jobs.spawn(model.presolve, join(node.data_root.value, 'files'))
+
+        if stats.stats.value:
+            routes.stats_init(join(node.data_root.value, 'var'),
+                    stats.stats_step.value, stats.stats_rras.value)
+            self.jobs.spawn(routes.stats_auto_commit)
 
         logging.info('Listen requests on %s:%s',
                 node.host.value, node.port.value)
@@ -120,6 +126,8 @@ class Application(application.Daemon):
         try:
             self.jobs.join()
         finally:
+            if stats.stats.value:
+                routes.stats_commit()
             volume.close()
             os.unlink(backdoor.value)
 
@@ -160,6 +168,7 @@ class Application(application.Daemon):
         enforce(node.mode.value == 'master', 'Node is not master')
         volume = model.Volume(node.data_root.value, master.RESOURCES)
         try:
+            volume.populate()
             for doc in volume['context']:
                 if 'package' not in doc['type']:
                     continue
@@ -171,6 +180,34 @@ class Application(application.Daemon):
         finally:
             volume.close()
         model.presolve(join(node.data_root.value, 'files'), block=False)
+
+    @application.command(
+            're-generate node statistics', name='restat')
+    def restat(self):
+        enforce(not self.check_for_instance(), 'Node should be stopped')
+        volume = model.Volume(node.data_root.value, master.RESOURCES)
+        routes = slave.SlaveRoutes(node.master_api.value, volume=volume,
+                auth=RootAuth())
+        try:
+            volume.populate()
+            routes.stats_regen(join(node.data_root.value, 'var'),
+                    stats.stats_step.value, stats.stats_rras.value)
+        finally:
+            volume.close()
+
+    @application.command(
+            're-generate ratings', name='rating')
+    def rating(self):
+        enforce(not self.check_for_instance(), 'Node should be stopped')
+        volume = model.Volume(node.data_root.value, master.RESOURCES)
+        routes = slave.SlaveRoutes(node.master_api.value, volume=volume,
+                auth=RootAuth())
+        try:
+            volume.populate()
+            routes.stats_regen_rating(join(node.data_root.value, 'var'),
+                    stats.stats_step.value, stats.stats_rras.value)
+        finally:
+            volume.close()
 
     def _ensure_instance(self):
         enforce(self.check_for_instance(), 'Node is not started')
@@ -195,6 +232,7 @@ Option.seek('main', application)
 Option.seek('main', [toolkit.cachedir])
 Option.seek('node', node)
 Option.seek('node', [http_logdir])
+Option.seek('node', stats)
 Option.seek('obs', obs)
 Option.seek('db', db)
 
