@@ -580,11 +580,11 @@ class Application(application.Application):
             """ % addon_id)[0]
         created = int(time.mktime(created.timetuple()))
         modified = int(time.mktime(modified.timetuple()))
-        pins = ['featured'] if featured else []
+        status = ['featured'] if featured else []
 
         if directory[bundle_id].exists and \
                 directory.get(bundle_id)['mtime'] >= modified and \
-                directory.get(bundle_id)['pins'] == pins:
+                directory.get(bundle_id)['status'] == status:
             return
 
         tags = set()
@@ -648,7 +648,7 @@ class Application(application.Application):
                 'author': authors,
                 'ctime': created,
                 'mtime': modified,
-                'pins': pins,
+                'status': status,
                 })
         print '-- Sync %r activity' % bundle_id
 
