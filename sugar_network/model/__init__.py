@@ -37,7 +37,6 @@ POST_TYPES = [
         'solution',      # Solution for question|problem|idea
         'announce',      # General announcement
         'notification',  # Auto-generated Post for updates within the Context
-        'feedback',      # Review parent Post
         'post',          # General purpose dependent Post
         ]
 

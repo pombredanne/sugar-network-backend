@@ -58,11 +58,6 @@ class Post(db.Resource):
             self._update_rating(value, +1)
         return value
 
-    @db.indexed_property(db.Aggregated, prefix='D', full_text=True,
-            subtype=db.Localized())
-    def comments(self, value):
-        return value
-
     @db.stored_property(db.Blob, mime_type='image/png',
             default='assets/missing-logo.png')
     def preview(self, value):

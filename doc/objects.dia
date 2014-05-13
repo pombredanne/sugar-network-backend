@@ -1072,7 +1072,7 @@
         <dia:point val="55.2435,30.2585"/>
       </dia:attribute>
       <dia:attribute name="obj_bb">
-        <dia:rectangle val="55.2285,30.2435;71.9285,62.6735"/>
+        <dia:rectangle val="55.2285,30.2435;71.9285,60.6735"/>
       </dia:attribute>
       <dia:attribute name="elem_corner">
         <dia:point val="55.2435,30.2585"/>
@@ -1081,7 +1081,7 @@
         <dia:real val="16.670000000000002"/>
       </dia:attribute>
       <dia:attribute name="elem_height">
-        <dia:real val="32.399999999999999"/>
+        <dia:real val="30.400000000000002"/>
       </dia:attribute>
       <dia:attribute name="name">
         <dia:string>#Post#</dia:string>
@@ -1321,29 +1321,6 @@
           </dia:attribute>
           <dia:attribute name="comment">
             <dia:string>#The value from 0 to 5; If more than 0, the Post is ranking the Context or the topic#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="visibility">
-            <dia:enum val="0"/>
-          </dia:attribute>
-          <dia:attribute name="abstract">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-          <dia:attribute name="class_scope">
-            <dia:boolean val="false"/>
-          </dia:attribute>
-        </dia:composite>
-        <dia:composite type="umlattribute">
-          <dia:attribute name="name">
-            <dia:string>#comments#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="type">
-            <dia:string>#aggregated[str] [R W F I]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="value">
-            <dia:string>#[]#</dia:string>
-          </dia:attribute>
-          <dia:attribute name="comment">
-            <dia:string>#Users' comments#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>

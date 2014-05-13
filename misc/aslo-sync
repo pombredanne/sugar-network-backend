@@ -39,7 +39,7 @@ from sugar_network.toolkit import licenses, application, Option
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
 ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {
-    'role': 1, 'name': 'Activity Library',
+    'role': db.Author.INSYSTEM, 'name': 'Activity Library',
     }}
 ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
@@ -166,7 +166,7 @@ class Application(application.Application):
         this.broadcast = lambda event: None
         this.localcast = lambda event: None
         this.request = Request({'HTTP_HOST': master_api.value})
-        auth = _Auth()
+        auth = Auth()
         routes = SlaveRoutes(master_api.value, this.volume, auth=auth)
         self._router = Router(routes)
         this.principal = auth.logon()
@@ -351,11 +351,6 @@ class Application(application.Application):
             if topic in existing_topics:
                 existing_topics.remove(topic)
             else:
-                if not nickname:
-                    nickname = email.split('@')[0]
-                fullname = fullname.strip()
-                if not fullname:
-                    fullname = nickname
                 directory.create({
                         'guid': topic,
                         'ctime': int(time.mktime(created.timetuple())),
@@ -365,17 +360,18 @@ class Application(application.Application):
                         'title': self.get_i18n_field(title),
                         'message': self.get_i18n_field(content),
                         'vote': vote,
-                        'author': {nickname: {
-                            'role': 3, 'name': fullname,
-                            }},
+                        'author': format_author(email, nickname, fullname),
                         })
 
-                existing_comments = directory[topic]['comments']
-                updates = {}
+                items, __ = directory.find(context=bundle_id, topic=topic,
+                        not_state='deleted')
+                existing_comments = set([i.guid for i in items])
                 sql = """
                     SELECT
                         reviews.id,
+                        reviews.created,
                         reviews.modified,
+                        reviews.title,
                         reviews.body,
                         users.email,
                         users.nickname,
@@ -389,28 +385,26 @@ class Application(application.Application):
                     ORDER BY
                         reviews.created
                     """ % topic
-                for guid, modified, content, email, nickname, fullname, \
-                        in self.sqlexec(sql):
+                for guid, created, modified, title, content, email, nickname, \
+                        fullname in self.sqlexec(sql):
                     guid = str(guid)
                     if guid in existing_comments:
-                        del existing_comments[guid]
+                        existing_comments.remove(guid)
                         continue
-                    if not nickname:
-                        nickname = email.split('@')[0]
-                    fullname = fullname.strip()
-                    if not fullname:
-                        fullname = nickname
-                    updates[guid] = {
-                            'author': {nickname: {
-                                'role': 3, 'name': fullname,
-                                }},
-                            'value': self.get_i18n_field(content),
-                            'ctime': int(time.mktime(modified.timetuple())),
-                            }
+                    directory.create({
+                            'guid': guid,
+                            'ctime': int(time.mktime(created.timetuple())),
+                            'mtime': int(time.mktime(modified.timetuple())),
+                            'context': bundle_id,
+                            'topic': topic,
+                            'type': 'post',
+                            'title': self.get_i18n_field(title),
+                            'message': self.get_i18n_field(content),
+                            'author': format_author(email, nickname, fullname),
+                            })
                 for guid in existing_comments:
                     print '-- Hide %s %s deleted comment' % (bundle_id, guid)
-                    updates[guid] = {}
-                directory.update(topic, {'comments': updates})
+                    directory.update(guid, {'state': 'deleted'})
 
         for guid in existing_topics:
             print '-- Hide %s %s deleted review' % (bundle_id, guid)
@@ -503,12 +497,6 @@ class Application(application.Application):
             if not alicense and bundle_id in LICENSES_MAP:
                 alicense = LICENSES_MAP[bundle_id]
 
-            if not nickname:
-                nickname = email.split('@')[0]
-            fullname = fullname.strip()
-            if not fullname:
-                fullname = nickname
-
             for max_version, sub_versions in SUGAR_API_COMPATIBILITY.items():
                 if parse_version(sugar_min) in sub_versions:
                     if parse_version(sugar_max) < parse_version(max_version):
@@ -537,11 +525,7 @@ class Application(application.Application):
                         release_notes=self.get_i18n_field(releasenotes),
                         update_context=most_recent)
                 updates[version_id] = {
-                    'author': {
-                        nickname: {
-                            'role': 3, 'name': fullname,
-                            },
-                        },
+                    'author': format_author(email, nickname, fullname),
                     'value': release,
                     'ctime': int(time.mktime(release_date.timetuple())),
                     }
@@ -627,15 +611,7 @@ class Application(application.Application):
                 ORDER BY
                     position
                 """ % addon_id):
-            if not nickname:
-                nickname = email.split('@')[0]
-            fullname = fullname.strip()
-            if not fullname:
-                fullname = nickname
-            authors[nickname] = {
-                    'role': 3 if role == 5 else 1,
-                    'name': fullname,
-                    }
+            authors.update(format_author(email, nickname, fullname, role))
 
         directory.update(bundle_id, {
                 'guid': bundle_id,
@@ -701,7 +677,7 @@ class Application(application.Application):
         return cursor.fetchall()
 
 
-class _Auth(object):
+class Auth(object):
 
     def logon(self, request=None):
         return Principal(ASLO_AUTHOR.keys()[0], 0xF)
@@ -721,6 +697,18 @@ def scale_png(data, w, h):
                 ])
             with file(dst.name, 'rb') as f:
                 return f.read()
+
+
+def format_author(email, nickname, fullname, db_role=None):
+    if not nickname:
+        nickname = email.split('@')[0]
+    role = db.Author.INSYSTEM
+    if db_role is None or db_role == 5:
+        role |= db.Author.ORIGINAL
+    return {nickname: {
+        'role': role,
+        'name': fullname.strip() or nickname,
+        }}
 
 
 mysql_server = Option(
