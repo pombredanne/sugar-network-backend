@@ -17,8 +17,6 @@ import os
 import gettext
 from os.path import join
 
-import xapian
-
 from sugar_network import db
 from sugar_network.model.routes import FrontRoutes
 
@@ -62,4 +60,4 @@ class Rating(db.List):
 
     def slotting(self, value):
         rating = float(value[1]) / value[0] if value[0] else 0
-        return xapian.sortable_serialise(rating)
+        return '%.3f%010d' % (rating, value[0])
