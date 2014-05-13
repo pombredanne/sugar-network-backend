@@ -97,3 +97,7 @@ class FrontRoutes(object):
             coroutine.select([rfile.fileno()], [], [])
         finally:
             self._spooler.notify_all(rfile)
+
+
+this.broadcast = lambda event: None
+this.localcast = lambda event: None

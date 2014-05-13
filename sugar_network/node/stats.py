@@ -110,7 +110,6 @@ class StatRoutes(object):
 
     _rrd = None
     _stats = None
-    _rating = None
     _stated = False
 
     def stats_init(self, path, step, rras):
@@ -118,7 +117,6 @@ class StatRoutes(object):
 
         self._rrd = Rrd(path, 'stats', _DS, step, rras)
         self._stats = self._rrd.values()
-        self._rating = {'context': {}, 'post': {}}
 
         if not self._stats:
             for field, traits in _DS.items():
@@ -129,7 +127,7 @@ class StatRoutes(object):
                 self._stats[field] = value
 
     @postroute
-    def stat_on_postroute(self, result, exception, stat_rating=True):
+    def stat_on_postroute(self, result, exception):
         if self._rrd is None or exception is not None:
             return result
 
@@ -143,18 +141,6 @@ class StatRoutes(object):
         if not isinstance(stat, basestring):
             stat = stat()
         self._stats[stat] += shift
-
-        if stat_rating:
-            rating = None
-            if stat == 'topics' and this.resource['type'] == 'review':
-                rating = self._rating['context']
-                rating = rating.setdefault(this.resource['context'], [0, 0])
-            elif stat == 'posts':
-                rating = self._rating['post']
-                rating = rating.setdefault(this.resource['topic'], [0, 0])
-            if rating is not None:
-                rating[0] += shift
-                rating[1] += shift * this.resource['vote']
 
         return result
 
@@ -202,15 +188,6 @@ class StatRoutes(object):
             if traits['type'] == 'ABSOLUTE':
                 self._stats[field] = 0
 
-        for resource, stats_ in self._rating.items():
-            directory = this.volume[resource]
-            for guid, (votes, reviews) in stats_.items():
-                rating = directory[guid]['rating']
-                directory.update(guid, {
-                    'rating': [rating[0] + votes, rating[1] + reviews],
-                    })
-            stats_.clear()
-
     def stats_regen(self, path, step, rras):
         for i in Rrd(path, 'stats', _DS, step, rras).files:
             os.unlink(i)
@@ -247,25 +224,5 @@ class StatRoutes(object):
                         query='ctime:%s..%s' % (left, right))
                 for this.resource in items:
                     this.request = Request(method='POST', path=[resource])
-                    self.stat_on_postroute(None, None, False)
+                    self.stat_on_postroute(None, None)
             self.stats_commit(left + (right - left) / 2)
-
-    def stats_regen_rating(self, path, step, rras):
-
-        def calc_rating(**kwargs):
-            rating = [0, 0]
-            alldocs, __ = this.volume['post'].find(**kwargs)
-            for post in alldocs:
-                rating[0] += 1
-                rating[1] += post['vote']
-            return rating
-
-        alldocs, __ = this.volume['context'].find()
-        for context in alldocs:
-            rating = calc_rating(type='review', context=context.guid)
-            this.volume['context'].update(context.guid, {'rating': rating})
-
-        alldocs, __ = this.volume['post'].find(topic='')
-        for topic in alldocs:
-            rating = calc_rating(topic=topic.guid)
-            this.volume['post'].update(topic.guid, {'rating': rating})

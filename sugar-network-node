@@ -25,10 +25,12 @@ from sugar_network.toolkit import coroutine
 coroutine.inject()
 
 from sugar_network import db, node, toolkit
+from sugar_network.model.post import Post
 from sugar_network.node.auth import SugarAuth, RootAuth
 from sugar_network.node import obs, master, slave, model, stats
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import application, Option, enforce
 
 
@@ -182,8 +184,8 @@ class Application(application.Daemon):
         model.presolve(join(node.data_root.value, 'files'), block=False)
 
     @application.command(
-            're-generate node statistics', name='restat')
-    def restat(self):
+            're-generate node statistics', name='stat')
+    def stat(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
         volume = model.Volume(node.data_root.value, master.RESOURCES)
         routes = slave.SlaveRoutes(node.master_api.value, volume=volume,
@@ -196,18 +198,15 @@ class Application(application.Daemon):
             volume.close()
 
     @application.command(
-            're-generate ratings', name='rating')
-    def rating(self):
+            're-generate ratings', name='rate')
+    def rate(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
-        volume = model.Volume(node.data_root.value, master.RESOURCES)
-        routes = slave.SlaveRoutes(node.master_api.value, volume=volume,
-                auth=RootAuth())
+        this.volume = model.Volume(node.data_root.value, master.RESOURCES)
         try:
-            volume.populate()
-            routes.stats_regen_rating(join(node.data_root.value, 'var'),
-                    stats.stats_step.value, stats.stats_rras.value)
+            this.volume.populate()
+            Post.rating_regen()
         finally:
-            volume.close()
+            this.volume.close()
 
     def _ensure_instance(self):
         enforce(self.check_for_instance(), 'Node is not started')

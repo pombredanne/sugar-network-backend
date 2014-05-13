@@ -15,6 +15,7 @@
 
 from sugar_network import db, model
 from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit.coroutine import this
 
 
 class Post(db.Resource):
@@ -51,6 +52,12 @@ class Post(db.Resource):
     def vote(self, value):
         return value
 
+    @vote.setter
+    def vote(self, value):
+        if value:
+            self._update_rating(value, +1)
+        return value
+
     @db.indexed_property(db.Aggregated, prefix='D', full_text=True,
             subtype=db.Localized())
     def comments(self, value):
@@ -76,3 +83,41 @@ class Post(db.Resource):
     @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
     def rating(self, value):
         return value
+
+    def updated(self):
+        if self.posts.get('state') == 'deleted':
+            self._update_rating(self['vote'], -1)
+        db.Resource.updated(self)
+
+    @staticmethod
+    def rating_regen():
+
+        def calc_rating(**kwargs):
+            rating = [0, 0]
+            alldocs, __ = this.volume['post'].find(not_vote=0, **kwargs)
+            for post in alldocs:
+                rating[0] += 1
+                rating[1] += post['vote']
+            return rating
+
+        alldocs, __ = this.volume['context'].find()
+        for context in alldocs:
+            rating = calc_rating(topic='', context=context.guid)
+            this.volume['context'].update(context.guid, {'rating': rating})
+
+        alldocs, __ = this.volume['post'].find(topic='')
+        for topic in alldocs:
+            rating = calc_rating(topic=topic.guid)
+            this.volume['post'].update(topic.guid, {'rating': rating})
+
+    def _update_rating(self, vote, shift):
+        if self['topic']:
+            resource = this.volume['post']
+            guid = self['topic']
+        else:
+            resource = this.volume['context']
+            guid = self['context']
+        orig = resource[guid]['rating']
+        resource.update(guid, {
+            'rating': [orig[0] + shift, orig[1] + shift * vote],
+            })
