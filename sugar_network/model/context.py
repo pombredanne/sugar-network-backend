@@ -82,11 +82,6 @@ class Context(db.Resource):
     def releases(self, value):
         return value
 
-    @db.indexed_property(db.Numeric, slot=2, default=0,
-            acl=ACL.READ | ACL.LOCAL)
-    def solves(self, value):
-        return value
-
     @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
     def rating(self, value):
         return value

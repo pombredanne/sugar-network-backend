@@ -106,7 +106,6 @@ class StatRoutes(object):
 
     _rrd = None
     _stats = None
-    _solves = None
     _stated = False
 
     def stats_init(self, path, step, rras):
@@ -114,7 +113,6 @@ class StatRoutes(object):
 
         self._rrd = Rrd(path, 'stats', _DS, step, rras)
         self._stats = self._rrd.values()
-        self._solves = {}
 
         if not self._stats:
             for field, traits in _DS.items():
@@ -139,9 +137,6 @@ class StatRoutes(object):
         if not isinstance(stat, basestring):
             stat = stat()
         self._stats[stat] += shift
-
-        if stat == 'solved':
-            self._solves[r.guid] = self._solves.get(r.guid, 0) + 1
 
         return result
 
@@ -188,11 +183,6 @@ class StatRoutes(object):
         for field, traits in _DS.items():
             if traits['type'] == 'ABSOLUTE':
                 self._stats[field] = 0
-
-        context = this.volume['context']
-        for guid, solves in self._solves.items():
-            context.update(guid, {'solves': context[guid]['solves'] + solves})
-        self._solves.clear()
 
     def stats_regen(self, path, step, rras):
         for i in Rrd(path, 'stats', _DS, step, rras).files:
