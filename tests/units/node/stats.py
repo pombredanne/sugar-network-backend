@@ -23,39 +23,39 @@ class StatsTest(tests.Test):
         guid1 = this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         guid2 = this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 2.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 2.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         this.call(method='DELETE', path=['context', guid1])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 2.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 2, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 2.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 2, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         this.call(method='DELETE', path=['context', guid2])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 2.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 2, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 3, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 2.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 2, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 3, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatReleased(self):
         ts = int(time.time())
@@ -76,18 +76,18 @@ class StatsTest(tests.Test):
                 ])))))
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         this.call(method='POST', path=['user'], content={'name': '', 'pubkey': tests.PUBKEY})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         agg2 = this.call(method='POST', path=['context', guid, 'releases'], content=StringIO(
@@ -102,11 +102,11 @@ class StatsTest(tests.Test):
                 ])))))
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 2, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 2, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         agg2 = this.call(method='POST', path=['context', guid, 'releases'], content=StringIO(
@@ -121,12 +121,12 @@ class StatsTest(tests.Test):
                 ])))))
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 2, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 3, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 3.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 2, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 3, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 0.0, 'topics': 3.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatSolved(self):
         ts = int(time.time())
@@ -148,39 +148,39 @@ class StatsTest(tests.Test):
         this.call(method='GET', path=['context', guid], cmd='solve')
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         this.call(method='POST', path=['user'], content={'name': '', 'pubkey': tests.PUBKEY})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         this.call(method='GET', path=['context', guid], cmd='solve')
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 2, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 2, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         this.call(method='GET', path=['context', guid], cmd='solve')
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 2, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 3, {'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 1.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 2, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 3, 'contexts': 1.0, 'released': 0.0, 'reported': 0.0, 'solved': 1.0, 'topics': 1.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatReported(self):
         ts = int(time.time())
@@ -191,39 +191,39 @@ class StatsTest(tests.Test):
         this.call(method='POST', path=['report'], content={'context': 'context', 'error': '', 'lsb_release': {}, 'uname': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         this.call(method='POST', path=['user'], content={'name': '', 'pubkey': tests.PUBKEY})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         this.call(method='POST', path=['report'], content={'context': 'context', 'error': '', 'lsb_release': {}, 'uname': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         this.call(method='POST', path=['report'], content={'context': 'context', 'error': '', 'lsb_release': {}, 'uname': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 3, {'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 3, 'contexts': 0.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatUsers(self):
         ts = int(time.time())
@@ -234,39 +234,39 @@ class StatsTest(tests.Test):
         this.call(method='POST', path=['user'], content={'name': '', 'pubkey': tests.PUBKEY})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         this.call(method='POST', path=['user'], content={'name': '', 'pubkey': tests.PUBKEY2})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 2.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 2.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         this.call(method='DELETE', path=['user', tests.UID])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 2.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 2.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         this.call(method='DELETE', path=['user', tests.UID2])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 2.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0}),
-            (ts + 3, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 2.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 1.0},
+            {'timestamp': ts + 3, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatTopics(self):
         ts = int(time.time())
@@ -277,39 +277,39 @@ class StatsTest(tests.Test):
         guid1 = this.call(method='POST', path=['post'], content={'context': '', 'type': 'post', 'title': '', 'message': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         guid2 = this.call(method='POST', path=['post'], content={'context': '', 'type': 'post', 'title': '', 'message': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         this.call(method='DELETE', path=['post', guid1])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         this.call(method='DELETE', path=['post', guid2])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0}),
-            (ts + 3, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 2.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
+            {'timestamp': ts + 3, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatPosts(self):
         ts = int(time.time())
@@ -320,39 +320,39 @@ class StatsTest(tests.Test):
         guid1 = this.call(method='POST', path=['post'], content={'topic': 'topic', 'context': '', 'type': 'post', 'title': '', 'message': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
         guid2 = this.call(method='POST', path=['post'], content={'topic': 'topic', 'context': '', 'type': 'post', 'title': '', 'message': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 2.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 2.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 2)
         this.call(method='DELETE', path=['post', guid1])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 2.0, 'users': 0.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 2.0, 'users': 0.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 3)
         this.call(method='DELETE', path=['post', guid2])
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0}),
-            (ts + 1, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 2.0, 'users': 0.0}),
-            (ts + 2, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0}),
-            (ts + 3, {'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0}),
+            {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0},
+            {'timestamp': ts + 1, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 2.0, 'users': 0.0},
+            {'timestamp': ts + 2, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 1.0, 'users': 0.0},
+            {'timestamp': ts + 3, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 0.0, 'posts': 0.0, 'users': 0.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_ReuseTotalsOnInitialStart(self):
         volume = self.start_master(auth=RootAuth())
@@ -367,9 +367,9 @@ class StatsTest(tests.Test):
         this.call(method='POST', path=['report'], content={'context': 'context', 'error': '', 'lsb_release': {}, 'uname': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
-            (ts + 0, {'contexts': 1.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 1.0, 'posts': 1.0, 'users': 1.0}),
+            {'timestamp': ts + 0, 'contexts': 1.0, 'released': 0.0, 'reported': 1.0, 'solved': 0.0, 'topics': 1.0, 'posts': 1.0, 'users': 1.0},
             ],
-            this.call(method='GET', cmd='stats'))
+            this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatContextRating(self):
         ts = int(time.time())

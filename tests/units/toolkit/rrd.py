@@ -422,7 +422,21 @@ class RrdTest(tests.Test):
         self.assertEqual({'f': 2.0}, dbset.values(ts + 1))
         self.assertEqual({'f': 2.0}, dbset.values(ts + 2))
         self.assertEqual({'f': 2.0}, dbset.values(ts + 3))
-        self.assertEqual({'f': 1.0}, dbset.values(ts + 4))
+        self.assertEqual({'f': 0.0}, dbset.values(ts + 4))
+
+    def test_GetValues(self):
+        dbset = rrd.Rrd('.', 'test', None, 1, ['RRA:AVERAGE:0.5:1:10'])
+
+        ts = int(time.time())
+        dbset.put({'f': 1}, ts + 0)
+        dbset.put({'f': 2}, ts + 1)
+        dbset.put({'f': 3}, ts + 2)
+
+        self.assertEqual({'f': 3.0}, dbset.values())
+        self.assertEqual({'f': 1.0}, dbset.values(ts + 0))
+        self.assertEqual({'f': 2.0}, dbset.values(ts + 1))
+        self.assertEqual({'f': 3.0}, dbset.values(ts + 2))
+        self.assertEqual({'f': 0.0}, dbset.values(ts + 3))
 
 
 if __name__ == '__main__':

@@ -203,14 +203,20 @@ class _Db(object):
     def first(self):
         return self._meta['first'] or 0
 
-    def values(self, timestamp):
+    def values(self, timestamp=None):
+        result = None
         if timestamp and timestamp - self.last <= self.step and \
                 'pending' in self._meta:
-            return self._meta['pending']
-        info = rrdtool.info(self.path)
-        result = {}
-        for field in self.field_names:
-            result[field] = float(info.get('ds[%s].last_ds' % field) or 0)
+            result = self._meta['pending']
+        elif not timestamp or timestamp == self.last:
+            info = rrdtool.info(self.path)
+            result = {}
+            for field in self.field_names:
+                result[field] = float(info.get('ds[%s].last_ds' % field) or 0)
+        else:
+            timestamp -= self.step
+            for __, result in self.get(timestamp, timestamp, self.step):
+                pass
         return result
 
     def put(self, values, timestamp):

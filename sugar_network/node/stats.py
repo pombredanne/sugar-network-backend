@@ -101,7 +101,7 @@ _ROUTES = {
         ('users', -1),
     }
 
-_MAX_STAT_RECORDS = 100
+_LIMIT = 100
 
 _logger = logging.getLogger('node.stats')
 
@@ -144,12 +144,12 @@ class StatRoutes(object):
             stat = stat()
         self._stats[stat] += shift
 
-        if stat_rating and r.method == 'POST' and r.resource == 'post':
+        if stat_rating:
             rating = None
             if stat == 'topics' and this.resource['type'] == 'review':
                 rating = self._rating['context']
                 rating = rating.setdefault(this.resource['context'], [0, 0])
-            else:
+            elif stat == 'posts':
                 rating = self._rating['post']
                 rating = rating.setdefault(this.resource['topic'], [0, 0])
             if rating is not None:
@@ -159,28 +159,30 @@ class StatRoutes(object):
         return result
 
     @route('GET', cmd='stats', arguments={
-                'start': int, 'end': int, 'records': int, 'source': list},
+                'start': int, 'end': int, 'limit': int, 'event': list},
             mime_type='application/json')
-    def stats(self, start, end, records, source):
+    def stats(self, start, end, limit, event):
         enforce(self._rrd is not None, 'Statistics disabled')
 
         if not start:
             start = self._rrd.first or 0
         if not end:
             end = self._rrd.last or 0
-        if records > _MAX_STAT_RECORDS:
-            _logger.debug('Decrease %d stats records number to %d',
-                    records, _MAX_STAT_RECORDS)
-            records = _MAX_STAT_RECORDS
-        elif records <= 0:
-            records = _MAX_STAT_RECORDS / 10
-        resolution = max(1, (end - start) / records)
+        if limit > _LIMIT:
+            _logger.debug('Decrease %d limit by %d', limit, _LIMIT)
+            limit = _LIMIT
+        elif limit <= 0:
+            result = self._rrd.values(end)
+            result['timestamp'] = end
+            return result
+        resolution = max(1, (end - start) / limit)
 
         result = []
         for ts, values in self._rrd.get(start, end, resolution):
-            if source:
-                values = dict([(i, values[i]) for i in source])
-            result.append((ts, values))
+            if event:
+                values = dict([(i, values[i]) for i in event])
+            values['timestamp'] = ts
+            result.append(values)
         return result
 
     def stats_auto_commit(self):
