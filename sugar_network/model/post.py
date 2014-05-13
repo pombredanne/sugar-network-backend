@@ -47,7 +47,7 @@ class Post(db.Resource):
     def solution(self, value):
         return value
 
-    @db.indexed_property(db.Enum, prefix='V', items=range(5), default=0,
+    @db.indexed_property(db.Enum, prefix='V', items=range(6), default=0,
             acl=ACL.CREATE | ACL.READ)
     def vote(self, value):
         return value
@@ -75,12 +75,7 @@ class Post(db.Resource):
             value['name'] = self['title']
         return value
 
-    @db.indexed_property(db.Numeric, slot=2, default=0,
-            acl=ACL.READ | ACL.LOCAL)
-    def downloads(self, value):
-        return value
-
-    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
+    @db.indexed_property(model.Rating, slot=2, acl=ACL.READ | ACL.LOCAL)
     def rating(self, value):
         return value
 

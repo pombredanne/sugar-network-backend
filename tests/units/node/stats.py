@@ -371,6 +371,36 @@ class StatsTest(tests.Test):
             ],
             this.call(method='GET', cmd='stats', limit=10))
 
+    def test_StatSolvedPerObject(self):
+        ts = int(time.time())
+        volume = self.start_master(auth=RootAuth())
+        self.node_routes.stats_init('.', 1, ['RRA:AVERAGE:0.5:1:10'])
+
+        self.override(time, 'time', lambda: ts)
+        guid = this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
+        this.call(method='POST', path=['context', guid, 'releases'], content=StringIO(
+            self.zips(('topdir/activity/activity.info', '\n'.join([
+                '[Activity]',
+                'name = Activity',
+                'bundle_id = %s' % guid,
+                'exec = true',
+                'icon = icon',
+                'activity_version = 1',
+                'license = Public Domain',
+                ])))))
+        this.call(method='GET', path=['context', guid], cmd='solve')
+        self.node_routes.stats_commit()
+        self.assertEqual(1, volume['context'][guid]['solves'])
+
+        this.call(method='GET', path=['context', guid], cmd='solve')
+        this.call(method='GET', path=['context', guid], cmd='solve')
+        self.node_routes.stats_commit()
+        self.assertEqual(3, volume['context'][guid]['solves'])
+
+        this.call(method='GET', path=['context', guid], cmd='solve')
+        self.node_routes.stats_commit()
+        self.assertEqual(4, volume['context'][guid]['solves'])
+
 
 if __name__ == '__main__':
     tests.main()

@@ -98,13 +98,11 @@ class Application(application.Daemon):
                 volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
 
+        routes.stats_init(join(node.data_root.value, 'var'),
+                stats.stats_step.value, stats.stats_rras.value)
+        self.jobs.spawn(routes.stats_auto_commit)
         self.jobs.spawn(volume.populate)
         self.jobs.spawn(model.presolve, join(node.data_root.value, 'files'))
-
-        if stats.stats.value:
-            routes.stats_init(join(node.data_root.value, 'var'),
-                    stats.stats_step.value, stats.stats_rras.value)
-            self.jobs.spawn(routes.stats_auto_commit)
 
         logging.info('Listen requests on %s:%s',
                 node.host.value, node.port.value)
@@ -128,8 +126,7 @@ class Application(application.Daemon):
         try:
             self.jobs.join()
         finally:
-            if stats.stats.value:
-                routes.stats_commit()
+            routes.stats_commit()
             volume.close()
             os.unlink(backdoor.value)
 

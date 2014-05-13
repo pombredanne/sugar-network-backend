@@ -84,7 +84,7 @@ class Context(db.Resource):
 
     @db.indexed_property(db.Numeric, slot=2, default=0,
             acl=ACL.READ | ACL.LOCAL)
-    def downloads(self, value):
+    def solves(self, value):
         return value
 
     @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
