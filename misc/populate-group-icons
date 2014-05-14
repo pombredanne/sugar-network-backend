@@ -19,6 +19,6 @@ try:
     for doc in this.volume['context']:
         if 'group' not in doc['type'] or doc['artefact_icon'] != 'assets/missing.svg':
             continue
-        doc._generate_default_icons(['group'], True)
+        doc._generate_default_icons(['group'])
 finally:
     this.volume.close()

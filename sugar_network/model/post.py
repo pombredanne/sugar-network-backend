@@ -66,8 +66,6 @@ class Post(db.Resource):
     @db.stored_property(db.Aggregated, subtype=db.Blob(),
             acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
     def attachments(self, value):
-        if value:
-            value['name'] = self['title']
         return value
 
     @db.indexed_property(model.Rating, slot=2, acl=ACL.READ | ACL.LOCAL)
