@@ -274,7 +274,7 @@ class StatsTest(tests.Test):
         self.node_routes.stats_init('.', 1, ['RRA:AVERAGE:0.5:1:10'])
 
         self.override(time, 'time', lambda: ts)
-        guid1 = this.call(method='POST', path=['post'], content={'context': '', 'type': 'post', 'title': '', 'message': ''})
+        guid1 = this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
             {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
@@ -282,7 +282,7 @@ class StatsTest(tests.Test):
             this.call(method='GET', cmd='stats', limit=10))
 
         self.override(time, 'time', lambda: ts + 1)
-        guid2 = this.call(method='POST', path=['post'], content={'context': '', 'type': 'post', 'title': '', 'message': ''})
+        guid2 = this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
         self.node_routes.stats_commit()
         self.assertEqual([
             {'timestamp': ts + 0, 'contexts': 0.0, 'released': 0.0, 'reported': 0.0, 'solved': 0.0, 'topics': 1.0, 'posts': 0.0, 'users': 0.0},
@@ -358,7 +358,7 @@ class StatsTest(tests.Test):
         volume = self.start_master(auth=RootAuth())
         this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
         this.call(method='POST', path=['user'], content={'name': '', 'pubkey': tests.PUBKEY})
-        this.call(method='POST', path=['post'], content={'context': '', 'type': 'post', 'title': '', 'message': ''})
+        this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
         this.call(method='POST', path=['post'], content={'topic': 'topic', 'context': '', 'type': 'post', 'title': '', 'message': ''})
 
         ts = int(time.time())

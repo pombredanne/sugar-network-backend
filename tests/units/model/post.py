@@ -28,7 +28,7 @@ class PostTest(tests.Test):
 
         volume['post'].create({
             'context': context,
-            'type': 'post',
+            'type': 'topic',
             'title': {},
             'message': {},
             })
@@ -36,7 +36,7 @@ class PostTest(tests.Test):
 
         volume['post'].create({
             'context': context,
-            'type': 'post',
+            'type': 'topic',
             'title': {},
             'message': {},
             'vote': 0,
@@ -45,7 +45,7 @@ class PostTest(tests.Test):
 
         volume['post'].create({
             'context': context,
-            'type': 'post',
+            'type': 'topic',
             'title': {},
             'message': {},
             'vote': 1,
@@ -54,7 +54,7 @@ class PostTest(tests.Test):
 
         volume['post'].create({
             'context': context,
-            'type': 'post',
+            'type': 'topic',
             'title': {},
             'message': {},
             'vote': 2,
@@ -87,7 +87,7 @@ class PostTest(tests.Test):
             })
         topic = volume['post'].create({
             'context': context,
-            'type': 'post',
+            'type': 'topic',
             'title': {},
             'message': {},
             })
@@ -139,10 +139,10 @@ class PostTest(tests.Test):
 
     def test_ShiftTopicRatingOnDeletes(self):
         volume = self.start_master(auth=RootAuth())
-        topic = this.call(method='POST', path=['post'], content={'context': '', 'type': 'post', 'title': '', 'message': ''})
+        topic = this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
 
-        post1 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'review', 'title': '', 'message': '', 'vote': 1})
-        post2 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'review', 'title': '', 'message': '', 'vote': 2})
+        post1 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': '', 'vote': 1})
+        post2 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': '', 'vote': 2})
         self.assertEqual([2, 3], volume['post'][topic]['rating'])
 
         this.call(method='DELETE', path=['post', post1])
@@ -151,6 +151,30 @@ class PostTest(tests.Test):
         this.call(method='DELETE', path=['post', post2])
         self.assertEqual([0, 0], volume['post'][topic]['rating'])
 
+    def test_DoesTypeCorrespondToTopicValue(self):
+        volume = self.start_master(auth=RootAuth())
+
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'type': 'post', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'type': 'solution', 'title': '', 'message': ''})
+
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'topic', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'review', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'object', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'question', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'problem', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'idea', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'announce', 'title': '', 'message': ''})
+        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
+                content={'context': '', 'topic': 'topic', 'type': 'notification', 'title': '', 'message': ''})
 
 if __name__ == '__main__':
     tests.main()

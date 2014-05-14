@@ -16,6 +16,7 @@
 from sugar_network import db, model
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import enforce
 
 
 class Post(db.Resource):
@@ -29,8 +30,16 @@ class Post(db.Resource):
     def topic(self, value):
         return value
 
-    @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES)
+    @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES,
+            acl=ACL.CREATE | ACL.READ)
     def type(self, value):
+        return value
+
+    @type.setter
+    def type(self, value):
+        is_not_topic = value in ('post', 'solution')
+        print is_not_topic, self['topic']
+        enforce(is_not_topic == bool(self['topic']), 'Inappropriate type')
         return value
 
     @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True,

@@ -19,11 +19,11 @@ class ModelTest(tests.Test):
     def test_RatingSort(self):
         directory = db.Volume('db', [Post])['post']
 
-        directory.create({'guid': '1', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [0, 0]})
-        directory.create({'guid': '2', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [1, 2]})
-        directory.create({'guid': '3', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [1, 4]})
-        directory.create({'guid': '4', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [10, 10]})
-        directory.create({'guid': '5', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [30, 90]})
+        directory.create({'guid': '1', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [0, 0]})
+        directory.create({'guid': '2', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 2]})
+        directory.create({'guid': '3', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 4]})
+        directory.create({'guid': '4', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10, 10]})
+        directory.create({'guid': '5', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [30, 90]})
 
         self.assertEqual(
                 ['1', '2', '3', '4', '5'],
@@ -38,11 +38,11 @@ class ModelTest(tests.Test):
     def test_RatingSecondarySortByVotes(self):
         directory = db.Volume('db', [Post])['post']
 
-        directory.create({'guid': '1', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [10, 10]})
-        directory.create({'guid': '2', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [1, 1]})
-        directory.create({'guid': '3', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [10000, 10000]})
-        directory.create({'guid': '4', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [1000, 1000]})
-        directory.create({'guid': '5', 'context': '', 'type': 'post', 'title': {}, 'message': {}, 'rating': [100, 100]})
+        directory.create({'guid': '1', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10, 10]})
+        directory.create({'guid': '2', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 1]})
+        directory.create({'guid': '3', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10000, 10000]})
+        directory.create({'guid': '4', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1000, 1000]})
+        directory.create({'guid': '5', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [100, 100]})
 
         self.assertEqual(
                 ['1', '2', '3', '4', '5'],
