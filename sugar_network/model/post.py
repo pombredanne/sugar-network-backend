@@ -38,7 +38,6 @@ class Post(db.Resource):
     @type.setter
     def type(self, value):
         is_not_topic = value in ('post', 'solution')
-        print is_not_topic, self['topic']
         enforce(is_not_topic == bool(self['topic']), 'Inappropriate type')
         return value
 

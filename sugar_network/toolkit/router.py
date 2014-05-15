@@ -265,10 +265,8 @@ class Request(dict):
         self.path[3] = value
 
     @property
-    def static_prefix(self):
-        http_host = self.environ.get('HTTP_HOST')
-        if http_host:
-            return 'http://' + http_host
+    def host(self):
+        return 'http://%s' % (self.environ.get('HTTP_HOST') or 'localhost')
 
     @property
     def if_modified_since(self):
@@ -388,11 +386,12 @@ class File(str):
         if meta:
             url = meta.get('location')
         if not url and digest:
-            url = '%s/' % this.request.static_prefix
-            if '/' in digest:
-                url += digest
+            if this.static_prefix:
+                url = '/'.join([this.static_prefix, digest])
+            elif '/' in digest:
+                url = '/'.join([this.request.host, digest])
             else:
-                url += 'blobs/' + digest
+                url = '/'.join([this.request.host, 'blobs', digest])
         self = str.__new__(cls, url)
 
         self.meta = meta
@@ -938,3 +937,4 @@ class _ResponseHeaders(object):
 File.AWAY = File(None)
 this.request = Request()
 this.response = Response()
+this.static_prefix = None

@@ -1375,7 +1375,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual(
-                {context: {'command': ('activity', 3), 'title': '', 'blob': 'None/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'}},
+                {context: {'command': ('activity', 3), 'title': '', 'blob': 'http://localhost/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'}},
                 model.solve(volume, context))
 
         context = volume['context'].create({
@@ -1386,7 +1386,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual(
-                {context: {'command': ('activity', 3), 'title': '', 'blob': 'None/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'}},
+                {context: {'command': ('activity', 3), 'title': '', 'blob': 'http://localhost/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'}},
                 model.solve(volume, context))
 
     def test_solve_SortByStability(self):
@@ -1402,7 +1402,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual(
-                {context: {'command': ('activity', 2), 'title': '', 'blob': 'None/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'}},
+                {context: {'command': ('activity', 2), 'title': '', 'blob': 'http://localhost/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'}},
                 model.solve(volume, context))
 
     def test_solve_CollectDeps(self):
@@ -1442,10 +1442,10 @@ class NodeModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context1': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'context2': {'title': '', 'blob': 'None/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
-            'context3': {'title': '', 'blob': 'None/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
-            'context4': {'title': '', 'blob': 'None/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
+            'context1': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context2': {'title': '', 'blob': 'http://localhost/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
+            'context3': {'title': '', 'blob': 'http://localhost/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
+            'context4': {'title': '', 'blob': 'http://localhost/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context1'))
 
@@ -1479,12 +1479,12 @@ class NodeModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context1': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 1), 'size': 0, 'content-type': 'mime'},
-            'context2': {'title': '', 'blob': 'None/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
+            'context1': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 1), 'size': 0, 'content-type': 'mime'},
+            'context2': {'title': '', 'blob': 'http://localhost/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context1', command='activity'))
         self.assertEqual({
-            'context1': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('application', 2), 'size': 0, 'content-type': 'mime'},
+            'context1': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('application', 2), 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context1', command='application'))
 
@@ -1511,8 +1511,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1524,8 +1524,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1537,8 +1537,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/5', 'version': [[5], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/5', 'version': [[5], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1550,8 +1550,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/5', 'version': [[5], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/5', 'version': [[5], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1563,8 +1563,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1576,8 +1576,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1589,8 +1589,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-                'context1': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-                'dep': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'size': 0, 'content-type': 'mime'},
+                'context1': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+                'dep': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'size': 0, 'content-type': 'mime'},
                 },
                 model.solve(volume, 'context1'))
 
@@ -1627,8 +1627,8 @@ class NodeModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context1': {'title': '', 'blob': 'None/blobs/6', 'version': [[1], 0], 'command': ('activity', 6), 'size': 0, 'content-type': 'mime'},
-            'context4': {'title': '', 'blob': 'None/blobs/5', 'version': [[1], 0], 'size': 0, 'content-type': 'mime'},
+            'context1': {'title': '', 'blob': 'http://localhost/blobs/6', 'version': [[1], 0], 'command': ('activity', 6), 'size': 0, 'content-type': 'mime'},
+            'context4': {'title': '', 'blob': 'http://localhost/blobs/5', 'version': [[1], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context1'))
 
@@ -1657,8 +1657,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'dep': {'title': '', 'blob': 'None/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'dep': {'title': '', 'blob': 'http://localhost/blobs/2', 'version': [[2], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 
@@ -1672,8 +1672,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'dep': {'title': '', 'blob': 'None/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'dep': {'title': '', 'blob': 'http://localhost/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 
@@ -1687,8 +1687,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'dep': {'title': '', 'blob': 'None/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'dep': {'title': '', 'blob': 'http://localhost/blobs/3', 'version': [[3], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 
@@ -1715,7 +1715,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 
@@ -1727,8 +1727,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'dep': {'title': '', 'blob': 'None/blobs/5', 'version': [[5], 0], 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'dep': {'title': '', 'blob': 'http://localhost/blobs/5', 'version': [[5], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 
@@ -1740,8 +1740,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'dep': {'title': '', 'blob': 'None/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/10', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'dep': {'title': '', 'blob': 'http://localhost/blobs/4', 'version': [[4], 0], 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 
@@ -1796,7 +1796,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': [[1], 0]},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='10.04'))
@@ -1814,8 +1814,8 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
-            'dep': {'title': '', 'blob': 'None/blobs/2', 'version': [[1], 0], 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'dep': {'title': '', 'blob': 'http://localhost/blobs/2', 'version': [[1], 0], 'size': 0, 'content-type': 'mime'},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': [[1], 0]},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='10.04'))
@@ -1839,7 +1839,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             'package1': {'packages': ['bin1', 'bin2'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu'))
@@ -1860,7 +1860,7 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             'package2': {'packages': ['bin'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Ubuntu', lsb_release='fake'))
@@ -1888,17 +1888,17 @@ class NodeModelTest(tests.Test):
                 },
             })
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context))
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Fake'))
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 'command'), 'size': 0, 'content-type': 'mime'},
             'package1': {'packages': ['pkg1'], 'version': []},
             },
             model.solve(volume, context, lsb_id='Fake', lsb_release='fake'))
@@ -1937,7 +1937,7 @@ class NodeModelTest(tests.Test):
             })
 
         self.assertEqual({
-            'context': {'title': '', 'blob': 'None/blobs/1', 'version': [[1], 0], 'command': ('activity', 1), 'size': 0, 'content-type': 'mime'},
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': [[1], 0], 'command': ('activity', 1), 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
 

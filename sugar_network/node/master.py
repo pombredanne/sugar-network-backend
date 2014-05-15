@@ -33,8 +33,8 @@ _logger = logging.getLogger('node.master')
 
 class MasterRoutes(NodeRoutes):
 
-    def __init__(self, master_api, **kwargs):
-        NodeRoutes.__init__(self, urlsplit(master_api).netloc, **kwargs)
+    def __init__(self, master_url, **kwargs):
+        NodeRoutes.__init__(self, urlsplit(master_url).netloc, **kwargs)
         self._pulls = pylru.lrucache(1024)
 
     @route('POST', cmd='sync', arguments={'accept_length': int})

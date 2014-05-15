@@ -1532,6 +1532,18 @@ class RouterTest(tests.Test):
                 'sugar_network_node=unset_sugar_network_node; Max-Age=3600; HttpOnly',
                 headers.get('set-cookie'))
 
+    def test_FileUrls(self):
+        this.static_prefix = None
+        this.request = Request({'HTTP_HOST': 'host'})
+
+        self.assertEqual('http://host/blobs/digest', File(None, 'digest'))
+        self.assertEqual('http://host/assets/digest', File(None, 'assets/digest'))
+
+        this.static_prefix = 'http://static'
+
+        self.assertEqual('http://static/digest', File(None, 'digest'))
+        self.assertEqual('http://static/assets/digest', File(None, 'assets/digest'))
+
 
 if __name__ == '__main__':
     tests.main()

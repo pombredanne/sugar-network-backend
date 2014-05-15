@@ -26,7 +26,7 @@ from os.path import join
 import MySQLdb as mdb
 
 from sugar_network import db, toolkit
-from sugar_network.node import data_root, master_api
+from sugar_network.node import data_root, master_url
 from sugar_network.node.auth import Principal
 from sugar_network.node.master import RESOURCES
 from sugar_network.node.slave import SlaveRoutes
@@ -165,9 +165,9 @@ class Application(application.Application):
         this.volume.populate()
         this.broadcast = lambda event: None
         this.localcast = lambda event: None
-        this.request = Request({'HTTP_HOST': master_api.value})
+        this.request = Request({'HTTP_HOST': master_url.value})
         auth = Auth()
-        routes = SlaveRoutes(master_api.value, this.volume, auth=auth)
+        routes = SlaveRoutes(master_url.value, this.volume, auth=auth)
         self._router = Router(routes)
         this.principal = auth.logon()
 
@@ -705,7 +705,7 @@ mysql_password = Option(
 
 Option.seek('main', [application.debug, toolkit.cachedir])
 Option.seek('aslo', [mysql_server, mysql_user, mysql_password, mysql_database])
-Option.seek('node', [data_root, master_api])
+Option.seek('node', [data_root, master_url])
 
 db.index_write_queue.value = 1024 * 10
 db.index_flush_threshold.value = 0

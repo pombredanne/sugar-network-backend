@@ -94,7 +94,7 @@ class Test(unittest.TestCase):
         node.find_limit.value = 1024
         node.data_root.value = tmpdir
         node.port.value = 8888
-        node.master_api.value = 'http://127.0.0.1:7777'
+        node.master_url.value = 'http://127.0.0.1:7777'
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.api.value = 'http://127.0.0.1:7777'
@@ -149,6 +149,7 @@ class Test(unittest.TestCase):
         this.injector = None
         this.principal = None
         this.reset_property('resource')
+        this.static_prefix = None
 
     def tearDown(self):
         self.stop_nodes()
@@ -286,7 +287,7 @@ class Test(unittest.TestCase):
             auth = SugarAuth('master')
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
         self.node_volume = NodeVolume('master', classes)
-        self.node_routes = routes(node.master_api.value, volume=self.node_volume, auth=auth)
+        self.node_routes = routes(node.master_url.value, volume=self.node_volume, auth=auth)
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
@@ -305,7 +306,7 @@ class Test(unittest.TestCase):
             volume = NodeVolume('master', classes)
             if cb is not None:
                 cb(volume)
-            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(node.master_api.value, volume=volume, auth=auth)))
+            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(node.master_url.value, volume=volume, auth=auth)))
             anode.serve_forever()
 
         pid = self.fork(_node)

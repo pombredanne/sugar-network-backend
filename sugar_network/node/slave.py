@@ -39,7 +39,7 @@ _logger = logging.getLogger('node.slave')
 
 class SlaveRoutes(NodeRoutes):
 
-    def __init__(self, master_api, volume, **kwargs):
+    def __init__(self, master_url, volume, **kwargs):
         guid_path = join(volume.root, 'etc', 'node')
         if exists(guid_path):
             with file(guid_path) as f:
@@ -54,13 +54,13 @@ class SlaveRoutes(NodeRoutes):
         vardir = join(volume.root, 'var')
         self._push_r = toolkit.Bin(join(vardir, 'push'), [[1, None]])
         self._pull_r = toolkit.Bin(join(vardir, 'pull'), [[1, None]])
-        self._master_guid = urlsplit(master_api).netloc
-        self._master_api = master_api
+        self._master_guid = urlsplit(master_url).netloc
+        self._master_url = master_url
 
     @route('POST', cmd='online_sync', acl=ACL.AUTH | ACL.ADMIN,
             arguments={'no_pull': bool})
     def online_sync(self, no_pull=False):
-        conn = http.Connection(self._master_api)
+        conn = http.Connection(self._master_url)
         response = conn.request('POST',
                 data=packets.encode(self._export(not no_pull), header={
                     'from': self.guid,

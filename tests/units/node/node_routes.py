@@ -44,7 +44,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('GET', [None, None], cmd='probe1', acl=ACL.AUTH)
@@ -73,7 +73,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('GET', [None, None], cmd='probe1', acl=ACL.AUTH | ACL.AUTHOR)
@@ -103,7 +103,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH | ACL.ADMIN)
@@ -150,7 +150,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -211,7 +211,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -234,7 +234,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)
@@ -249,7 +249,7 @@ class NodeRoutesTest(tests.Test):
 
         class Routes(NodeRoutes):
 
-            def __init__(self, master_api, **kwargs):
+            def __init__(self, master_url, **kwargs):
                 NodeRoutes.__init__(self, 'node', **kwargs)
 
             @route('PROBE', acl=ACL.AUTH)

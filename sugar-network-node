@@ -34,6 +34,10 @@ from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import application, Option, enforce
 
 
+static_url = Option(
+        'url to provide static content from; if omitted, content '
+        'will be provided from the same host', name='static-url')
+
 backdoor = Option(
         'path to a UNIX socket to serve administrative API requests; '
         'the entry point is not authenticated and assumes root privileges, '
@@ -75,9 +79,11 @@ class Application(application.Daemon):
                     join(application.logdir.value, http_logdir.value)
         if not isabs(backdoor.value):
             backdoor.value = join(application.rundir.value, backdoor.value)
+        if static_url.value:
+            this.static_prefix = static_url.value
 
     def run(self):
-        enforce(node.master_api.value, 'Option --master-api missed')
+        enforce(node.master_url.value, 'Option --master-api missed')
 
         ssl_args = {}
         if node.keyfile.value:
@@ -94,7 +100,7 @@ class Application(application.Daemon):
             resources = slave.RESOURCES
             logging.info('Start slave node')
         volume = model.Volume(node.data_root.value, resources)
-        routes = node_routes_class(node.master_api.value,
+        routes = node_routes_class(node.master_url.value,
                 volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
 
@@ -115,7 +121,7 @@ class Application(application.Daemon):
         logging.info('Listen admin requests on %s', backdoor.value)
         sock = coroutine.listen_unix_socket(backdoor.value,
                 reuse_address=True, mode=0660)
-        routes = node_routes_class(node.master_api.value,
+        routes = node_routes_class(node.master_url.value,
                 volume=volume, auth=RootAuth())
         server = coroutine.WSGIServer(sock, Router(routes),
                 http_log=_open_logfile('backdoor'))
@@ -185,7 +191,7 @@ class Application(application.Daemon):
     def stat(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
         volume = model.Volume(node.data_root.value, master.RESOURCES)
-        routes = slave.SlaveRoutes(node.master_api.value, volume=volume,
+        routes = slave.SlaveRoutes(node.master_url.value, volume=volume,
                 auth=RootAuth())
         try:
             volume.populate()
@@ -227,7 +233,7 @@ application.rundir.value = None
 Option.seek('main', application)
 Option.seek('main', [toolkit.cachedir])
 Option.seek('node', node)
-Option.seek('node', [http_logdir])
+Option.seek('node', [http_logdir, static_url])
 Option.seek('node', stats)
 Option.seek('obs', obs)
 Option.seek('db', db)
