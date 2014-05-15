@@ -31,10 +31,12 @@ coroutine.inject()
 from sugar_network import db, client, toolkit
 from sugar_network.model import RESOURCES
 from sugar_network.client import IPCConnection, Connection
+from sugar_network.client.auth import BasicCreds, SugarCreds
 from sugar_network.client.routes import ClientRoutes
+from sugar_network.client.injector import Injector
 from sugar_network.toolkit.router import Router, Request, Response
-from sugar_network.toolkit import application
-from sugar_network.toolkit import Option, BUFFER_SIZE, enforce
+from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit import Option, BUFFER_SIZE, application, enforce
 
 
 gettext.textdomain('sugar-network')
@@ -71,24 +73,6 @@ offline = Option(
 
 _ESCAPE_VALUE_RE = re.compile(r'([^\[\]\{\}0-9][^\]\[\{\}]+)')
 _LIST_RE = re.compile(r'\s*[;,:]+\s*')
-
-
-class ClientRouter(Router, ClientRoutes):
-
-    def __init__(self):
-        home = db.Volume(client.path('db'), RESOURCES)
-        Router.__init__(self, self)
-        ClientRoutes.__init__(self, home,
-                client.api.value if not offline.value else None,
-                no_subscription=True)
-        if not offline.value:
-            for __ in self.subscribe(event='inline', state='online'):
-                break
-            coroutine.dispatch()
-        server = coroutine.WSGIServer(
-                ('localhost', client.ipc_port.value), self)
-        coroutine.spawn(server.serve_forever)
-        coroutine.dispatch()
 
 
 class Application(application.Application):
@@ -315,6 +299,33 @@ class Application(application.Application):
     def _print(self, *data):
         if not quiet.value:
             sys.stdout.write(''.join(data))
+
+
+class ClientRouter(Router, ClientRoutes):
+
+    def __init__(self):
+        home = db.Volume(client.path('db'), RESOURCES)
+        if client.login.value and client.password.value:
+            creds = BasicCreds(client.login.value, client.password.value)
+        elif client.keyfile.value:
+            creds = SugarCreds(client.keyfile.value)
+        this.injector = Injector(client.path('cache'),
+                client.cache_lifetime.value, client.cache_limit.value,
+                client.cache_limit_percent.value)
+
+        Router.__init__(self, self)
+        ClientRoutes.__init__(self, home, creds, no_subscription=True)
+
+        if not offline.value:
+            api_url = None if client.discover_node.value else client.api.value
+            self.connect(api_url)
+            for event in self.subscribe(event='inline', state='online'):
+                if event['event'] != 'pong':
+                    break
+        server = coroutine.WSGIServer(
+                ('localhost', client.ipc_port.value), self)
+        coroutine.spawn(server.serve_forever)
+        #coroutine.dispatch()
 
 
 # New defaults

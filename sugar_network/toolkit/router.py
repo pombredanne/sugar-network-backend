@@ -936,3 +936,5 @@ class _ResponseHeaders(object):
 
 
 File.AWAY = File(None)
+this.request = Request()
+this.response = Response()
