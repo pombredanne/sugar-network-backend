@@ -17,12 +17,15 @@ import os
 import logging
 import hashlib
 import mimetypes
+from collections import Iterable
 from contextlib import contextmanager
-from os.path import exists, abspath, join, dirname, isdir
+from os.path import exists, abspath, join, dirname, isdir, basename
+
+from PythonMagick import Image
 
 from sugar_network import toolkit, assets
 from sugar_network.toolkit.router import File
-from sugar_network.toolkit import http, ranges, enforce
+from sugar_network.toolkit import http, ranges, inotify, enforce
 
 
 _META_SUFFIX = '.meta'
@@ -82,26 +85,12 @@ class Blobs(object):
             if not recursive:
                 break
 
-    def post(self, content, mime_type=None, digest_to_assert=None, meta=None):
-        if isinstance(content, File):
-            seqno = self._seqno.next()
-            meta = content.meta.copy()
-            meta['x-seqno'] = str(seqno)
-            path = self._blob_path(content.digest)
-            if not exists(dirname(path)):
-                os.makedirs(dirname(path))
-            os.link(content.path, path)
-            _write_meta(path, meta, seqno)
-            return File(path, content.digest, meta)
-
-        if meta is None:
-            meta = []
-            meta.append(('content-type',
-                mime_type or 'application/octet-stream'))
-        else:
-            meta = meta.items()
-            if mime_type:
-                meta.append(('content-type', mime_type))
+    def post(self, content, content_type=None, thumbs=None):
+        meta = [('content-type', content_type or 'application/octet-stream')]
+        if thumbs is not None:
+            if not isinstance(thumbs, Iterable):
+                thumbs = [thumbs]
+            meta.append(('x-thumbs', ' '.join([str(i) for i in thumbs])))
 
         @contextmanager
         def write_blob():
@@ -131,10 +120,6 @@ class Blobs(object):
                     yield blob, hashlib.sha1(content).hexdigest()
 
         with write_blob() as (blob, digest):
-            if digest_to_assert and digest != digest_to_assert:
-                if blob is not None:
-                    blob.unlink()
-                raise http.BadRequest('Digest mismatch')
             path = self._blob_path(digest)
             seqno = self._seqno.next()
             meta.append(('x-seqno', str(seqno)))
@@ -154,13 +139,17 @@ class Blobs(object):
         enforce(exists(path + _META_SUFFIX), http.NotFound, 'No such blob')
         orig_meta = _read_meta(path)
         orig_meta.update(meta)
-        _write_meta(path, orig_meta, None)
+        _write_meta(path, orig_meta)
 
-    def get(self, digest):
+    def get(self, digest, thumb=None):
         path = self.path(digest)
         if not isinstance(digest, basestring):
             digest = os.sep.join(digest)
         if exists(path + _META_SUFFIX):
+            if thumb:
+                thumb_path = self._thumb_path(digest, thumb)
+                if exists(thumb_path + _META_SUFFIX):
+                    path = thumb_path
             meta = _read_meta(path)
             if not exists(path):
                 path = None
@@ -259,6 +248,41 @@ class Blobs(object):
         meta['x-seqno'] = str(seqno)
         _write_meta(path, meta, seqno)
 
+    def poll_thumbs(self):
+        root = self._blob_path()
+        if not exists(root):
+            os.makedirs(root)
+        for event, path in inotify.monitor(root):
+            if event != inotify.EVENT_FILE_UPDATED or \
+                    not path.endswith(_META_SUFFIX):
+                continue
+            path = join(root, path[:-len(_META_SUFFIX)])
+            blob = File(path, basename(path), _read_meta(path))
+            self._post_thumb(blob, False)
+
+    def populate_thumbs(self, seqno=None, force=False):
+        for blob in self.walk(include=[[seqno, None]] if seqno else None):
+            self._post_thumb(blob, force)
+
+    def _post_thumb(self, blob, force):
+        thumbs = blob.meta.get('x-thumbs')
+        if not thumbs:
+            return
+        for thumb in thumbs.split():
+            thumb_path = self._thumb_path(blob.digest, thumb)
+            if not force and exists(thumb_path):
+                continue
+            _logger.debug('Generate %s thumb for %r', thumb, blob)
+            if not exists(dirname(thumb_path)):
+                os.makedirs(dirname(thumb_path))
+            img = Image(blob.path)
+            img.resize('%sx%s' % (thumb, thumb))
+            img.write('png:%s' % thumb_path)
+            _write_meta(thumb_path, [
+                ('content-type', 'image/png'),
+                ('content-length', os.stat(thumb_path).st_size),
+                ])
+
     def _delete(self, digest, path, seqno):
         if digest.startswith('assets/'):
             return
@@ -276,10 +300,13 @@ class Blobs(object):
     def _blob_path(self, digest=None):
         if not digest:
             return join(self._root, 'blobs')
-        return join(self._root, 'blobs', digest[:3], digest)
+        return join(self._root, 'blobs', digest[:2], digest)
+
+    def _thumb_path(self, digest, thumb):
+        return join(self._root, 'thumbs', str(thumb), digest[:2], digest)
 
 
-def _write_meta(path, meta, seqno):
+def _write_meta(path, meta, seqno=None):
     if seqno and exists(path):
         os.utime(path, (seqno, seqno))
     path += _META_SUFFIX
@@ -288,7 +315,8 @@ def _write_meta(path, meta, seqno):
             if seqno is None and key == 'x-seqno':
                 seqno = int(value)
             f.write(toolkit.ascii(key) + ': ' + toolkit.ascii(value) + '\n')
-    os.utime(path, (seqno, seqno))
+    if seqno:
+        os.utime(path, (seqno, seqno))
 
 
 def _read_meta(path):

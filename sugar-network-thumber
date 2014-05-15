@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2014 Aleksey Lim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import locale
+import gettext
+from os.path import exists, join
+
+from sugar_network.toolkit import coroutine
+coroutine.inject()
+
+from sugar_network import node, toolkit
+from sugar_network.node import slave, model
+from sugar_network.toolkit import application, Option, enforce
+
+
+force = Option(
+        'intensify regular behaviour',
+        default=False, type_cast=Option.bool_cast, short_option='-f',
+        action='store_true', name='force')
+
+gettext.textdomain('sugar-network')
+
+
+class Application(application.Daemon):
+
+    seqno = None
+    volume = None
+    jobs = coroutine.Pool()
+
+    def prolog(self):
+        if not exists(node.data_root.value):
+            os.makedirs(node.data_root.value)
+        enforce(os.access(node.data_root.value, os.W_OK),
+                'No write access to %r directory', node.data_root.value)
+        for opt, dirname in [
+                (application.logdir, 'log'),
+                (application.rundir, 'run'),
+                ]:
+            if not opt.value:
+                opt.value = join(node.data_root.value, dirname)
+            if not exists(opt.value):
+                os.makedirs(opt.value)
+
+        self.seqno = toolkit.Bin(
+                join(node.data_root.value, 'var', 'seqno-thumbs'), 1)
+        self.volume = model.Volume(node.data_root.value, slave.RESOURCES)
+
+    def run(self):
+        self.jobs.spawn(self.volume.blobs.poll_thumbs)
+        self.jobs.spawn(self.volume.blobs.populate_thumbs, self.seqno.value)
+        self.accept()
+        try:
+            self.jobs.join()
+        finally:
+            self.seqno.value = self.volume.seqno.value
+            self.seqno.commit()
+
+    def shutdown(self):
+        self.jobs.kill()
+
+    @application.command(
+            'generate missed thumbnails; if --force is specified, '
+            'all thumbnails will be re-generated', name='thumb')
+    def thumb(self):
+        self.volume.blobs.populate_thumbs(
+                seqno=None if force.value else self.seqno.value,
+                force=force.value)
+        self.seqno.value = self.volume.seqno.value
+        self.seqno.commit()
+
+
+locale.setlocale(locale.LC_ALL, '')
+
+# New defaults
+application.logdir.value = None
+application.rundir.value = None
+
+Option.seek('main', application)
+Option.seek('main', [force])
+Option.seek('node', [node.data_root])
+
+app = Application(
+        name='sugar-network-thumber',
+        description='Generate thumbnails on demand on Sugar Network node side',
+        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
+               'for details.',
+        config_files=[
+            '/etc/sugar-network.d',
+            '/etc/sugar-network.conf',
+            '~/.config/sugar-network/config',
+            ])
+app.start()

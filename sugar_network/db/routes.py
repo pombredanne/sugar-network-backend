@@ -169,9 +169,14 @@ class Routes(object):
         del authors[user]
         directory.update(request.guid, {'author': authors})
 
-    @fallbackroute('GET', ['blobs'])
-    def blobs(self):
-        return self.volume.blobs.get(this.request.path[1:])
+    @route('GET', ['blobs', None])
+    def blobs(self, thumb):
+        blob = self.volume.blobs.get(this.request.guid, thumb=thumb)
+        enforce(blob is not None, http.NotFound, 'No such blob')
+        if thumb is '' and 'x-thumbs' in blob.meta:
+            thumb = blob.meta['x-thumbs'].split()[0]
+            blob = self.volume.blobs.get(this.request.guid, thumb=thumb)
+        return blob
 
     @fallbackroute('GET', ['assets'])
     def assets(self):

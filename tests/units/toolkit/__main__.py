@@ -17,6 +17,7 @@ from packets import *
 from ranges import *
 from packagekit import *
 from rrd import *
+from inotify import *
 
 if __name__ == '__main__':
     tests.main()

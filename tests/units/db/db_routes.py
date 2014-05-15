@@ -1898,6 +1898,54 @@ class DbRoutesTest(tests.Test):
             },
             this.call(method='DELETE', path=['document', 'guid']))
 
+    def test_GetThumbs(self):
+        volume = db.Volume(tests.tmpdir, [])
+        router = Router(db.Routes(volume))
+
+        blob = volume.blobs.post(SVG, thumbs=[100, 200])
+        volume.blobs.populate_thumbs()
+
+        self.assertEqual(
+                'SVG Scalable Vector Graphics image',
+                toolkit.call(['file', '-b', '-'], stdin= ''.join([i for i in router({
+                    'REQUEST_METHOD': 'GET',
+                    'PATH_INFO': '/blobs/%s' % blob.digest,
+                    }, lambda *args: None)])))
+        self.assertEqual(
+                'PNG image data, 100 x 100, 1-bit grayscale, non-interlaced',
+                toolkit.call(['file', '-b', '-'], stdin= ''.join([i for i in router({
+                    'REQUEST_METHOD': 'GET',
+                    'PATH_INFO': '/blobs/%s' % blob.digest,
+                    'QUERY_STRING': 'thumb=100',
+                    }, lambda *args: None)])))
+        self.assertEqual(
+                'PNG image data, 200 x 200, 1-bit grayscale, non-interlaced',
+                toolkit.call(['file', '-b', '-'], stdin= ''.join([i for i in router({
+                    'REQUEST_METHOD': 'GET',
+                    'PATH_INFO': '/blobs/%s' % blob.digest,
+                    'QUERY_STRING': 'thumb=200',
+                    }, lambda *args: None)])))
+        self.assertEqual(
+                'PNG image data, 100 x 100, 1-bit grayscale, non-interlaced',
+                toolkit.call(['file', '-b', '-'], stdin= ''.join([i for i in router({
+                    'REQUEST_METHOD': 'GET',
+                    'PATH_INFO': '/blobs/%s' % blob.digest,
+                    'QUERY_STRING': 'thumb',
+                    }, lambda *args: None)])))
+        self.assertEqual(
+                'SVG Scalable Vector Graphics image',
+                toolkit.call(['file', '-b', '-'], stdin= ''.join([i for i in router({
+                    'REQUEST_METHOD': 'GET',
+                    'PATH_INFO': '/blobs/%s' % blob.digest,
+                    'QUERY_STRING': 'thumb=300',
+                    }, lambda *args: None)])))
+
+
+SVG = """\
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" id="svg53383" viewBox="0 0 48 48">
+</svg>"""
+
 
 if __name__ == '__main__':
     tests.main()

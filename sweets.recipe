@@ -13,7 +13,7 @@ homepage  = http://wiki.sugarlabs.org/go/Sugar_Network
 
 requires  = xapian-bindings-python; m2crypto; rrdtool-python; gevent >= 1
             dbus-python; openssh-client; sugar-network-webui; sugar-network-hub
-            librsvg-python; pycairo
+            librsvg-python; pycairo; pythonmagick
 replaces  = sugar-network-server; sweets-recipe; active-document
             pylru; requests
 
@@ -28,6 +28,7 @@ install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             cp -r sugar_network %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -D sugar-network %(DESTDIR)s/%(BINDIR)s/sugar-network &&
             install -m 0755 -D sugar-network-node %(DESTDIR)s/%(BINDIR)s/sugar-network-node &&
+            install -m 0755 -D sugar-network-thumber %(DESTDIR)s/%(BINDIR)s/sugar-network-thumber &&
             install -m 0755 -D sugar-network-client %(DESTDIR)s/%(BINDIR)s/sugar-network-client &&
             install -m 0755 -D sugar-network-sync %(DESTDIR)s/%(BINDIR)s/sugar-network-sync &&
             install -m 0755 -D misc/aslo-sync %(DESTDIR)s/%(DATADIR)s/%(name)s/aslo-sync &&

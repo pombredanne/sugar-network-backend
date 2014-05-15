@@ -24,8 +24,17 @@ import struct
 import ctypes
 import ctypes.util
 import logging
-from os.path import abspath
+from os.path import abspath, relpath, join, isdir
 
+from . import coroutine
+
+
+EVENT_DIR_CREATED = 1
+EVENT_DIR_MOVED_FROM = 2
+EVENT_DIR_DELETED = 3
+EVENT_FILE_UPDATED = 4
+EVENT_FILE_MOVED_FROM = 5
+EVENT_FILE_DELETED = 6
 
 """
 Supported events suitable for MASK parameter of INOTIFY_ADD_WATCH.
@@ -111,7 +120,7 @@ class Inotify(object):
         self._wds = {}
 
         self._init_ctypes()
-        _logger.info('Monitor initialized')
+        _logger.info('Inotify initialized')
 
         self._fd = self._libc.inotify_init()
         _assert(self._fd >= 0, 'Cannot initialize Inotify')
@@ -130,7 +139,7 @@ class Inotify(object):
         os.close(self._fd)
         self._fd = None
 
-        _logger.info('Monitor closed')
+        _logger.info('Inotify closed')
 
     def add_watch(self, path, mask, data=None):
         if self.closed:
@@ -143,7 +152,7 @@ class Inotify(object):
         _assert(wd >= 0, 'Cannot add watch for %r', path)
 
         if wd not in self._wds:
-            _logger.debug('Added %r watch of %r with 0x%X mask',
+            _logger.trace('Added %r watch of %r with 0x%X mask',
                     wd, path, mask)
             self._wds[wd] = (path, data)
 
@@ -157,7 +166,7 @@ class Inotify(object):
             return
 
         path, __ = self._wds[wd]
-        _logger.debug('Remove %r watch of %s', wd, path)
+        _logger.trace('Remove %r watch of %s', wd, path)
 
         self._libc.inotify_rm_watch(self._fd, wd)
         del self._wds[wd]
@@ -186,7 +195,7 @@ class Inotify(object):
                 continue
             path, data = self._wds[wd]
 
-            _logger.debug('Got event: wd=%r mask=0x%X path=%r filename=\'%s\'',
+            _logger.trace('Got event: wd=%r mask=0x%X path=%r filename=\'%s\'',
                     wd, mask, path, filename)
 
             yield filename, mask, data
@@ -215,6 +224,97 @@ class Inotify(object):
         self.close()
 
 
+def monitor(path):
+    """Monitor specified directory recursively.
+
+    :param path:
+        root path to monitor
+    :returns:
+        generator object which yields tuples of event and path
+        (relative to the `path`); events are `EVENT_*` contants
+
+    """
+    path = abspath(path)
+    inotify = Inotify()
+    try:
+        root = _Directory(inotify, path, IN_DELETE_SELF)
+        for __ in root.bound():
+            pass
+        while True:
+            coroutine.select([inotify.fileno()], [], [])
+            for filename, mask, cb in inotify.read():
+                for event in cb(filename, mask):
+                    event, event_path = event
+                    event_path = relpath(event_path, path)
+                    yield event, event_path
+                    if event == EVENT_DIR_DELETED and event_path == '.':
+                        raise RuntimeError('Root directory deleted')
+    finally:
+        inotify.close()
+
+
+class _Directory(object):
+
+    def __init__(self, inotify, path, mask=0, add=False):
+        _logger.debug('Start monitoring %r', path)
+
+        self._inotify = inotify
+        self._path = path
+        self._wd = self._inotify.add_watch(self._path,
+                IN_CREATE | IN_DELETE | IN_MOVED_TO | IN_MOVED_FROM |
+                        IN_CLOSE_WRITE | mask,
+                self.__watch_cb)
+        self._nodes = {}
+
+    def bound(self):
+        yield EVENT_DIR_CREATED, self._path
+        for filename in os.listdir(self._path):
+            path = join(self._path, filename)
+            if isdir(path):
+                node = self._nodes[filename] = _Directory(self._inotify, path)
+                for event in node.bound():
+                    yield event
+            else:
+                yield EVENT_FILE_UPDATED, path
+
+    def unbound(self):
+        _logger.debug('Stop monitoring %r', self._path)
+        for node in self._nodes.values():
+            node.unbound()
+        self._inotify.rm_watch(self._wd)
+
+    def __watch_cb(self, filename, event):
+        path = join(self._path, filename)
+        if event & IN_DELETE_SELF:
+            _logger.warning('Lost ourselves, cannot monitor anymore')
+            self.unbound()
+            yield EVENT_DIR_DELETED, path
+        elif event & (IN_CREATE | IN_MOVED_TO):
+            if isdir(path):
+                node = self._nodes[filename] = _Directory(self._inotify, path)
+                for event in node.bound():
+                    yield event
+            elif event & IN_MOVED_TO or _nlink(path) > 1:
+                # There is only one case when newly created file can be read,
+                # if number of hardlinks is bigger than one, i.e., its content
+                # already populated
+                yield EVENT_FILE_UPDATED, path
+        elif event & IN_CLOSE_WRITE:
+            yield EVENT_FILE_UPDATED, path
+        elif event & IN_DELETE:
+            if filename in self._nodes:
+                self._nodes.pop(filename).unbound()
+                yield EVENT_DIR_DELETED, path
+            else:
+                yield EVENT_FILE_DELETED, path
+        elif event & IN_MOVED_FROM:
+            if filename in self._nodes:
+                self._nodes.pop(filename).unbound()
+                yield EVENT_DIR_MOVED_FROM, path
+            else:
+                yield EVENT_FILE_MOVED_FROM, path
+
+
 def _assert(condition, message, *args):
     if condition:
         return
@@ -226,15 +326,8 @@ def _assert(condition, message, *args):
     raise RuntimeError(message)
 
 
-if __name__ == '__main__':
-    import select
-
-    logging.basicConfig(level=logging.DEBUG)
-
-    with Inotify() as monitor:
-        monitor.add_watch('/tmp', IN_MASK_ADD | IN_ALL_EVENTS)
-        poll = select.poll()
-        poll.register(monitor.fileno(), select.POLLIN)
-        while poll.poll():
-            for event in monitor.read():
-                pass
+def _nlink(path):
+    try:
+        return os.stat(path).st_nlink
+    except Exception:
+        return 0

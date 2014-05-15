@@ -303,12 +303,7 @@ class Application(application.Application):
             if guid in existing:
                 del existing[guid]
                 continue
-            try:
-                preview = scale_png(data, 200, 200)
-            except Exception:
-                print '-- Failed to load %s preview for %s' % (guid, bundle_id)
-                continue
-            preview = this.volume.blobs.post(preview, 'image/png')
+            preview = this.volume.blobs.post(data, 'image/png', thumbs=200)
             updates[guid] = {
                     'author': authors,
                     'value': preview.digest,
@@ -681,22 +676,6 @@ class Auth(object):
 
     def logon(self, request=None):
         return Principal(ASLO_AUTHOR.keys()[0], 0xF)
-
-
-def scale_png(data, w, h):
-    with toolkit.NamedTemporaryFile() as src:
-        src.write(data)
-        src.flush()
-        with toolkit.NamedTemporaryFile() as dst:
-            toolkit.assert_call(['convert',
-                '-thumbnail', '%sx%s' % (w, h),
-                '-background', 'transparent',
-                '-gravity', 'center',
-                '-extent', '%sx%s' % (w, h),
-                src.name, dst.name,
-                ])
-            with file(dst.name, 'rb') as f:
-                return f.read()
 
 
 def format_author(email, nickname, fullname, db_role=None):
