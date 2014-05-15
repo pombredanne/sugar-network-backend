@@ -14,6 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import shutil
 import logging
 import hashlib
 import mimetypes
@@ -307,16 +308,18 @@ class Blobs(object):
 
 
 def _write_meta(path, meta, seqno=None):
-    if seqno and exists(path):
-        os.utime(path, (seqno, seqno))
-    path += _META_SUFFIX
-    with toolkit.new_file(path) as f:
+    meta_path = path + _META_SUFFIX
+    with toolkit.new_file(meta_path) as f:
         for key, value in meta.items() if isinstance(meta, dict) else meta:
             if seqno is None and key == 'x-seqno':
                 seqno = int(value)
             f.write(toolkit.ascii(key) + ': ' + toolkit.ascii(value) + '\n')
+    if exists(path):
+        shutil.copystat(meta_path, path)
     if seqno:
-        os.utime(path, (seqno, seqno))
+        if exists(path):
+            os.utime(path, (seqno, seqno))
+        os.utime(meta_path, (seqno, seqno))
 
 
 def _read_meta(path):
