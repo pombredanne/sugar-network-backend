@@ -347,6 +347,9 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
             elif 'resolves' in releases and \
                     lsb_distro in releases['resolves']['value']:
                 pkg = releases['resolves']['value'][lsb_distro]
+                if 'version' not in pkg:
+                    _logger.trace('No resolves for %r', context.guid)
+                    return []
                 pkg_info['version'] = pkg['version']
                 pkg_info['packages'] = pkg['packages']
             else:
