@@ -1632,32 +1632,6 @@ class NodeModelTest(tests.Test):
             },
             model.solve(volume, 'context1'))
 
-    def test_solve_SwitchToAlternativeBranchOnNonResolvedPackages(self):
-        volume = Volume('master', [Context])
-        volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
-        this.volume = volume
-
-        volume['context'].create({
-            'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                '1': {'value': {'bundles': {'*-*': {'blob': '1'}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}},
-                    'commands': {'activity': {'exec': 1}}}},
-                '2': {'value': {'bundles': {'*-*': {'blob': '2'}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}},
-                    'requires': spec.parse_requires('package'), 'commands': {'activity': {'exec': 2}}}},
-                },
-            })
-        volume['context'].create({
-            'guid': 'package', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                'resolves': {'value': {
-                    'Ubuntu-10.04': {'status': 'not-success'},
-                    }},
-                },
-            })
-
-        self.assertEqual({
-            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
-            },
-            model.solve(volume, 'context', lsb_id='Ubuntu', lsb_release='10.04'))
-
     def test_solve_CommonDeps(self):
         volume = Volume('master', [Context])
         volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
@@ -1966,6 +1940,66 @@ class NodeModelTest(tests.Test):
             'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
             },
             model.solve(volume, 'context'))
+
+    def test_solve_SwitchToAlternativeBranchOnNonResolvedPackages(self):
+        volume = Volume('master', [Context])
+        volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
+        this.volume = volume
+
+        volume['context'].create({
+            'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                '1': {'value': {'bundles': {'*-*': {'blob': '1'}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 0}},
+                    'commands': {'activity': {'exec': 1}}}},
+                '2': {'value': {'bundles': {'*-*': {'blob': '2'}}, 'stability': 'stable', 'version': [[2], 0], 'commands': {'activity': {'exec': 0}},
+                    'requires': spec.parse_requires('package'), 'commands': {'activity': {'exec': 2}}}},
+                },
+            })
+        volume['context'].create({
+            'guid': 'package', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                'resolves': {'value': {
+                    'Ubuntu-10.04': {'status': 'not-success'},
+                    }},
+                },
+            })
+
+        self.assertEqual({
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
+            },
+            model.solve(volume, 'context', lsb_id='Ubuntu', lsb_release='10.04'))
+
+    def test_solve_MultipleAssumes(self):
+        volume = Volume('master', [Context])
+        volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
+        this.volume = volume
+
+        volume['context'].create({
+            'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                '1': {'value': {'bundles': {'*-*': {'blob': '1'}}, 'stability': 'stable', 'version': [[1], 0], 'commands': {'activity': {'exec': 1}},
+                    'requires': spec.parse_requires('package=2')}},
+                },
+            })
+        volume['context'].create({
+            'guid': 'package', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {},
+            })
+
+        self.assertEqual(
+            None,
+            model.solve(volume, 'context', assume={'package': [[[1], 0]]}))
+        self.assertEqual({
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
+            'package': {'version': '2'},
+            },
+            model.solve(volume, 'context', assume={'package': [[[2], 0]]}))
+        self.assertEqual({
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
+            'package': {'version': '2'},
+            },
+            model.solve(volume, 'context', assume={'package': [[[1], 0], [[2], 0]]}))
+        self.assertEqual({
+            'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
+            'package': {'version': '2'},
+            },
+            model.solve(volume, 'context', assume={'package': [[[1], 0], [[2], 0], [[3], 0]]}))
 
     def test_load_bundle_Activity(self):
         volume = self.start_master()

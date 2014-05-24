@@ -190,7 +190,7 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
             enforce('-' in item, http.BadRequest,
                     "'assume' should be formed as '<CONTEXT>-<VERSION>")
             context, version = item.split('-', 1)
-            assume_[context] = parse_version(version)
+            assume_.setdefault(context, []).append(parse_version(version))
         solution = model.solve(self.volume, this.request.guid, **this.request)
         enforce(solution is not None, 'Failed to solve')
         return solution
@@ -257,12 +257,14 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
         return db.Routes.create(self)
 
     def reload(self):
-        if 'context' not in self.volume:
-            return
-        sugars = self.volume['context']['sugar']['releases']
-        if 'resolves' in sugars:
-            self._repos = sugars['resolves']['value'].keys()
-            self._repos.sort()
+        try:
+            sugars = self.volume['context']['sugar']['releases']
+        except Exception:
+            pass
+        else:
+            if 'resolves' in sugars:
+                self._repos = sugars['resolves']['value'].keys()
+                self._repos.sort()
 
 
 this.principal = None

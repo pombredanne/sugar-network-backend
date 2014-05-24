@@ -341,25 +341,28 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         clause = []
 
         if 'package' in context['type']:
-            pkg_info = {}
             if assume and context.guid in assume:
-                pkg_info['version'] = assume[context.guid]
-            elif 'resolves' in releases and \
-                    lsb_distro in releases['resolves']['value']:
-                pkg = releases['resolves']['value'][lsb_distro]
-                if 'version' not in pkg:
-                    _logger.trace('No resolves for %r', context.guid)
-                    return []
-                pkg_info['version'] = pkg['version']
-                pkg_info['packages'] = pkg['packages']
+                for version in assume[context.guid]:
+                    clause.append(len(varset))
+                    varset.append((context.guid, {'version': version}))
             else:
-                alias = releases.get(lsb_id) or releases.get('*')
-                if alias:
-                    pkg_info['version'] = []
-                    pkg_info['packages'] = alias['value']['binary']
-            if pkg_info:
-                clause.append(len(varset))
-                varset.append((context.guid, pkg_info))
+                pkg_info = {}
+                if 'resolves' in releases and \
+                        lsb_distro in releases['resolves']['value']:
+                    pkg = releases['resolves']['value'][lsb_distro]
+                    if 'version' not in pkg:
+                        _logger.trace('No resolves for %r', context.guid)
+                        return []
+                    pkg_info['version'] = pkg['version']
+                    pkg_info['packages'] = pkg['packages']
+                else:
+                    alias = releases.get(lsb_id) or releases.get('*')
+                    if alias:
+                        pkg_info['version'] = []
+                        pkg_info['packages'] = alias['value']['binary']
+                if pkg_info:
+                    clause.append(len(varset))
+                    varset.append((context.guid, pkg_info))
         else:
             candidates = []
             for key, rel in releases.items():
