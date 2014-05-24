@@ -1,3 +1,5 @@
+- "allow_3rd_party" for solving activities
+
 - auth while offline posts
 - do not return Context.releases while non-slave sync
 - deliver spawn events only to local subscribers

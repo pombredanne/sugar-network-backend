@@ -1,15 +1,13 @@
-[DEFAULT]
-name      = sugar-network
-
-version   = 0.9
-stability = developer
-
 [Package]
+name      = sugar-network
 project   = SweetsDistribution:Factory
 implement = %(name)s
 summary   = Sugar Network
 license   = GPLv3+
 homepage  = http://wiki.sugarlabs.org/go/Sugar_Network
+
+version   = 0.9
+stability = developer
 
 requires  = xapian-bindings-python; m2crypto; rrdtool-python; gevent >= 1
             dbus-python; openssh-client; sugar-network-webui; sugar-network-hub
@@ -18,18 +16,13 @@ replaces  = sugar-network-server; sweets-recipe; active-document
             pylru; requests
 
 [Build]
-make      = sed -i s/node-devel.sugarlabs.org/node-testing.sugarlabs.org/ sugar_network/client/__init__.py &&
-            cp sugar_network/toolkit/languages.py{.in,} &&
-            langs=$(for i in `ls po/*.po`; do echo -n "'`basename $i .po`',"; done); sed -i "s/%LANGUAGES%/$langs/" sugar_network/toolkit/languages.py &&
-            cp sugar_network/__init__.py{.in,} &&
-            sed -i "s/%VERSION%/%(version)s-%(stability)s/" sugar_network/__init__.py &&
-            true
-install   = install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
+make      = make
+install   = sed -i s/node-devel.sugarlabs.org/node.sugarlabs.org/ sugar_network/client/__init__.py &&
+            install -m 0755 -d %(DESTDIR)s/%(PYTHONSITEDIR)s &&
             cp -r sugar_network %(DESTDIR)s/%(PYTHONSITEDIR)s/ &&
             install -m 0755 -D sugar-network %(DESTDIR)s/%(BINDIR)s/sugar-network &&
             install -m 0755 -D sugar-network-node %(DESTDIR)s/%(BINDIR)s/sugar-network-node &&
             install -m 0755 -D sugar-network-thumber %(DESTDIR)s/%(BINDIR)s/sugar-network-thumber &&
             install -m 0755 -D sugar-network-client %(DESTDIR)s/%(BINDIR)s/sugar-network-client &&
             install -m 0755 -D sugar-network-sync %(DESTDIR)s/%(BINDIR)s/sugar-network-sync &&
-            install -m 0755 -D misc/aslo-sync %(DESTDIR)s/%(DATADIR)s/%(name)s/aslo-sync &&
             true
