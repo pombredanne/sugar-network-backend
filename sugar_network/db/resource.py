@@ -221,8 +221,9 @@ class Resource(object):
             seqno = meta['seqno'] = self.post_seqno
         if seqno and isinstance(prop, Aggregated):
             for agg in value.values():
+                if 'ctime' not in agg:
+                    agg['ctime'] = int(time.time())
                 agg['seqno'] = seqno
-                agg['ctime'] = int(time.time())
         if isinstance(prop, Composite):
             orig_value = self.orig(prop.name)
             if orig_value:
