@@ -188,7 +188,7 @@ class Application(object):
             self._rundir = abspath(rundir.value or '/var/run/' + self.name)
 
             if cmd.options.get('keep_stdout') and not foreground.value:
-                self.reopen_logs()
+                self._reopen_logs()
             exit(cmd() or 0)
         except Exception:
             printf.exception('%s %s', _('Aborted'), self.name)
@@ -233,7 +233,7 @@ class Application(object):
         else:
             print Option.help()
 
-    def reopen_logs(self):
+    def _reopen_logs(self):
         log_dir = abspath(logdir.value)
         if not exists(log_dir):
             os.makedirs(log_dir)
@@ -258,6 +258,9 @@ class Daemon(Application):
         raise NotImplementedError()
 
     def shutdown(self):
+        pass
+
+    def reload(self):
         pass
 
     @command('start in daemon mode', name='start', keep_stdout=True)
@@ -328,7 +331,8 @@ class Daemon(Application):
 
         def sighup_cb():
             logging.info('Reload %s on SIGHUP signal', self.name)
-            self.reopen_logs()
+            self._reopen_logs()
+            self.reload()
 
         coroutine.signal(signal.SIGINT, sigterm_cb, signal.SIGINT)
         coroutine.signal(signal.SIGTERM, sigterm_cb, signal.SIGTERM)

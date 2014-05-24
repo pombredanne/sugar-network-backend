@@ -57,6 +57,7 @@ class Application(application.Daemon):
 
     jobs = coroutine.Pool()
     servers = []
+    routes = None
 
     def prolog(self):
         if not exists(node.data_root.value):
@@ -100,20 +101,20 @@ class Application(application.Daemon):
             resources = slave.RESOURCES
             logging.info('Start slave node')
         volume = model.Volume(node.data_root.value, resources)
-        routes = node_routes_class(node.master_url.value,
+        self.routes = node_routes_class(node.master_url.value,
                 volume=volume, auth=SugarAuth(node.data_root.value),
                 find_limit=node.find_limit.value)
 
-        routes.stats_init(join(node.data_root.value, 'var'),
+        self.routes.stats_init(join(node.data_root.value, 'var'),
                 stats.stats_step.value, stats.stats_rras.value)
-        self.jobs.spawn(routes.stats_auto_commit)
+        self.jobs.spawn(self.routes.stats_auto_commit)
         self.jobs.spawn(volume.populate)
         self.jobs.spawn(model.presolve, join(node.data_root.value, 'files'))
 
         logging.info('Listen requests on %s:%s',
                 node.host.value, node.port.value)
         server = coroutine.WSGIServer(
-                (node.host.value, node.port.value), Router(routes),
+                (node.host.value, node.port.value), Router(self.routes),
                 http_log=_open_logfile('access'), **ssl_args)
         self.jobs.spawn(server.serve_forever)
         self.servers.append(server)
@@ -132,21 +133,21 @@ class Application(application.Daemon):
         try:
             self.jobs.join()
         finally:
-            routes.stats_commit()
+            self.routes.stats_commit()
             volume.close()
             os.unlink(backdoor.value)
 
     def shutdown(self):
         self.jobs.kill()
 
-    def reopen_logs(self):
-        application.Daemon.reopen_logs(self)
+    def reload(self):
         if http_logdir.value:
             for server in self.servers:
                 if server.http_log is None:
                     continue
                 server.http_log.close()
                 server.http_log = file(server.http_log.name, 'a+')
+        self.routes.reload()
 
     @application.command(
             'direct synchronization with master node',

@@ -48,9 +48,11 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
         self._guid = guid
         self._auth = auth
         self._batch_dir = join(self.volume.root, 'batch')
+        self._repos = []
 
         if not exists(self._batch_dir):
             os.makedirs(self._batch_dir)
+        self.reload()
 
     @property
     def guid(self):
@@ -115,6 +117,18 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
                     'db': self.volume.seqno.value,
                     'releases': self.volume.release_seqno.value,
                     },
+                'os': self._repos,
+                # TODO
+                'sugar': [
+                    '0.82',
+                    '0.84',
+                    '0.86',
+                    '0.88',
+                    '0.94',
+                    '0.96',
+                    '0.98',
+                    '0.100',
+                    ],
                 }
 
     @route('POST', ['user'], mime_type='application/json')
@@ -230,6 +244,12 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
             enforce('guid' not in this.request.content, http.BadRequest,
                     'GUID should not be specified')
         return db.Routes.create(self)
+
+    def reload(self):
+        sugars = self.volume['context']['sugar']['releases']
+        if 'resolves' in sugars:
+            self._repos = sugars['resolves']['value'].keys()
+            self._repos.sort()
 
 
 this.principal = None
