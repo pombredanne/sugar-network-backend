@@ -30,11 +30,9 @@ from sugar_network.node import obs
 from sugar_network.node.auth import Principal
 from sugar_network.toolkit.router import ACL, File, Request, Response
 from sugar_network.toolkit.coroutine import Queue, Empty, this
-from sugar_network.toolkit.spec import EMPTY_LICENSE, ensure_version
-from sugar_network.toolkit.spec import parse_requires, parse_version
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit import sat, http, i18n, ranges, packets, packagekit
-from sugar_network.toolkit import svg_to_png, enforce
+from sugar_network.toolkit import spec, svg_to_png, enforce
 
 
 BATCH_SUFFIX = '.meta'
@@ -286,7 +284,7 @@ def apply_batch(path):
 
 
 def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
-        stability=None, requires=None, assume=None):
+        stability=None, requires=None, assume=None, details=False):
     top_context = volume['context'][top_context]
     if stability is None:
         stability = ['stable']
@@ -295,12 +293,12 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
     top_cond = []
     top_requires = {}
     if isinstance(requires, basestring):
-        top_requires.update(parse_requires(requires))
+        top_requires.update(spec.parse_requires(requires))
     elif requires:
         for i in requires:
-            top_requires.update(parse_requires(i))
+            top_requires.update(spec.parse_requires(i))
     if top_context['dependencies']:
-        top_requires.update(parse_requires(top_context['dependencies']))
+        top_requires.update(spec.parse_requires(top_context['dependencies']))
     if top_context.guid in top_requires:
         top_cond = top_requires.pop(top_context.guid)
 
@@ -326,7 +324,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
         for dep, cond in deps.items():
             dep_clause = [-v_usage]
             for v_release in add_context(dep):
-                if ensure_version(varset[v_release][1]['version'], cond):
+                if spec.ensure_version(varset[v_release][1]['version'], cond):
                     dep_clause.append(v_release)
             clauses.append(dep_clause)
 
@@ -361,44 +359,52 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                 varset.append((context.guid, pkg_info))
         else:
             candidates = []
-            for key, release in releases.items():
-                if 'value' not in release:
+            for key, rel in releases.items():
+                if 'value' not in rel:
                     continue
-                release = release['value']
-                if release['stability'] not in stability or \
+                rel = rel['value']
+                if rel['stability'] not in stability or \
                         context.guid == top_context.guid and \
-                            not ensure_version(release['version'], top_cond):
+                            not spec.ensure_version(rel['version'], top_cond):
                     continue
-                bisect.insort(candidates, rate_release(key, release))
-            for release in reversed(candidates):
-                release = releases[release[-1]]['value']
+                bisect.insort(candidates, rate_release(key, rel))
+            for rate in reversed(candidates):
+                agg_value = releases[rate[-1]]
+                rel = agg_value['value']
                 # TODO Assume we have only noarch bundles
-                bundle = release['bundles']['*-*']
+                bundle = rel['bundles']['*-*']
                 blob = volume.blobs.get(bundle['blob'])
                 if blob is None:
-                    _logger.debug('Absent blob for %r release', release)
+                    _logger.debug('Absent blob for %r release', rel)
                     continue
                 release_info = {
                         'title': i18n.decode(context['title'],
                             this.request.accept_language),
-                        'version': release['version'],
+                        'version': rel['version'],
                         'blob': blob,
                         'size': blob.size,
                         'content-type': blob.meta['content-type'],
                         }
+                if details:
+                    if 'announce' in rel:
+                        announce = volume['post'][rel['announce']]
+                        if announce.available:
+                            release_info['announce'] = i18n.decode(
+                                    announce['message'],
+                                    this.request.accept_language)
+                    release_info['ctime'] = agg_value['ctime']
+                    release_info['author'] = agg_value['author']
                 unpack_size = bundle.get('unpack_size')
                 if unpack_size is not None:
                     release_info['unpack_size'] = unpack_size
-                requires = release.get('requires') or {}
+                requires = rel.get('requires') or {}
                 if top_requires and context.guid == top_context.guid:
                     requires.update(top_requires)
-                if context.guid == top_context.guid and 'commands' in release:
-                    cmd = release['commands'].get(command)
+                if context.guid == top_context.guid and 'commands' in rel:
+                    cmd = rel['commands'].get(command)
                     if cmd is None:
-                        cmd_name, cmd = release['commands'].items()[0]
-                    else:
-                        cmd_name = command
-                    release_info['command'] = (cmd_name, cmd['exec'])
+                        cmd = rel['commands'].values()[0]
+                    release_info['command'] = cmd['exec']
                     requires.update(cmd.get('requires') or {})
                 v_release = len(varset)
                 varset.append((context.guid, release_info))
@@ -423,7 +429,14 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
     if not top_context.guid in result:
         _logger.debug('No top versions for %r', top_context.guid)
         return None
+
     solution = dict([varset[i] for i in result.values()])
+    for rel in solution.values():
+        version = rel['version']
+        if version:
+            rel['version'] = spec.format_version(rel['version'])
+        else:
+            del rel['version']
 
     _logger.debug('Solution for %r: %r', top_context.guid, solution)
 
@@ -466,7 +479,7 @@ def resolve_package(doc, distro, alias):
             to_presolve.append((repo['name'], pkgs))
             version = packagekit.cleanup_distro_version(version)
             resolve = {
-                    'version': parse_version(version),
+                    'version': spec.parse_version(version),
                     'packages': pkgs,
                     'status': 'success',
                     }
@@ -522,34 +535,34 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
                         release_notes = f.read()
                     changelog = None
                 unpack_size += bundle.getmember(arcname).size
-            spec = bundle.get_spec()
-            context_meta, context_icon = _load_context_metadata(bundle, spec)
+            spc = bundle.get_spec()
+            context_meta, context_icon = _load_context_metadata(bundle, spc)
 
         if not context:
-            context = spec['context']
+            context = spc['context']
         else:
-            enforce(context == spec['context'],
+            enforce(context == spc['context'],
                     http.BadRequest, 'Wrong context')
         if extra_deps:
-            spec.requires.update(parse_requires(extra_deps))
+            spc.requires.update(spec.parse_requires(extra_deps))
 
-        version = spec['version']
-        release['stability'] = spec['stability']
-        release['commands'] = spec.commands
-        release['requires'] = spec.requires
+        version = spc['version']
+        release['stability'] = spc['stability']
+        release['commands'] = spc.commands
+        release['requires'] = spc.requires
         release['bundles'] = {
                 '*-*': {
                     'blob': blob.digest,
                     'unpack_size': unpack_size,
                     },
                 }
-        if not license and spec['license'] is not EMPTY_LICENSE:
-            license = spec['license']
+        if not license and spc['license'] is not spec.EMPTY_LICENSE:
+            license = spc['license']
         blob.meta['content-type'] = 'application/vnd.olpc-sugar'
 
     enforce(context, http.BadRequest, 'Context is not specified')
     enforce(version, http.BadRequest, 'Version is not specified')
-    release['version'] = parse_version(version)
+    release['version'] = spec.parse_version(version)
 
     doc = this.volume['context'][context]
     if initial and not doc.exists:
@@ -616,17 +629,17 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
     return context, release
 
 
-def _load_context_metadata(bundle, spec):
+def _load_context_metadata(bundle, spc):
     result = {}
     for prop in ('homepage', 'mime_types'):
-        if spec[prop]:
-            result[prop] = spec[prop]
-    result['guid'] = spec['context']
+        if spc[prop]:
+            result[prop] = spc[prop]
+    result['guid'] = spc['context']
     icon_svg = None
 
     try:
         from sugar_network.toolkit.sugar import color_svg
-        icon_file = bundle.extractfile(join(bundle.rootdir, spec['icon']))
+        icon_file = bundle.extractfile(join(bundle.rootdir, spc['icon']))
         icon_svg = color_svg(icon_file.read(), result['guid'])
         icon_file.close()
     except Exception:
@@ -638,9 +651,9 @@ def _load_context_metadata(bundle, spec):
             ('summary', 'summary'),
             ('description', 'description'),
             ]:
-        if spec[confname]:
-            msgids[prop] = spec[confname]
-            result[prop] = {'en': spec[confname]}
+        if spc[confname]:
+            msgids[prop] = spc[confname]
+            result[prop] = {'en': spc[confname]}
     with toolkit.mkdtemp() as tmpdir:
         for path in bundle.get_names():
             if not path.endswith('.mo'):
@@ -651,7 +664,7 @@ def _load_context_metadata(bundle, spec):
             lang = mo_path[2]
             bundle.extract(path, tmpdir)
             try:
-                translation = gettext.translation(spec['context'],
+                translation = gettext.translation(spc['context'],
                         join(tmpdir, *mo_path[:2]), [lang])
                 for prop, value in msgids.items():
                     msgstr = translation.gettext(value).decode('utf8')

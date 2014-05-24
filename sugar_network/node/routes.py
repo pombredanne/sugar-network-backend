@@ -177,9 +177,14 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
         return blob.digest
 
     @route('GET', ['context', None], cmd='solve',
-            arguments={'requires': list, 'stability': list, 'assume': list},
+            arguments={
+                'requires': list,
+                'stability': list,
+                'assume': list,
+                'details': bool,
+                },
             mime_type='application/json')
-    def solve(self, assume=None):
+    def solve(self, assume):
         assume_ = this.request['assume'] = {}
         for item in assume or []:
             enforce('-' in item, http.BadRequest,
@@ -191,8 +196,14 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
         return solution
 
     @route('GET', ['context', None], cmd='clone',
-            arguments={'requires': list, 'stability': list, 'assume': list})
-    def clone(self, assume=None):
+            arguments={
+                'requires': list,
+                'stability': list,
+                'assume': list,
+                'details': bool,
+                },
+            )
+    def clone(self, assume):
         solution = self.solve(assume)
         return self.volume.blobs.get(solution[this.request.guid]['blob'])
 
@@ -246,6 +257,8 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
         return db.Routes.create(self)
 
     def reload(self):
+        if 'context' not in self.volume:
+            return
         sugars = self.volume['context']['sugar']['releases']
         if 'resolves' in sugars:
             self._repos = sugars['resolves']['value'].keys()

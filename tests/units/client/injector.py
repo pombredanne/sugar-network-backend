@@ -371,12 +371,12 @@ class InjectorTest(tests.Test):
         solution = {
             'context': {
                 'blob': 'http://127.0.0.1:7777/blobs/' + release,
-                'command': ['activity', 'true'],
+                'command': 'true',
                 'content-type': 'application/vnd.olpc-sugar',
                 'size': len(activity_bundle),
                 'title': 'Activity',
                 'unpack_size': len(activity_info),
-                'version': [[1], 0],
+                'version': '1',
                 },
             }
         self.assertEqual(solution, injector._solve('context', 'stable'))
@@ -445,7 +445,7 @@ class InjectorTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             ]))), cmd='submit', initial=True)
-        self.assertEqual([[1], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('1', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'stable', 1], json.load(file('client/solutions/context'))[:-1])
 
         conn.upload(['context'], self.zips(('topdir/activity/activity.info', '\n'.join([
@@ -457,10 +457,10 @@ class InjectorTest(tests.Test):
             'activity_version = 2',
             'license = Public Domain',
             ]))), cmd='submit')
-        self.assertEqual([[1], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('1', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'stable', 1], json.load(file('client/solutions/context'))[:-1])
         injector.seqno = 2
-        self.assertEqual([[2], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('2', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'stable', 2], json.load(file('client/solutions/context'))[:-1])
 
         conn.upload(['context'], self.zips(('topdir/activity/activity.info', '\n'.join([
@@ -473,12 +473,12 @@ class InjectorTest(tests.Test):
             'license = Public Domain',
             'stability = testing',
             ]))), cmd='submit')
-        self.assertEqual([[2], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('2', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'stable', 2], json.load(file('client/solutions/context'))[:-1])
-        self.assertEqual([[0], 0], injector._solve('context', 'testing')['context']['version'])
+        self.assertEqual('0', injector._solve('context', 'testing')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'testing', 2], json.load(file('client/solutions/context'))[:-1])
 
-        self.assertEqual([[2], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('2', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'stable', 2], json.load(file('client/solutions/context'))[:-1])
         conn.upload(['context'], self.zips(('topdir/activity/activity.info', '\n'.join([
             '[Activity]',
@@ -489,10 +489,10 @@ class InjectorTest(tests.Test):
             'activity_version = 3',
             'license = Public Domain',
             ]))), cmd='submit')
-        self.assertEqual([[2], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('2', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://127.0.0.1:7777', 'stable', 2], json.load(file('client/solutions/context'))[:-1])
         injector.api = 'http://localhost:7777'
-        self.assertEqual([[3], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('3', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual(['http://localhost:7777', 'stable', 2], json.load(file('client/solutions/context'))[:-1])
 
     def test_solve_ForceUsingStaleCachedSolutionInOffline(self):
@@ -512,12 +512,12 @@ class InjectorTest(tests.Test):
             'activity_version = 1',
             'license = Public Domain',
             ]))), cmd='submit', initial=True)
-        self.assertEqual([[1], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('1', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual([client.api.value, 'stable', 0], json.load(file('client/solutions/context'))[:-1])
 
         injector.api = None
         injector.seqno = 1
-        self.assertEqual([[1], 0], injector._solve('context', 'stable')['context']['version'])
+        self.assertEqual('1', injector._solve('context', 'stable')['context']['version'])
         self.assertEqual([client.api.value, 'stable', 0], json.load(file('client/solutions/context'))[:-1])
 
         os.unlink('client/solutions/context')
@@ -590,8 +590,8 @@ class InjectorTest(tests.Test):
             'context': {
                 'title': 'Activity',
                 'unpack_size': len(activity_info),
-                'version': [[1], 0],
-                'command': ['activity', 'true'],
+                'version': '1',
+                'command': 'true',
                 'blob': 'http://127.0.0.1:7777/blobs/' + release,
                 'size': len(activity_bundle),
                 'content-type': 'application/vnd.olpc-sugar',
@@ -732,12 +732,12 @@ class InjectorTest(tests.Test):
                 'solution': {
                     'context': {
                         'title': 'Activity',
-                        'command': ['activity', 'true'],
+                        'command': 'true',
                         'content-type': 'application/vnd.olpc-sugar',
                         'blob': 'http://127.0.0.1:7777/blobs/' + hashlib.sha1(activity_bundle).hexdigest(),
                         'size': len(activity_bundle),
                         'unpack_size': len(activity_info),
-                        'version': [[1], 0],
+                        'version': '1',
                         },
                     },
                 'logs': [
@@ -881,14 +881,14 @@ class InjectorTest(tests.Test):
             volume['context'].create({
                 'guid': 'package1', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
                     'resolves': {'value': {
-                        distro: {'version': [[1], 0], 'packages': ['pkg1', 'pkg2']},
+                        distro: {'version': '1', 'packages': ['pkg1', 'pkg2']},
                         }},
                     },
                 })
             volume['context'].create({
                 'guid': 'package2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
                     'resolves': {'value': {
-                        distro: {'version': [[1], 0], 'packages': ['pkg3', 'pkg4']},
+                        distro: {'version': '1', 'packages': ['pkg3', 'pkg4']},
                         }},
                     },
                 })

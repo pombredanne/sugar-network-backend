@@ -656,8 +656,8 @@ class NodeRoutesTest(tests.Test):
             'activity': {
                 'title': 'activity',
                 'blob': 'http://127.0.0.1:7777/blobs/' + activity_blob,
-                'command': ['activity', 'true'],
-                'version': [[1], 0],
+                'command': 'true',
+                'version': '1',
                 'size': len(activity_pack),
                 'unpack_size': len(activity_unpack),
                 'content-type': 'application/vnd.olpc-sugar',
@@ -665,17 +665,16 @@ class NodeRoutesTest(tests.Test):
             'dep': {
                 'title': 'dep',
                 'blob': 'http://127.0.0.1:7777/blobs/' + dep_blob,
-                'version': [[2], 0],
+                'version': '2',
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),
                 'content-type': 'application/vnd.olpc-sugar',
                 },
             'package': {
                 'packages': ['package.bin'],
-                'version': [],
                 },
             },
-            conn.get(['context', 'activity'], cmd='solve'))
+            conn.get(['context', 'activity'], cmd='solve', details=False))
 
     def test_SolveWithArguments(self):
         volume = self.start_master()
@@ -736,8 +735,8 @@ class NodeRoutesTest(tests.Test):
             'activity': {
                 'title': 'activity',
                 'blob': 'http://127.0.0.1:7777/blobs/' + activity_blob,
-                'command': ['activity', 'true'],
-                'version': [[1], 0],
+                'command': 'true',
+                'version': '1',
                 'size': len(activity_pack),
                 'unpack_size': len(activity_unpack),
                 'content-type': 'application/vnd.olpc-sugar',
@@ -745,17 +744,17 @@ class NodeRoutesTest(tests.Test):
             'dep': {
                 'title': 'dep',
                 'blob': 'http://127.0.0.1:7777/blobs/' + dep_blob,
-                'version': [[2], 0],
+                'version': '2',
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),
                 'content-type': 'application/vnd.olpc-sugar',
                 },
             'package': {
                 'packages': ['package.bin'],
-                'version': [[1], 0],
+                'version': '1',
                 },
             },
-            conn.get(['context', 'activity'], cmd='solve',
+            conn.get(['context', 'activity'], cmd='solve', details=False,
                 stability='developer', lsb_id='Ubuntu', lsb_release='10.04', requires=['dep', 'package']))
 
     def test_Clone(self):

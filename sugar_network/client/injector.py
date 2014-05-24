@@ -25,7 +25,6 @@ from os.path import exists, join
 
 from sugar_network import toolkit
 from sugar_network.client import journal, profile_path
-from sugar_network.toolkit.spec import format_version
 from sugar_network.toolkit.bundle import Bundle
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import lsb_release, coroutine, i18n, pylru, http
@@ -457,8 +456,7 @@ def _exec(context, release, path, args, environ):
             log_path,
             ]
 
-    __, command = release['command']
-    args = command.split() + args
+    args = release['command'].split() + args
     environ['args'] = args
 
     child = coroutine.fork()
@@ -485,7 +483,7 @@ def _exec(context, release, path, args, environ):
         env['SUGAR_BUNDLE_PATH'] = path
         env['SUGAR_BUNDLE_ID'] = context
         env['SUGAR_BUNDLE_NAME'] = i18n.decode(release['title'])
-        env['SUGAR_BUNDLE_VERSION'] = format_version(release['version'])
+        env['SUGAR_BUNDLE_VERSION'] = release['version']
         env['SUGAR_ACTIVITY_ROOT'] = datadir
         env['SUGAR_LOCALEDIR'] = join(path, 'locale')
 

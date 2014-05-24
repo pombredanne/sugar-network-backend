@@ -759,12 +759,12 @@ class ClientRoutesTest(tests.Test):
                 'solution': {
                     'context2': {
                         'blob': 'http://127.0.0.1:7777/blobs/' + release,
-                        'command': ['activity', 'false'],
+                        'command': 'false',
                         'content-type': 'application/vnd.olpc-sugar',
                         'size': len(activity_bundle),
                         'title': 'Activity',
                         'unpack_size': len(activity_info),
-                        'version': [[1], 0],
+                        'version': '1',
                         },
                     },
                 },
@@ -809,12 +809,12 @@ class ClientRoutesTest(tests.Test):
                 'solution': {
                     'context2': {
                         'blob': 'http://127.0.0.1:7777/blobs/' + release,
-                        'command': ['activity', 'false'],
+                        'command': 'false',
                         'content-type': 'application/vnd.olpc-sugar',
                         'size': len(activity_bundle),
                         'title': 'Activity',
                         'unpack_size': len(activity_info),
-                        'version': [[1], 0],
+                        'version': '1',
                         },
                     },
                 },
