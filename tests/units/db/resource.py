@@ -659,6 +659,22 @@ class ResourceTest(tests.Test):
             })
         self.assertEqual(3, directory.get('1')['prop1'])
 
+    def test_FallbackToDefaults(self):
+
+        class Document(db.Resource):
+
+            @db.stored_property(default='default')
+            def prop(self, value):
+                return value
+
+        directory = Directory('document', Document, IndexWriter, _SessionSeqno(), this.localcast)
+        guid = directory.create({})
+
+        self.assertEqual('default', Document(guid, None).get('prop'))
+        self.assertEqual('probe', Document(guid, None).get('prop', 'probe'))
+        self.assertEqual('probe', Document(guid, None, {'prop': 'probe'}).get('prop'))
+        self.assertEqual('probe', Document(guid, None, None, {'prop': 'probe'}).get('prop'))
+
 
 class _SessionSeqno(object):
 

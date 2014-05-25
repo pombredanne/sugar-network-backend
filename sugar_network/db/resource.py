@@ -116,11 +116,14 @@ class Resource(object):
 
         """
         value = self.posts.get(prop)
-        if value is None:
-            value = self.orig(prop)
-        if value is None:
-            value = default
-        return value
+        if value is not None:
+            return value
+        value = self.orig(prop)
+        if value is not None:
+            return value
+        if default is not None:
+            return default
+        return self.metadata[prop].default
 
     def orig(self, prop):
         """Get document's property original value.
@@ -131,15 +134,14 @@ class Resource(object):
             `prop` value
 
         """
-        prop = self.metadata[prop]
-        value = self.origs.get(prop.name)
+        value = self.origs.get(prop)
         if value is None and self.record is not None:
-            meta = self.record.get(prop.name)
-            if meta is not None:
-                value = meta.get('value')
+            meta = self.record.get(prop)
+            if meta is None:
+                value = self.metadata[prop].default
             else:
-                value = prop.default
-            self.origs[prop.name] = value
+                value = meta.get('value')
+            self.origs[prop] = value
         return value
 
     def repr(self, prop):
