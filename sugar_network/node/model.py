@@ -308,10 +308,8 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
     clauses = []
 
     _logger.debug(
-            'Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r '
-            'assume=%r',
-            top_context.guid, lsb_id, lsb_release, stability, top_requires,
-            assume)
+            'Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r',
+            top_context.guid, lsb_id, lsb_release, stability, top_requires)
 
     def rate_release(key, release):
         return [command in release.get('commands', []),
@@ -321,11 +319,20 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                 ]
 
     def add_deps(v_usage, deps):
+        usage = varset[v_usage]
         for dep, cond in deps.items():
             dep_clause = [-v_usage]
             for v_release in add_context(dep):
-                if spec.ensure_version(varset[v_release][1]['version'], cond):
+                release = varset[v_release]
+                if spec.ensure_version(release[1]['version'], cond):
+                    _logger.trace('Consider %d:%s(%s) depends on %d:%s(%s)',
+                            v_usage, usage[0], usage[1]['version'],
+                            v_release, dep, release[1]['version'])
                     dep_clause.append(v_release)
+                else:
+                    _logger.trace('Ignore %d:%s(%s) depends on %d:%s(%s)',
+                            v_usage, usage[0], usage[1]['version'],
+                            v_release, dep, release[1]['version'])
             clauses.append(dep_clause)
 
     def add_context(context):
@@ -342,7 +349,9 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
 
         if 'package' in context['type']:
             if assume and context.guid in assume:
-                for version in assume[context.guid]:
+                for version in reversed(sorted(assume[context.guid])):
+                    _logger.trace('Assume %d:%s(%s) package',
+                            len(varset), context.guid, version)
                     clause.append(len(varset))
                     varset.append((context.guid, {'version': version}))
             else:
@@ -361,6 +370,8 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                         pkg_info['version'] = []
                         pkg_info['packages'] = alias['value']['binary']
                 if pkg_info:
+                    _logger.trace('Consider %d:%s(%s) package',
+                            len(varset), context.guid, pkg_info['version'])
                     clause.append(len(varset))
                     varset.append((context.guid, pkg_info))
         else:
@@ -412,6 +423,8 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                         cmd = rel['commands'].values()[0]
                     release_info['command'] = cmd['exec']
                     requires.update(cmd.get('requires') or {})
+                _logger.trace('Consider %d:%s(%s) context',
+                        len(varset), context.guid, release_info['version'])
                 v_release = len(varset)
                 varset.append((context.guid, release_info))
                 clause.append(v_release)

@@ -2001,6 +2001,66 @@ class NodeModelTest(tests.Test):
             },
             model.solve(volume, 'context', assume={'package': [[[1], 0], [[2], 0], [[3], 0]]}))
 
+    def test_solve_SortMultipleAssumes(self):
+        volume = Volume('master', [Context])
+        volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
+        this.volume = volume
+
+        volume['context'].create({
+            'guid': 'org.laptop.Memorize', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                '39': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[39], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.86; sugar<0.94; libxml2; numpy')}},
+                '40': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[40], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.82; sugar<0.96; libxml2; numpy')}},
+                '41': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[41], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.86; sugar<0.96; libxml2; numpy')}},
+                '42': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[42], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.86; sugar<0.98; libxml2; numpy')}},
+                '43': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[43], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.86; sugar<0.98; libxml2; numpy')}},
+                '44': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[44], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.96; sugar<0.100; libxml2; numpy')}},
+                '45': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[45], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.86; sugar<0.100; libxml2; numpy')}},
+                '46': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[46], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.96; sugar<0.100; libxml2; numpy')}},
+                '47': {'value': {'bundles': {'*-*': {'blob': 'blob'}}, 'stability': 'stable', 'version': [[47], 0], 'commands': {'activity': {'exec': 'true'}},
+                    'requires': spec.parse_requires('sugar>0.96; sugar<0.100; libxml2; numpy')}},
+                },
+            })
+        volume['context'].create({
+            'guid': 'sugar', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {},
+            })
+        volume['context'].create({
+            'guid': 'libxml2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                'resolves': {'value': {
+                    'Ubuntu-12.04': {'version': [[2, 7, 8], 0], 'packages': ['libxml']},
+                    }},
+                },
+            })
+        volume['context'].create({
+            'guid': 'numpy', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
+                'resolves': {'value': {
+                    'Ubuntu-12.04': {'version': [[1, 6, 1], 0], 'packages': ['numpy']},
+                    }},
+                },
+            })
+
+        self.assertEqual({
+            'org.laptop.Memorize': {'title': '', 'blob': 'http://localhost/blobs/blob', 'version': '45', 'command': 'true', 'size': 0, 'content-type': 'mime'},
+            'sugar': {'version': '0.94'},
+            'libxml2': {'version': '2.7.8', 'packages': ['libxml']},
+            'numpy': {'version': '1.6.1', 'packages': ['numpy']},
+            },
+            model.solve(volume, 'org.laptop.Memorize', lsb_id='Ubuntu', lsb_release='12.04', assume={'sugar': [[[0, 84], 0], [[0, 94], 0]]}))
+        self.assertEqual({
+            'org.laptop.Memorize': {'title': '', 'blob': 'http://localhost/blobs/blob', 'version': '45', 'command': 'true', 'size': 0, 'content-type': 'mime'},
+            'sugar': {'version': '0.94'},
+            'libxml2': {'version': '2.7.8', 'packages': ['libxml']},
+            'numpy': {'version': '1.6.1', 'packages': ['numpy']},
+            },
+            model.solve(volume, 'org.laptop.Memorize', lsb_id='Ubuntu', lsb_release='12.04', assume={'sugar': [[[0, 94], 0], [[0, 84], 0]]}))
+
     def test_load_bundle_Activity(self):
         volume = self.start_master()
         blobs = volume.blobs
