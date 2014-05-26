@@ -3,18 +3,22 @@
 
 from optparse import OptionParser
 
-from sugar_network import node
-from sugar_network.node import master, model
+from sugar_network.node import model
+from sugar_network.node.master import MasterRoutes
 from sugar_network.toolkit.router import Request
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import Option
 
 
-Option.seek('node', node)
+data_root = Option(
+        'path to a directory to place node data',
+        default='/var/lib/sugar-network', name='data_root')
+
+Option.seek('node', [data_root])
 Option.parse_args(OptionParser(), config_files=['~/.config/sugar-network/config'])
 this.request = Request()
 
-this.volume = model.Volume(node.data_root.value, master.RESOURCES)
+this.volume = model.Volume(data_root.value, MasterRoutes.RESOURCES)
 try:
     for doc in this.volume['context']:
         if 'group' not in doc['type'] or doc['artefact_icon'] != 'assets/missing.svg':

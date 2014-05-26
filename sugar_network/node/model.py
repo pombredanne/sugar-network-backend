@@ -631,7 +631,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
         title = i18n._('%(name)s %(version)s third-party release')
     announce = {
         'context': context,
-        'type': 'notification',
+        'type': 'notice',
         'title': i18n.encode(title, name=doc['title'], version=version),
         'message': release_notes or '',
         }

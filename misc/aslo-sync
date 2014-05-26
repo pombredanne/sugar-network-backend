@@ -28,6 +28,7 @@ import MySQLdb as mdb
 from sugar_network import db, toolkit
 from sugar_network.node.auth import Principal
 from sugar_network.node.slave import SlaveRoutes
+from sugar_network.node.master import MasterRoutes
 from sugar_network.node.model import load_bundle
 from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit.router import Request, Router
@@ -167,13 +168,13 @@ class Application(application.Application):
     _router = None
 
     def prolog(self):
-        this.volume = db.Volume(data_root.value, SlaveRoutes.RESOURCES)
+        this.volume = db.Volume(data_root.value, MasterRoutes.RESOURCES)
         this.volume.populate()
         this.broadcast = lambda event: None
         this.localcast = lambda event: None
         this.request = Request({'HTTP_HOST': master_url.value})
         auth = Auth()
-        routes = SlaveRoutes(master_url.value, this.volume, auth=auth)
+        routes = SlaveRoutes(master_url.value, volume=this.volume, auth=auth)
         self._router = Router(routes)
         this.principal = auth.logon()
 
@@ -192,7 +193,7 @@ class Application(application.Application):
         if not this.volume['context'][SN_GUID].exists:
             this.volume['context'].create({
                     'guid': SN_GUID,
-                    'type': ['group'],
+                    'type': ['talks'],
                     'title': {'en': 'Sugar Network'},
                     'summary': {'en': 'Sugar Network'},
                     'description': {'en': 'Sugar Network'},
@@ -204,7 +205,7 @@ class Application(application.Application):
         if not this.volume['context'][SUGAR_GUID].exists:
             this.volume['context'].create({
                     'guid': SUGAR_GUID,
-                    'type': ['package'],
+                    'type': ['package', 'project'],
                     'title': {'en': 'sugar'},
                     'summary': {'en': 'Constructionist learning platform'},
                     'description': {'en':
@@ -225,7 +226,7 @@ class Application(application.Application):
         if not this.volume['context'][PACKAGES_GUID].exists:
             this.volume['context'].create({
                     'guid': PACKAGES_GUID,
-                    'type': ['group'],
+                    'type': ['project'],
                     'title': {'en': 'Packages'},
                     'summary': {
                         'en': 'Collection of GNU/Linux packages metadata',
@@ -616,7 +617,7 @@ class Application(application.Application):
 
         directory.update(bundle_id, {
                 'guid': bundle_id,
-                'type': ['activity'],
+                'type': ['activity', 'project'],
                 'title': self.get_i18n_field(title),
                 'summary': self.get_i18n_field(summary),
                 'description': self.get_i18n_field(description),

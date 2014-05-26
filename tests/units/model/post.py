@@ -164,17 +164,15 @@ class PostTest(tests.Test):
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
                 content={'context': '', 'topic': 'topic', 'type': 'review', 'title': '', 'message': ''})
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'object', 'title': '', 'message': ''})
+                content={'context': '', 'topic': 'topic', 'type': 'artefact', 'title': '', 'message': ''})
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
                 content={'context': '', 'topic': 'topic', 'type': 'question', 'title': '', 'message': ''})
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'problem', 'title': '', 'message': ''})
+                content={'context': '', 'topic': 'topic', 'type': 'issue', 'title': '', 'message': ''})
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
                 content={'context': '', 'topic': 'topic', 'type': 'idea', 'title': '', 'message': ''})
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'announce', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'notification', 'title': '', 'message': ''})
+                content={'context': '', 'topic': 'topic', 'type': 'notice', 'title': '', 'message': ''})
 
 if __name__ == '__main__':
     tests.main()

@@ -2120,7 +2120,7 @@ class NodeModelTest(tests.Test):
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
-        self.assertEqual('notification', post['type'])
+        self.assertEqual('notice', post['type'])
         self.assertEqual({
             'en': 'Activity 1 release',
             'es': 'Activity 1 release',
@@ -2161,7 +2161,7 @@ class NodeModelTest(tests.Test):
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
-        self.assertEqual('notification', post['type'])
+        self.assertEqual('notice', post['type'])
         self.assertEqual({
             'en': 'NonActivity 2 release',
             'es': 'NonActivity 2 release',
@@ -2272,7 +2272,7 @@ class NodeModelTest(tests.Test):
         conn = Connection()
 
         bundle_id = conn.post(['context'], {
-            'type': 'group',
+            'type': 'talks',
             'title': 'NonActivity',
             'summary': 'summary',
             'description': 'description',
@@ -2366,7 +2366,7 @@ class NodeModelTest(tests.Test):
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
-        self.assertEqual('notification', post['type'])
+        self.assertEqual('notice', post['type'])
         self.assertEqual({
             'en': 'Image Viewer 1 release',
             'es': 'Image Viewer 1 release',
@@ -2487,7 +2487,7 @@ class NodeModelTest(tests.Test):
         post = volume['post'][release['announce']]
         assert tests.UID not in post['author']
         assert tests.UID2 in post['author']
-        self.assertEqual('notification', post['type'])
+        self.assertEqual('notice', post['type'])
         self.assertEqual({
             'en': 'Activity 1 third-party release',
             'es': 'Activity 1 third-party release',
@@ -2507,7 +2507,7 @@ class NodeModelTest(tests.Test):
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
         assert tests.UID2 not in post['author']
-        self.assertEqual('notification', post['type'])
+        self.assertEqual('notice', post['type'])
         self.assertEqual({
             'en': 'Activity2 1 release',
             'es': 'Activity2 1 release',
