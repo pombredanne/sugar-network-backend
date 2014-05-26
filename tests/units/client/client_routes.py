@@ -1039,6 +1039,7 @@ class ClientRoutesTest(tests.Test):
 
         class Routes(object):
 
+            RESOURCES = []
             subscribe_tries = 0
 
             def __init__(self, master_url, volume, auth, *args):

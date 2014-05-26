@@ -61,9 +61,8 @@ class Rrd(object):
                 self._load(filename, int(revision or 0))
 
     @property
-    def files(self):
-        for rev in self._revisions:
-            yield rev.path
+    def rras(self):
+        return self._rras
 
     @property
     def first(self):
@@ -72,6 +71,11 @@ class Rrd(object):
     @property
     def last(self):
         return self._revisions[-1].last if self._revisions else None
+
+    def wipe(self):
+        for rev in self._revisions:
+            os.unlink(rev.path)
+        del self._revisions[:]
 
     def values(self, timestamp=None):
         return self._revisions[-1].values(timestamp) if self._revisions else {}

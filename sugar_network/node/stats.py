@@ -13,14 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import time
 import logging
+from os.path import join
 
 from sugar_network.toolkit.rrd import Rrd
-from sugar_network.toolkit.router import route, postroute, Request
+from sugar_network.toolkit.router import Request
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import Option, coroutine, enforce
+from sugar_network.toolkit import Option, coroutine
 
 
 stats_step = Option(
@@ -102,35 +102,27 @@ _LIMIT = 100
 _logger = logging.getLogger('node.stats')
 
 
-class StatRoutes(object):
+class Monitor(object):
 
-    _rrd = None
-    _stats = None
-    _stated = False
-
-    def stats_init(self, path, step, rras):
-        _logger.info('Collect node stats in %r', path)
-
-        self._rrd = Rrd(path, 'stats', _DS, step, rras)
+    def __init__(self, volume, step, rras):
+        self._volume = volume
+        self._rrd = Rrd(join(volume.root, 'var'), 'stats', _DS, step, rras)
         self._stats = self._rrd.values()
+        self._stated = False
 
         if not self._stats:
             for field, traits in _DS.items():
                 value = 0
                 if traits['type'] == 'GAUGE':
-                    directory = this.volume[traits['resource']]
+                    directory = volume[traits['resource']]
                     __, value = directory.find(limit=0, **traits['query'])
                 self._stats[field] = value
 
-    @postroute
-    def stat_on_postroute(self, result, exception):
-        if self._rrd is None or exception is not None:
-            return result
-
-        r = this.request
-        route_ = _ROUTES.get((r.method, r.resource, r.prop, r.cmd))
+    def count(self, request):
+        route_ = _ROUTES.get(
+                (request.method, request.resource, request.prop, request.cmd))
         if route_ is None:
-            return result
+            return
         stat, shift = route_
         self._stated = True
 
@@ -138,14 +130,7 @@ class StatRoutes(object):
             stat = stat()
         self._stats[stat] += shift
 
-        return result
-
-    @route('GET', cmd='stats', arguments={
-                'start': int, 'end': int, 'limit': int, 'event': list},
-            mime_type='application/json')
-    def stats(self, start, end, limit, event):
-        enforce(self._rrd is not None, 'Statistics disabled')
-
+    def get(self, start, end, limit, event):
         if not start:
             start = self._rrd.first or 0
         if not end:
@@ -167,12 +152,12 @@ class StatRoutes(object):
             result.append(values)
         return result
 
-    def stats_auto_commit(self):
+    def auto_commit(self):
         while True:
             coroutine.sleep(self._rrd.step)
-            self.stats_commit()
+            self.commit()
 
-    def stats_commit(self, timestamp=None):
+    def commit(self, timestamp=None):
         if not self._stated:
             return
         self._stated = False
@@ -184,10 +169,8 @@ class StatRoutes(object):
             if traits['type'] == 'ABSOLUTE':
                 self._stats[field] = 0
 
-    def stats_regen(self, path, step, rras):
-        for i in Rrd(path, 'stats', _DS, step, rras).files:
-            os.unlink(i)
-        self.stats_init(path, step, rras)
+    def regen(self):
+        self._rrd.wipe()
         for field in self._stats:
             self._stats[field] = 0
 
@@ -197,9 +180,9 @@ class StatRoutes(object):
             step_ = None
 
             archives = {}
-            for rra in rras:
+            for rra in self._rrd.rras:
                 a_step, a_size = [long(i) for i in rra.split(':')[-2:]]
-                a_step *= step
+                a_step *= self._rrd.step
                 a_start = end - min(end, a_step * a_size)
                 if archives.setdefault(a_start, a_step) > a_step:
                     archives[a_start] = a_step
@@ -212,13 +195,12 @@ class StatRoutes(object):
                 yield ts, ts + step_ - 1, step_
                 ts += step_
 
-        items, __ = this.volume['context'].find(limit=1, order_by='ctime')
+        items, __ = self._volume['context'].find(limit=1, order_by='ctime')
         start = next(items)['ctime']
         for left, right, __ in timeline(start):
             for resource in ('user', 'context', 'post', 'report'):
-                items, __ = this.volume[resource].find(
+                items, __ = self._volume[resource].find(
                         query='ctime:%s..%s' % (left, right))
                 for this.resource in items:
-                    this.request = Request(method='POST', path=[resource])
-                    self.stat_on_postroute(None, None)
-            self.stats_commit(left + (right - left) / 2)
+                    self.count(Request(method='POST', path=[resource]))
+            self.commit(left + (right - left) / 2)

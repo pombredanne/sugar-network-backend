@@ -91,10 +91,7 @@ class Test(unittest.TestCase):
         Option._config_to_save = None
         db.index_flush_timeout.value = 0
         db.index_flush_threshold.value = 1
-        node.find_limit.value = 1024
-        node.data_root.value = tmpdir
-        node.port.value = 8888
-        node.master_url.value = 'http://127.0.0.1:7777'
+        self.master_url = 'http://127.0.0.1:7777'
         db.index_write_queue.value = 10
         client.local_root.value = tmpdir
         client.api.value = 'http://127.0.0.1:7777'
@@ -282,12 +279,12 @@ class Test(unittest.TestCase):
 
     def start_master(self, classes=None, routes=MasterRoutes, auth=None):
         if classes is None:
-            classes = master.RESOURCES
+            classes = routes.RESOURCES
         if auth is None:
             auth = SugarAuth('master')
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
         self.node_volume = NodeVolume('master', classes)
-        self.node_routes = routes(node.master_url.value, volume=self.node_volume, auth=auth)
+        self.node_routes = routes(self.master_url, volume=self.node_volume, auth=auth)
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
@@ -298,7 +295,7 @@ class Test(unittest.TestCase):
 
     def fork_master(self, classes=None, routes=MasterRoutes, cb=None, auth=None):
         if classes is None:
-            classes = master.RESOURCES
+            classes = routes.RESOURCES
         if auth is None:
             auth = SugarAuth('master')
 
@@ -306,7 +303,7 @@ class Test(unittest.TestCase):
             volume = NodeVolume('master', classes)
             if cb is not None:
                 cb(volume)
-            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(node.master_url.value, volume=volume, auth=auth)))
+            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(self.master_url, volume=volume, auth=auth)))
             anode.serve_forever()
 
         pid = self.fork(_node)

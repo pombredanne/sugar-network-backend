@@ -26,12 +26,12 @@ from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, packets, pylru, ranges, enforce
 
 
-RESOURCES = (model.User, model.Context, Post, Report)
-
 _logger = logging.getLogger('node.master')
 
 
 class MasterRoutes(NodeRoutes):
+
+    RESOURCES = (model.User, model.Context, Post, Report)
 
     def __init__(self, master_url, **kwargs):
         NodeRoutes.__init__(self, urlsplit(master_url).netloc, **kwargs)

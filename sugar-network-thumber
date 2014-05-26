@@ -23,10 +23,15 @@ from os.path import exists, join
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
-from sugar_network import node, toolkit
-from sugar_network.node import slave, model
+from sugar_network import toolkit
+from sugar_network.node import model
+from sugar_network.node.slave import SlaveRoutes
 from sugar_network.toolkit import application, Option, enforce
 
+
+data_root = Option(
+        'path to a directory to place node data',
+        default='/var/lib/sugar-network', name='data_root')
 
 force = Option(
         'intensify regular behaviour',
@@ -43,22 +48,22 @@ class Application(application.Daemon):
     jobs = coroutine.Pool()
 
     def prolog(self):
-        if not exists(node.data_root.value):
-            os.makedirs(node.data_root.value)
-        enforce(os.access(node.data_root.value, os.W_OK),
-                'No write access to %r directory', node.data_root.value)
+        if not exists(data_root.value):
+            os.makedirs(data_root.value)
+        enforce(os.access(data_root.value, os.W_OK),
+                'No write access to %r directory', data_root.value)
         for opt, dirname in [
                 (application.logdir, 'log'),
                 (application.rundir, 'run'),
                 ]:
             if not opt.value:
-                opt.value = join(node.data_root.value, dirname)
+                opt.value = join(data_root.value, dirname)
             if not exists(opt.value):
                 os.makedirs(opt.value)
 
         self.seqno = toolkit.Bin(
-                join(node.data_root.value, 'var', 'seqno-thumbs'), 1)
-        self.volume = model.Volume(node.data_root.value, slave.RESOURCES)
+                join(data_root.value, 'var', 'seqno-thumbs'), 1)
+        self.volume = model.Volume(data_root.value, SlaveRoutes.RESOURCES)
 
     def run(self):
         self.jobs.spawn(self.volume.blobs.poll_thumbs)
@@ -92,7 +97,7 @@ application.rundir.value = None
 
 Option.seek('main', application)
 Option.seek('main', [force])
-Option.seek('node', [node.data_root])
+Option.seek('node', [data_root])
 
 app = Application(
         name='sugar-network-thumber',

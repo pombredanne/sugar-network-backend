@@ -122,6 +122,10 @@ keyfile = Option(
         'path to RSA private key to connect to Sugar Network API node',
         name='keyfile', short_option='-k', default='~/.ssh/sugar-network')
 
+api_version = Option(
+        'API version to interact with a Sugar Network node',
+        name='api-version')
+
 
 _logger = logging.getLogger('client')
 
@@ -173,7 +177,8 @@ def Connection(url=None, creds=None, **kwargs):
         creds = SugarCreds(keyfile.value)
     return http.Connection(url,
             auth_request={'method': 'GET', 'params': {'cmd': 'logon'}},
-            creds=creds, verify=not no_check_certificate.value, **kwargs)
+            creds=creds, verify=not no_check_certificate.value,
+            api_version=api_version.value, **kwargs)
 
 
 def IPCConnection():

@@ -438,56 +438,19 @@ class File(str):
 
 class Router(object):
 
-    def __init__(self, routes_model, allow_spawn=False):
-        self._routes_model = routes_model
+    def __init__(self, routes_model, allow_spawn=False, default_api=None):
         self._allow_spawn = allow_spawn
         self._valid_origins = set()
         self._invalid_origins = set()
         self._host = None
-        self._routes = _Routes()
-        self._preroutes = []
-        self._postroutes = []
+        self._apis = {}
+        self._default_api = default_api
 
-        processed = set()
-        cls = type(routes_model)
-        while cls is not None:
-            for name in dir(cls):
-                attr = getattr(cls, name)
-                if name in processed:
-                    continue
-                if hasattr(attr, 'is_preroute'):
-                    route_ = getattr(routes_model, name)
-                    if route_ not in self._preroutes:
-                        self._preroutes.append(route_)
-                    continue
-                elif hasattr(attr, 'is_postroute'):
-                    route_ = getattr(routes_model, name)
-                    if route_ not in self._postroutes:
-                        self._postroutes.append(route_)
-                    continue
-                elif not hasattr(attr, 'route'):
-                    continue
-                fallback, method, path, cmd, kwargs = attr.route
-                routes = self._routes
-                for i, part in enumerate(path):
-                    enforce(i == 0 or not routes.fallback_ops or
-                            (fallback and i == len(path) - 1),
-                            'Fallback route should not have sub-routes')
-                    if part is None:
-                        enforce(not fallback, 'Fallback route with wildcards')
-                        if routes.wildcards is None:
-                            routes.wildcards = _Routes(routes.parent)
-                        routes = routes.wildcards
-                    else:
-                        routes = routes.setdefault(part, _Routes(routes))
-                ops = routes.fallback_ops if fallback else routes.ops
-                route_ = _Route(getattr(routes_model, name), method, path, cmd,
-                        **kwargs)
-                enforce(route_.op not in ops, 'Route %s already exists',
-                        route_)
-                ops[route_.op] = route_
-                processed.add(name)
-            cls = cls.__base__
+        if not isinstance(routes_model, dict):
+            self._apis[None] = _Api(routes_model)
+        else:
+            for api_version, routes in routes_model.items():
+                self._apis[api_version] = _Api(routes)
 
         this.call = self.call
 
@@ -510,7 +473,11 @@ class Router(object):
 
         this.request = request
         this.response = response
-        route_ = self._resolve_route(request)
+
+        api_version = request.environ.get('HTTP_X_API')
+        api = self._apis.get(api_version or self._default_api)
+        enforce(api is not None, http.BadRequest, 'No such API version')
+        route_ = api.resolve_route(request)
 
         for arg, cast in route_.arguments.items():
             value = request.get(arg)
@@ -529,7 +496,7 @@ class Router(object):
         for arg in route_.kwarg_names:
             kwargs[arg] = request.get(arg)
 
-        for i in self._preroutes:
+        for i in api.preroutes:
             i(route_)
         result = None
         exception = None
@@ -548,13 +515,10 @@ class Router(object):
         finally:
             this.request = request
             this.response = response
-            for i in self._postroutes:
+            for i in api.postroutes:
                 result = i(result, exception)
 
         return result
-
-    def __repr__(self):
-        return '<Router %s>' % type(self._routes_model).__name__
 
     def __call__(self, environ, start_response):
         request = Request(environ)
@@ -631,8 +595,8 @@ class Router(object):
         elif not streamed_content:
             response.content_length = len(content) if content else 0
 
-        _logger.trace('%s call: request=%s response=%r content=%r',
-                self, request.environ, response, repr(content)[:256])
+        _logger.trace('%s call: request=%s response=%r',
+                self, request.environ, response)
         _save_cookie(response, 'sugar_network_node', this.cookie)
         start_response(response.status, response.items())
 
@@ -645,39 +609,6 @@ class Router(object):
                     yield i
         elif content is not None:
             yield content
-
-    def _resolve_route(self, request):
-        found_path = [False]
-
-        def resolve_path(routes, path):
-            if not path:
-                if routes.ops:
-                    found_path[0] = True
-                return routes.ops.get((request.method, request.cmd)) or \
-                       routes.fallback_ops.get((request.method, None)) or \
-                       routes.fallback_ops.get((None, None))
-            subroutes = routes.get(path[0])
-            if subroutes is None:
-                route_ = routes.fallback_ops.get((request.method, None)) or \
-                        routes.fallback_ops.get((None, None))
-                if route_ is not None:
-                    return route_
-            for subroutes in (subroutes, routes.wildcards):
-                if subroutes is None:
-                    continue
-                route_ = resolve_path(subroutes, path[1:])
-                if route_ is not None:
-                    return route_
-
-        route_ = resolve_path(self._routes, request.path) or \
-                self._routes.fallback_ops.get((request.method, None)) or \
-                self._routes.fallback_ops.get((None, None))
-        if route_ is None:
-            if found_path[0]:
-                raise http.BadRequest('No such operation')
-            else:
-                raise http.NotFound('Path not found')
-        return route_
 
     def _event_stream(self, request, stream):
         commons = {'method': request.method}
@@ -932,6 +863,88 @@ class _ResponseHeaders(object):
 
     def __setitem__(self, key, value):
         self._headers.set('x-%s' % key.lower(), json.dumps(value))
+
+
+class _Api(object):
+
+    def __init__(self, routes_model):
+        self.preroutes = []
+        self.postroutes = []
+        self._routes = _Routes()
+
+        processed = set()
+        cls = type(routes_model)
+        while cls is not None:
+            for name in dir(cls):
+                attr = getattr(cls, name)
+                if name in processed:
+                    continue
+                if hasattr(attr, 'is_preroute'):
+                    route_ = getattr(routes_model, name)
+                    if route_ not in self.preroutes:
+                        self.preroutes.append(route_)
+                    continue
+                elif hasattr(attr, 'is_postroute'):
+                    route_ = getattr(routes_model, name)
+                    if route_ not in self.postroutes:
+                        self.postroutes.append(route_)
+                    continue
+                elif not hasattr(attr, 'route'):
+                    continue
+                fallback, method, path, cmd, kwargs = attr.route
+                routes = self._routes
+                for i, part in enumerate(path):
+                    enforce(i == 0 or not routes.fallback_ops or
+                            (fallback and i == len(path) - 1),
+                            'Fallback route should not have sub-routes')
+                    if part is None:
+                        enforce(not fallback, 'Fallback route with wildcards')
+                        if routes.wildcards is None:
+                            routes.wildcards = _Routes(routes.parent)
+                        routes = routes.wildcards
+                    else:
+                        routes = routes.setdefault(part, _Routes(routes))
+                ops = routes.fallback_ops if fallback else routes.ops
+                route_ = _Route(getattr(routes_model, name), method, path, cmd,
+                        **kwargs)
+                enforce(route_.op not in ops, 'Route %s already exists',
+                        route_)
+                ops[route_.op] = route_
+                processed.add(name)
+            cls = cls.__base__
+
+    def resolve_route(self, request):
+        found_path = [False]
+
+        def resolve_path(routes, path):
+            if not path:
+                if routes.ops:
+                    found_path[0] = True
+                return routes.ops.get((request.method, request.cmd)) or \
+                       routes.fallback_ops.get((request.method, None)) or \
+                       routes.fallback_ops.get((None, None))
+            subroutes = routes.get(path[0])
+            if subroutes is None:
+                route_ = routes.fallback_ops.get((request.method, None)) or \
+                        routes.fallback_ops.get((None, None))
+                if route_ is not None:
+                    return route_
+            for subroutes in (subroutes, routes.wildcards):
+                if subroutes is None:
+                    continue
+                route_ = resolve_path(subroutes, path[1:])
+                if route_ is not None:
+                    return route_
+
+        route_ = resolve_path(self._routes, request.path) or \
+                self._routes.fallback_ops.get((request.method, None)) or \
+                self._routes.fallback_ops.get((None, None))
+        if route_ is None:
+            if found_path[0]:
+                raise http.BadRequest('No such operation')
+            else:
+                raise http.NotFound('Path not found')
+        return route_
 
 
 File.AWAY = File(None)

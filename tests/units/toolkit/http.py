@@ -283,6 +283,25 @@ class HTTPTest(tests.Test):
             ],
             conn.post(['path', 'subpath'], 'payload', foo='bar'))
 
+    def test_SpecifyApi(self):
+
+        class Routes(object):
+
+            @route('GET')
+            def probe(self):
+                return this.request.environ.get('HTTP_X_API') or ''
+
+        self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value),
+                Router({'probe': Routes()}))
+        coroutine.spawn(self.server.serve_forever)
+        coroutine.dispatch()
+
+        conn = http.Connection('http://127.0.0.1:%s' % local.ipc_port.value)
+        self.assertRaises(http.BadRequest, conn.get)
+
+        conn = http.Connection('http://127.0.0.1:%s' % local.ipc_port.value, api_version='probe')
+        self.assertEqual('probe', conn.get())
+
 
 if __name__ == '__main__':
     tests.main()

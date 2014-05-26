@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2012-2013 Aleksey Lim
+# Copyright (C) 2012-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,15 +24,42 @@ from os.path import exists, join, isabs
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
-from sugar_network import db, node, toolkit
+from sugar_network import db, toolkit
 from sugar_network.model.post import Post
-from sugar_network.node.auth import SugarAuth, RootAuth
+from sugar_network.node.auth import SugarAuth
 from sugar_network.node import obs, master, slave, model, stats
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit.coroutine import this
+from sugar_network.toolkit.spec import parse_version
 from sugar_network.toolkit import application, Option, enforce
 
+
+data_root = Option(
+        'path to a directory to place node data',
+        default='/var/lib/sugar-network', name='data_root')
+
+mode = Option(
+        'node running mode, should be one of "slave", "proxy", or, "master"',
+        default='slave', name='mode')
+
+host = Option(
+        'hostname to listen for incomming connections and '
+        'using for publicly visible urls',
+        default='127.0.0.1', name='host')
+
+port = Option(
+        'port number to listen incomming connections',
+        default=8000, type_cast=int, name='port')
+
+default_api = Option(
+        'API version to use by default, i.e., '
+        'if clients do not specify it in requests',
+        name='default-api')
+
+master_url = Option(
+        'master API url either to connect to (for slave or proxy nodes), or, '
+        'to provide from (for master nodes)', name='master-url')
 
 static_url = Option(
         'url to provide static content from; if omitted, content '
@@ -50,20 +77,39 @@ http_logdir = Option(
         'not absolute path will be prefixed by the --logdir',
         name='http-logdir')
 
-gettext.textdomain('sugar-network')
+find_limit = Option(
+        'limit the resulting list for search requests',
+        default=64, type_cast=int, name='find-limit')
+
+keyfile = Option(
+        'path to SSL certificate keyfile to serve requests via HTTPS',
+        name='keyfile')
+
+certfile = Option(
+        'path to SSL certificate file to serve requests via HTTPS',
+        name='certfile')
+
+SUPPORTED_API = {
+        'master': {
+            '0.2': master.MasterRoutes,
+            },
+        'slave': {
+            '0.2': slave.SlaveRoutes,
+            },
+        }
 
 
 class Application(application.Daemon):
 
     jobs = coroutine.Pool()
     servers = []
-    routes = None
+    routes = {}
 
     def prolog(self):
-        if not exists(node.data_root.value):
-            os.makedirs(node.data_root.value)
-        enforce(os.access(node.data_root.value, os.W_OK),
-                'No write access to %r directory', node.data_root.value)
+        if not exists(data_root.value):
+            os.makedirs(data_root.value)
+        enforce(os.access(data_root.value, os.W_OK),
+                'No write access to %r directory', data_root.value)
 
         for opt, dirname in [
                 (toolkit.cachedir, 'cache'),
@@ -71,7 +117,7 @@ class Application(application.Daemon):
                 (application.rundir, 'run'),
                 ]:
             if not opt.value:
-                opt.value = join(node.data_root.value, dirname)
+                opt.value = join(data_root.value, dirname)
             if not exists(opt.value):
                 os.makedirs(opt.value)
 
@@ -84,37 +130,44 @@ class Application(application.Daemon):
             this.static_prefix = static_url.value
 
     def run(self):
-        enforce(node.master_url.value, 'Option --master-api missed')
+        enforce(master_url.value, 'Option --master-api missed')
 
         ssl_args = {}
-        if node.keyfile.value:
-            ssl_args['keyfile'] = node.keyfile.value
-        if node.certfile.value:
-            ssl_args['certfile'] = node.certfile.value
+        if keyfile.value:
+            ssl_args['keyfile'] = keyfile.value
+        if certfile.value:
+            ssl_args['certfile'] = certfile.value
 
-        if node.mode.value == 'master':
-            node_routes_class = master.MasterRoutes
-            resources = master.RESOURCES
-            logging.info('Start master node')
+        apis = SUPPORTED_API.get(mode.value)
+        enforce(apis, 'Mode is not supported')
+        if default_api.value:
+            enforce(default_api.value in apis, 'No such API version')
         else:
-            node_routes_class = slave.SlaveRoutes
-            resources = slave.RESOURCES
-            logging.info('Start slave node')
-        volume = model.Volume(node.data_root.value, resources)
-        self.routes = node_routes_class(node.master_url.value,
-                volume=volume, auth=SugarAuth(node.data_root.value),
-                find_limit=node.find_limit.value)
+            default_api.value = max(apis, key=lambda x: parse_version(x))
 
-        self.routes.stats_init(join(node.data_root.value, 'var'),
+        logging.info('Start node mode=%s default_api=%s',
+                mode.value, default_api.value)
+
+        volume = model.Volume(data_root.value,
+                apis[default_api.value].RESOURCES)
+        stats_monitor = stats.Monitor(volume,
                 stats.stats_step.value, stats.stats_rras.value)
-        self.jobs.spawn(self.routes.stats_auto_commit)
-        self.jobs.spawn(volume.populate)
-        self.jobs.spawn(model.presolve, join(node.data_root.value, 'files'))
+        routes_args = {
+                'master_url': master_url.value,
+                'volume': volume,
+                'auth': SugarAuth(data_root.value),
+                'stats': stats_monitor,
+                'find_limit': find_limit.value,
+                }
+        self.routes = dict([(v, c(**routes_args)) for v, c in apis.items()])
 
-        logging.info('Listen requests on %s:%s',
-                node.host.value, node.port.value)
-        server = coroutine.WSGIServer(
-                (node.host.value, node.port.value), Router(self.routes),
+        self.jobs.spawn(stats_monitor.auto_commit)
+        self.jobs.spawn(volume.populate)
+        self.jobs.spawn(model.presolve, join(data_root.value, 'files'))
+
+        logging.info('Listen requests on %s:%s', host.value, port.value)
+        server = coroutine.WSGIServer((host.value, port.value),
+                Router(self.routes, default_api=default_api.value),
                 http_log=_open_logfile('access'), **ssl_args)
         self.jobs.spawn(server.serve_forever)
         self.servers.append(server)
@@ -122,9 +175,8 @@ class Application(application.Daemon):
         logging.info('Listen admin requests on %s', backdoor.value)
         sock = coroutine.listen_unix_socket(backdoor.value,
                 reuse_address=True, mode=0660)
-        routes = node_routes_class(node.master_url.value,
-                volume=volume, auth=RootAuth())
-        server = coroutine.WSGIServer(sock, Router(routes),
+        server = coroutine.WSGIServer(sock,
+                Router(self.routes[default_api.value]),
                 http_log=_open_logfile('backdoor'))
         self.jobs.spawn(server.serve_forever)
         self.servers.append(server)
@@ -133,7 +185,7 @@ class Application(application.Daemon):
         try:
             self.jobs.join()
         finally:
-            self.routes.stats_commit()
+            stats_monitor.commit()
             volume.close()
             os.unlink(backdoor.value)
 
@@ -147,13 +199,14 @@ class Application(application.Daemon):
                     continue
                 server.http_log.close()
                 server.http_log = file(server.http_log.name, 'a+')
-        self.routes.reload()
+        for routes in self.routes.values():
+            routes.reload()
 
     @application.command(
             'direct synchronization with master node',
             name='online-sync')
     def online_sync(self):
-        enforce(node.mode.value == 'slave', 'Node is not slave')
+        enforce(mode.value == 'slave', 'Node is not slave')
         self._ensure_instance().post(cmd='online_sync')
 
     @application.command(
@@ -161,7 +214,7 @@ class Application(application.Daemon):
             'placed to the specified directory',
             args='PATH', name='offline-sync')
     def offline_sync(self):
-        enforce(node.mode.value == 'slave', 'Node is not slave')
+        enforce(mode.value == 'slave', 'Node is not slave')
         enforce(self.args, 'PATH was not specified')
         path = self.args.pop(0)
         self._ensure_instance().post(cmd='offline_sync', path=path)
@@ -171,8 +224,8 @@ class Application(application.Daemon):
             name='resolve')
     def resolve(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
-        enforce(node.mode.value == 'master', 'Node is not master')
-        volume = model.Volume(node.data_root.value, master.RESOURCES)
+        enforce(mode.value == 'master', 'Node is not master')
+        volume = model.Volume(data_root.value, master.MasterRoutes.RESOURCES)
         try:
             volume.populate()
             for doc in volume['context']:
@@ -185,19 +238,18 @@ class Application(application.Daemon):
                 doc.post('releases')
         finally:
             volume.close()
-        model.presolve(join(node.data_root.value, 'files'), block=False)
+        model.presolve(join(data_root.value, 'files'), block=False)
 
     @application.command(
             're-generate node statistics', name='stat')
     def stat(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
-        volume = model.Volume(node.data_root.value, master.RESOURCES)
-        routes = slave.SlaveRoutes(node.master_url.value, volume=volume,
-                auth=RootAuth())
+        volume = model.Volume(data_root.value, master.MasterRoutes.RESOURCES)
+        stats_monitor = stats.Monitor(volume,
+                stats.stats_step.value, stats.stats_rras.value)
         try:
             volume.populate()
-            routes.stats_regen(join(node.data_root.value, 'var'),
-                    stats.stats_step.value, stats.stats_rras.value)
+            stats_monitor.regen()
         finally:
             volume.close()
 
@@ -205,7 +257,8 @@ class Application(application.Daemon):
             're-generate ratings', name='rate')
     def rate(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
-        this.volume = model.Volume(node.data_root.value, master.RESOURCES)
+        this.volume = model.Volume(data_root.value,
+                master.MasterRoutes.RESOURCES)
         try:
             this.volume.populate()
             Post.rating_regen()
@@ -225,6 +278,7 @@ def _open_logfile(name):
     return file(join(http_logdir.value, name + '.log'), 'a+')
 
 
+gettext.textdomain('sugar-network')
 locale.setlocale(locale.LC_ALL, '')
 
 # New defaults
@@ -233,17 +287,25 @@ application.rundir.value = None
 
 Option.seek('main', application)
 Option.seek('main', [toolkit.cachedir])
-Option.seek('node', node)
-Option.seek('node', [http_logdir, static_url])
 Option.seek('node', stats)
+Option.seek('node', [
+    data_root, mode, host, port, default_api, master_url, static_url,
+    backdoor, http_logdir, find_limit, keyfile, certfile,
+    ])
 Option.seek('obs', obs)
 Option.seek('db', db)
+
+epilog = """\
+Supported API versions:
+  %s
+
+See http://wiki.sugarlabs.org/go/Sugar_Network for details.\
+""" % ' '.join(SUPPORTED_API.keys())
 
 app = Application(
         name='sugar-network-node',
         description='Sugar Network node server',
-        epilog='See http://wiki.sugarlabs.org/go/Sugar_Network '
-               'for details.',
+        epilog=epilog,
         config_files=[
             '/etc/sugar-network.d',
             '/etc/sugar-network.conf',

@@ -1544,6 +1544,59 @@ class RouterTest(tests.Test):
         self.assertEqual('http://static/digest', File(None, 'digest'))
         self.assertEqual('http://static/assets/digest', File(None, 'assets/digest'))
 
+    def test_MultipleApis(self):
+
+        class Routes1(object):
+
+            @route('PROBE')
+            def probe(self):
+                return 'probe1'
+
+        class Routes2(object):
+
+            @route('PROBE')
+            def probe(self):
+                return 'probe2'
+
+        router = Router({'1': Routes1(), '2': Routes2()})
+
+        self.assertEqual(
+                ['probe1'],
+                [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/', 'HTTP_X_API': '1'}, lambda *args: None)])
+        self.assertEqual(
+                ['probe2'],
+                [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/', 'HTTP_X_API': '2'}, lambda *args: None)])
+        self.assertEqual(
+                ['{"request": "/", "error": "No such API version"}'],
+                [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/', 'HTTP_X_API': '3'}, lambda *args: None)])
+        self.assertEqual(
+                ['{"request": "/", "error": "No such API version"}'],
+                [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/'}, lambda *args: None)])
+
+    def test_DefaultApi(self):
+
+        class Routes1(object):
+
+            @route('PROBE')
+            def probe(self):
+                return 'probe1'
+
+        class Routes2(object):
+
+            @route('PROBE')
+            def probe(self):
+                return 'probe2'
+
+        router = Router({'1': Routes1(), '2': Routes2()}, default_api='1')
+        self.assertEqual(
+                ['probe1'],
+                [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/'}, lambda *args: None)])
+
+        router = Router({'1': Routes1(), '2': Routes2()}, default_api='2')
+        self.assertEqual(
+                ['probe2'],
+                [i for i in router({'REQUEST_METHOD': 'PROBE', 'PATH_INFO': '/'}, lambda *args: None)])
+
 
 if __name__ == '__main__':
     tests.main()

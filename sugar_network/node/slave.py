@@ -32,12 +32,12 @@ from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import http, packets, ranges, enforce
 
 
-RESOURCES = (model.User, Context, Post, Report)
-
 _logger = logging.getLogger('node.slave')
 
 
 class SlaveRoutes(NodeRoutes):
+
+    RESOURCES = (model.User, Context, Post, Report)
 
     def __init__(self, master_url, volume, **kwargs):
         guid_path = join(volume.root, 'etc', 'node')

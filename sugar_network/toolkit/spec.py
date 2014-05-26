@@ -131,17 +131,15 @@ def format_version(version):
         for mod, value in _VERSION_MOD_TO_VALUE.items():
             _VERSION_VALUE_TO_MOD[value] = mod
 
-    version = version[:]
-    length = len(version)
+    length = len(version) - (0 if version[-1] else 1)
+    result = [None] * length
 
     for x in range(0, length, 2):
-        version[x] = '.'.join([str(i) for i in version[x]])
-    for x in range(1, length, 2):
-        version[x] = '-' + _VERSION_VALUE_TO_MOD[version[x]]
-    if version[-1] == '-':
-        del version[-1]
+        result[x] = '.'.join([str(i) for i in version[x]])
+        if x + 1 < length:
+            result[x + 1] = '-' + _VERSION_VALUE_TO_MOD[version[x + 1]]
 
-    return ''.join(version)
+    return ''.join(result)
 
 
 def parse_requires(requires):

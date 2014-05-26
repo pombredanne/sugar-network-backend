@@ -26,9 +26,7 @@ from os.path import join
 import MySQLdb as mdb
 
 from sugar_network import db, toolkit
-from sugar_network.node import data_root, master_url
 from sugar_network.node.auth import Principal
-from sugar_network.node.master import RESOURCES
 from sugar_network.node.slave import SlaveRoutes
 from sugar_network.node.model import load_bundle
 from sugar_network.toolkit.spec import parse_version
@@ -36,6 +34,14 @@ from sugar_network.toolkit.router import Request, Router
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import licenses, application, Option
 
+
+data_root = Option(
+        'path to a directory to place node data',
+        default='/var/lib/sugar-network', name='data_root')
+
+master_url = Option(
+        'master API url either to connect to (for slave or proxy nodes), or, '
+        'to provide from (for master nodes)', name='master-url')
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
 ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {
@@ -161,7 +167,7 @@ class Application(application.Application):
     _router = None
 
     def prolog(self):
-        this.volume = db.Volume(data_root.value, RESOURCES)
+        this.volume = db.Volume(data_root.value, SlaveRoutes.RESOURCES)
         this.volume.populate()
         this.broadcast = lambda event: None
         this.localcast = lambda event: None

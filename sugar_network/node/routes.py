@@ -25,7 +25,6 @@ from os.path import join, exists
 from sugar_network import db, toolkit
 from sugar_network.model import FrontRoutes
 from sugar_network.node import model
-from sugar_network.node.stats import StatRoutes
 from sugar_network.toolkit.router import ACL, File, route
 from sugar_network.toolkit.router import fallbackroute, preroute, postroute
 from sugar_network.toolkit.spec import parse_version
@@ -39,14 +38,14 @@ _GUID_RE = re.compile('[a-zA-Z0-9_+-.]+$')
 _logger = logging.getLogger('node.routes')
 
 
-class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
+class NodeRoutes(db.Routes, FrontRoutes):
 
-    def __init__(self, guid, auth=None, **kwargs):
+    def __init__(self, guid, auth=None, stats=None, **kwargs):
         db.Routes.__init__(self, **kwargs)
         FrontRoutes.__init__(self)
-        StatRoutes.__init__(self)
         self._guid = guid
         self._auth = auth
+        self._stats = stats
         self._batch_dir = join(self.volume.root, 'batch')
         self._repos = []
 
@@ -92,13 +91,14 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
     @postroute
     def postroute(self, result, exception):
         request = this.request
-        if not request.guid:
-            return result
-        pull = request.headers['pull']
-        if pull is None:
-            return result
-        this.response.content_type = 'application/octet-stream'
-        return model.diff_resource(pull)
+        if request.guid:
+            pull = request.headers['pull']
+            if pull is not None:
+                this.response.content_type = 'application/octet-stream'
+                result = model.diff_resource(pull)
+        if exception is None and self._stats is not None:
+            self._stats.count(request)
+        return result
 
     @route('GET', cmd='logon', acl=ACL.AUTH)
     def logon(self):
@@ -245,6 +245,13 @@ class NodeRoutes(db.Routes, FrontRoutes, StatRoutes):
         with file(batch.name + '.meta', 'w') as f:
             json.dump({'principal': this.principal.dump()}, f)
         coroutine.spawn(model.apply_batch, batch.name)
+
+    @route('GET', cmd='stats', arguments={
+                'start': int, 'end': int, 'limit': int, 'event': list},
+            mime_type='application/json')
+    def stats(self, start, end, limit, event):
+        enforce(self._stats is not None, 'Statistics disabled')
+        return self._stats.get(start, end, limit, event)
 
     def create(self):
         if this.principal and this.principal.cap_create_with_guid:

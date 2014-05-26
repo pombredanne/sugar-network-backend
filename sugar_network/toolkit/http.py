@@ -111,13 +111,14 @@ class Connection(object):
     _Session = None
 
     def __init__(self, url='', creds=None, max_retries=0, auth_request=None,
-            **session_args):
+            api_version=None, **session_args):
         self.url = url.rstrip('/')
         self.creds = creds
         self._max_retries = max_retries
         self._session_args = session_args
         self._session = None
         self._auth_request = auth_request
+        self._api_version = api_version
 
         if self.url and self.url.startswith('file://'):
             self._session_args['trust_env'] = False
@@ -345,6 +346,8 @@ class Connection(object):
                         platform.system(),
                         platform.release(),
                         )
+        if self._api_version:
+            self._session.headers['x-api'] = self._api_version
         for arg, value in self._session_args.items():
             setattr(self._session, arg, value)
         self._session.stream = True
