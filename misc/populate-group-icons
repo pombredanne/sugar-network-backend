@@ -21,8 +21,8 @@ this.request = Request()
 this.volume = model.Volume(data_root.value, MasterRoutes.RESOURCES)
 try:
     for doc in this.volume['context']:
-        if 'group' not in doc['type'] or doc['artefact_icon'] != 'assets/missing.svg':
+        if 'talks' not in doc['type'] or doc['artefact_icon'] != 'assets/missing.svg':
             continue
-        doc._generate_default_icons(['group'])
+        doc._generate_default_icons(['talks'])
 finally:
     this.volume.close()

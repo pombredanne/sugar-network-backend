@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from os.path import join
+
 from sugar_network import db, model
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import ACL
@@ -99,9 +101,14 @@ class Context(db.Resource):
     def _generate_default_icons(self, types):
         blobs = this.volume.blobs
         svg = None
-        for type_ in ('activity', 'book', 'group'):
+        for type_, image in [
+                ('activity', 'activity.svg'),
+                ('book', 'book.svg'),
+                ('project', 'group.svg'),
+                ('talks', 'group.svg'),
+                ]:
             if type_ in types:
-                with file(blobs.get('assets/%s.svg' % type_).path) as f:
+                with file(blobs.get(join('assets', image)).path) as f:
                     svg = f.read()
                 from sugar_network.toolkit.sugar import color_svg
                 svg = color_svg(svg, self['guid'])
