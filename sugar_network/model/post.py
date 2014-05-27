@@ -30,6 +30,11 @@ class Post(db.Resource):
     def topic(self, value):
         return value
 
+    @topic.setter
+    def topic(self, value):
+        self._update_replies(value, +1)
+        return value
+
     @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES,
             acl=ACL.CREATE | ACL.READ)
     def type(self, value):
@@ -80,17 +85,26 @@ class Post(db.Resource):
     def rating(self, value):
         return value
 
+    @db.indexed_property(db.Numeric, slot=3, prefix='P', default=0,
+            acl=ACL.READ | ACL.LOCAL)
+    def replies(self, value):
+        return value
+
     def updated(self):
         if self.posts.get('state') == 'deleted':
-            self._update_rating(self['vote'], -1)
+            if self['topic']:
+                self._update_replies(self['topic'], -1)
+            if self['vote']:
+                self._update_rating(self['vote'], -1)
         db.Resource.updated(self)
 
     @staticmethod
-    def rating_regen():
+    def recalc():
 
         def calc_rating(**kwargs):
             rating = [0, 0]
-            alldocs, __ = this.volume['post'].find(not_vote=0, **kwargs)
+            alldocs, __ = this.volume['post'].find(
+                    not_state='deleted', not_vote=0, **kwargs)
             for post in alldocs:
                 rating[0] += 1
                 rating[1] += post['vote']
@@ -104,7 +118,12 @@ class Post(db.Resource):
         alldocs, __ = this.volume['post'].find(topic='')
         for topic in alldocs:
             rating = calc_rating(topic=topic.guid)
-            this.volume['post'].update(topic.guid, {'rating': rating})
+            __, replies = this.volume['post'].find(
+                    not_state='deleted', topic=topic.guid, limit=0)
+            this.volume['post'].update(topic.guid, {
+                'rating': rating,
+                'replies': replies,
+                })
 
     def _update_rating(self, vote, shift):
         if self['topic']:
@@ -117,3 +136,10 @@ class Post(db.Resource):
         resource.update(guid, {
             'rating': [orig[0] + shift, orig[1] + shift * vote],
             })
+
+    def _update_replies(self, topic, shift):
+        orig = this.volume['post'][topic]
+        if orig.exists:
+            this.volume['post'].update(topic, {
+                'replies': orig['replies'] + shift,
+                })

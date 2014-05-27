@@ -125,7 +125,7 @@ class Application(application.Application):
             conn = IPCConnection()
         else:
             conn = Connection(client.api.value)
-        guid = conn.upload(['release'], path, cmd='submit', **props)
+        guid = conn.upload(['context'], path, cmd='submit', **props)
 
         if porcelain.value:
             self._print(guid, '\n')

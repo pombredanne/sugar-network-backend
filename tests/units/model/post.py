@@ -75,6 +75,22 @@ class PostTest(tests.Test):
         this.call(method='DELETE', path=['post', post2])
         self.assertEqual([0, 0], volume['context'][context]['rating'])
 
+    def test_DoNotShiftRatingOnZeroVotes(self):
+        volume = self.start_master(auth=RootAuth())
+        context = this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
+
+        post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': ''})
+        self.assertEqual([0, 0], volume['context'][context]['rating'])
+
+        post2 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': ''})
+        self.assertEqual([0, 0], volume['context'][context]['rating'])
+
+        this.call(method='DELETE', path=['post', post1])
+        self.assertEqual([0, 0], volume['context'][context]['rating'])
+
+        this.call(method='DELETE', path=['post', post2])
+        self.assertEqual([0, 0], volume['context'][context]['rating'])
+
     def test_ShiftTopicRating(self):
         volume = db.Volume('db2', [Context, Post])
         this.volume = volume
@@ -173,6 +189,57 @@ class PostTest(tests.Test):
                 content={'context': '', 'topic': 'topic', 'type': 'idea', 'title': '', 'message': ''})
         self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
                 content={'context': '', 'topic': 'topic', 'type': 'notice', 'title': '', 'message': ''})
+
+    def test_ShiftReplies(self):
+        volume = db.Volume('.', [Context, Post])
+        this.volume = volume
+
+        context = volume['context'].create({
+            'type': 'activity',
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        topic = volume['post'].create({
+            'context': context,
+            'type': 'topic',
+            'title': {},
+            'message': {},
+            })
+        self.assertEqual(0, volume['post'][topic]['replies'])
+
+        volume['post'].create({
+            'context': context,
+            'topic': topic,
+            'type': 'post',
+            'title': {},
+            'message': {},
+            })
+        self.assertEqual(1, volume['post'][topic]['replies'])
+
+        volume['post'].create({
+            'context': context,
+            'topic': topic,
+            'type': 'post',
+            'title': {},
+            'message': {},
+            })
+        self.assertEqual(2, volume['post'][topic]['replies'])
+
+    def test_ShiftRepliesOnDeletes(self):
+        volume = self.start_master(auth=RootAuth())
+        topic = this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
+
+        post1 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': ''})
+        post2 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': ''})
+        self.assertEqual(2, volume['post'][topic]['replies'])
+
+        this.call(method='DELETE', path=['post', post1])
+        self.assertEqual(1, volume['post'][topic]['replies'])
+
+        this.call(method='DELETE', path=['post', post2])
+        self.assertEqual(0, volume['post'][topic]['replies'])
+
 
 if __name__ == '__main__':
     tests.main()

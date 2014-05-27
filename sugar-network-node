@@ -254,14 +254,14 @@ class Application(application.Daemon):
             volume.close()
 
     @application.command(
-            're-generate ratings', name='rate')
-    def rate(self):
+            're-generate calculated property values', name='calc')
+    def calc(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
         this.volume = model.Volume(data_root.value,
                 master.MasterRoutes.RESOURCES)
         try:
             this.volume.populate()
-            Post.rating_regen()
+            Post.recalc()
         finally:
             this.volume.close()
 
