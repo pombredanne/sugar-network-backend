@@ -15,7 +15,8 @@
 
 import os
 import logging
-from gettext import translation
+import gettext
+import locale
 
 
 # To let `encode()` working properly, avoid msgids gettext'izing
@@ -24,6 +25,15 @@ _ = lambda x: x
 
 _logger = logging.getLogger('i18n')
 _i18n = None
+_domain = None
+
+
+def init(domain):
+    global _domain, _i18n
+    _domain = domain
+    _i18n = None
+    gettext.textdomain(domain)
+    locale.setlocale(locale.LC_ALL, '')
 
 
 def default_lang():
@@ -50,14 +60,13 @@ def default_langs():
         if locales:
             locales = [i for i in locales.split(':') if i.strip()]
         else:
-            from locale import getdefaultlocale
-            locales = [getdefaultlocale()[0]]
+            locales = [locale.getdefaultlocale()[0]]
         if not locales:
             _default_langs = ['en']
         else:
             _default_langs = []
-            for locale in locales:
-                lang = locale.strip().split('.')[0].lower()
+            for loc in locales:
+                lang = loc.strip().split('.')[0].lower()
                 if lang == 'c':
                     lang = 'en'
                 elif '_' in lang:
@@ -113,16 +122,20 @@ def encode(msgid, *args, **kwargs):
         from sugar_network.toolkit.languages import LANGUAGES
 
         _i18n = {}
-        for lang in LANGUAGES:
-            try:
-                _i18n[lang] = translation('sugar-network', languages=[lang])
-            except IOError, error:
-                _logger.error('Failed to open %r locale: %s', lang, error)
+        if _domain is not None:
+            for lang in LANGUAGES:
+                try:
+                    _i18n[lang] = \
+                            gettext.translation(_domain, languages=[lang])
+                except IOError, error:
+                    _logger.error('Failed to open %r locale: %s', lang, error)
+        if not _i18n:
+            _i18n = {default_lang(): None}
 
     result = {}
 
     for lang, trans in _i18n.items():
-        msgstr = trans.gettext(msgid)
+        msgstr = trans.gettext(msgid) if trans is not None else msgid
         if args:
             msgargs = []
             for arg in args:

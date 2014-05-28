@@ -65,9 +65,10 @@ class Test(unittest.TestCase):
         self.node_routes = None
         self.node_volume = None
 
-        os.environ['LANG'] = 'en_US'
-        os.environ['LANGUAGE'] = 'en_US'
+        os.environ['LANG'] = 'en_US.UTF-8'
+        os.environ['LANGUAGE'] = 'en_US.UTF-8'
         i18n._default_langs = None
+        i18n.init('sugar-network')
 
         global tmpdir
         tmpdir = join(tmp_root or tmproot, '.'.join(self.id().split('.')[1:]))

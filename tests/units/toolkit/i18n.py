@@ -63,6 +63,17 @@ class I18nTest(tests.Test):
             'fr': '3 lors de la suppression de 7',
             }, i18n.encode('%(error)s when deleting %(file)s', error={'en': 1, 'es': 2, 'fr': 3}, file={'en': 5, 'es': 6, 'fr': 7}))
 
+    def test_encode_MissedDomain(self):
+        i18n.init('missed-domain')
+
+        self.assertEqual({
+            'en-us': 'probe #1',
+            }, i18n.encode('probe #%d', 1))
+
+        self.assertEqual({
+            'en-us': 'probe #3',
+            }, i18n.encode('probe #%d', {'ru': 1, 'es': 2, 'en': 3}))
+
 
 if __name__ == '__main__':
     tests.main()

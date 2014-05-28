@@ -20,8 +20,6 @@ import re
 import sys
 import shlex
 import types
-import locale
-import gettext
 from json import dumps, loads
 from os.path import join, exists, isfile
 
@@ -36,10 +34,7 @@ from sugar_network.client.routes import ClientRoutes
 from sugar_network.client.injector import Injector
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import Option, BUFFER_SIZE, application, enforce
-
-
-gettext.textdomain('sugar-network')
+from sugar_network.toolkit import Option, application, i18n, enforce
 
 
 quiet = Option(
@@ -226,7 +221,7 @@ class Application(application.Application):
                             self._dump(loads(chunk[6:]))
                 else:
                     while True:
-                        chunk = result.read(BUFFER_SIZE)
+                        chunk = result.read(toolkit.BUFFER_SIZE)
                         if not chunk:
                             break
                         self._print(chunk)
@@ -327,6 +322,7 @@ class ClientRouter(Router, ClientRoutes):
         coroutine.spawn(server.serve_forever)
         #coroutine.dispatch()
 
+i18n.init('sugar-network')
 
 # New defaults
 application.debug.value = client.logger_level()
@@ -340,8 +336,6 @@ Option.seek('main', [
 Option.seek('main', [toolkit.cachedir])
 Option.seek('client', client)
 Option.seek('db', db)
-
-locale.setlocale(locale.LC_ALL, '')
 
 app = Application(
         name='sugar-network-client',

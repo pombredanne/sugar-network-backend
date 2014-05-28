@@ -16,8 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import locale
-import gettext
 import logging
 from os.path import exists, join, isabs
 
@@ -32,7 +30,7 @@ from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.spec import parse_version
-from sugar_network.toolkit import application, Option, enforce
+from sugar_network.toolkit import application, i18n, Option, enforce
 
 
 data_root = Option(
@@ -278,8 +276,7 @@ def _open_logfile(name):
     return file(join(http_logdir.value, name + '.log'), 'a+')
 
 
-gettext.textdomain('sugar-network')
-locale.setlocale(locale.LC_ALL, '')
+i18n.init('sugar-network')
 
 # New defaults
 application.logdir.value = None

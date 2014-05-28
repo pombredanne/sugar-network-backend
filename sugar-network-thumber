@@ -16,8 +16,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import locale
-import gettext
 from os.path import exists, join
 
 from sugar_network.toolkit import coroutine
@@ -26,7 +24,7 @@ coroutine.inject()
 from sugar_network import toolkit
 from sugar_network.node import model
 from sugar_network.node.slave import SlaveRoutes
-from sugar_network.toolkit import application, Option, enforce
+from sugar_network.toolkit import application, i18n, Option, enforce
 
 
 data_root = Option(
@@ -37,8 +35,6 @@ force = Option(
         'intensify regular behaviour',
         default=False, type_cast=Option.bool_cast, short_option='-f',
         action='store_true', name='force')
-
-gettext.textdomain('sugar-network')
 
 
 class Application(application.Daemon):
@@ -89,7 +85,7 @@ class Application(application.Daemon):
         self.seqno.commit()
 
 
-locale.setlocale(locale.LC_ALL, '')
+i18n.init('sugar-network')
 
 # New defaults
 application.logdir.value = None
