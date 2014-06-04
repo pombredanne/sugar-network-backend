@@ -190,6 +190,14 @@ class Application(application.Application):
     @application.command(
             'pull activities.sugarlabs.org content to local db')
     def pull(self):
+        aslo_guid = ASLO_AUTHOR.keys()[0]
+        if not this.volume['user'][aslo_guid].exists:
+            this.volume['user'].create({
+                'guid': aslo_guid,
+                'name': 'Activity Library',
+                'pubkey': '',
+                })
+
         if not this.volume['context'][SN_GUID].exists:
             this.volume['context'].create({
                     'guid': SN_GUID,
@@ -531,6 +539,10 @@ class Application(application.Application):
                     'value': release,
                     'ctime': int(time.mktime(release_date.timetuple())),
                     }
+                this.volume['post'].update(release['announce'], {
+                    'author': format_author(email, nickname, fullname),
+                    'ctime': int(time.mktime(release_date.timetuple())),
+                    })
                 most_recent = False
             except Exception, error:
                 print '-- Failed to sync %r[%s]' % (filename, version_id)
