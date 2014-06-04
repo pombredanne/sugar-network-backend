@@ -266,9 +266,9 @@ class NodeRoutes(db.Routes, FrontRoutes):
                 authors = topic['author']
                 message = 'Authors only'
             enforce(this.principal in authors, http.Forbidden, message)
-        this.volume['post'].update(topic.guid, {
-            'resolution': this.request.content,
-            })
+        topic.posts['resolution'] = this.request.content
+        topic.updated()
+        this.volume['post'].update(topic.guid, topic.posts)
 
     def create(self):
         if this.principal and this.principal.cap_create_with_guid:

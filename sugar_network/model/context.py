@@ -28,17 +28,6 @@ class Context(db.Resource):
     def type(self, value):
         return value
 
-    @type.setter
-    def type(self, value):
-        if 'package' in value:
-            self.post('icon', 'assets/package.png')
-            self.post('logo', 'assets/package-logo.png')
-            self.post('artefact_icon', 'assets/package.svg')
-        elif 'activity' not in value:
-            if self['artefact_icon'] == self.metadata['artefact_icon'].default:
-                self._generate_default_icons(value)
-        return value
-
     @db.indexed_property(db.Localized, slot=1, prefix='S', full_text=True)
     def title(self, value):
         return value
@@ -97,6 +86,16 @@ class Context(db.Resource):
 
         """
         return value
+
+    def created(self):
+        if 'package' in self['type']:
+            self.post('icon', 'assets/package.png')
+            self.post('logo', 'assets/package-logo.png')
+            self.post('artefact_icon', 'assets/package.svg')
+        elif 'activity' not in self['type']:
+            if self['artefact_icon'] == self.metadata['artefact_icon'].default:
+                self._generate_default_icons(self['type'])
+        db.Resource.created(self)
 
     def _generate_default_icons(self, types):
         blobs = this.volume.blobs

@@ -40,18 +40,6 @@ class Post(db.Resource):
     def type(self, value):
         return value
 
-    @type.setter
-    def type(self, value):
-        context = this.volume['context'][self['context']]
-        enforce(context.available, http.BadRequest, 'Context does not exist')
-        allowed_contexts = model.POST_TYPES[value]
-        enforce(allowed_contexts is None or
-                allowed_contexts & set(context['type']),
-                http.BadRequest, 'Inappropriate type')
-        enforce((value == 'post') == bool(self['topic']),
-                http.BadRequest, 'Inappropriate relation')
-        return value
-
     @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True,
             acl=ACL.CREATE | ACL.READ)
     def title(self, value):
@@ -64,17 +52,6 @@ class Post(db.Resource):
 
     @db.indexed_property(db.Reference, prefix='R', default='', acl=ACL.READ)
     def resolution(self, value):
-        return value
-
-    @resolution.setter
-    def resolution(self, value):
-        if not value:
-            value = model.POST_RESOLUTION_DEFAULTS.get(self['type']) or ''
-        else:
-            allowed_type = model.POST_RESOLUTIONS.get(value)
-            enforce(allowed_type and allowed_type == self['type'] or
-                    self['type'] == 'question',
-                    http.BadRequest, 'Inappropriate resolution')
         return value
 
     @db.indexed_property(db.Enum, prefix='V', items=range(6), default=0,
@@ -107,7 +84,25 @@ class Post(db.Resource):
     def replies(self, value):
         return value
 
+    def created(self):
+        context = this.volume['context'][self['context']]
+        enforce(context.available, http.BadRequest, 'Context does not exist')
+        allowed_contexts = model.POST_TYPES[self['type']]
+        enforce(allowed_contexts is None or
+                allowed_contexts & set(context['type']),
+                http.BadRequest, 'Inappropriate type')
+        enforce((self['type'] == 'post') == bool(self['topic']),
+                http.BadRequest, 'Inappropriate relation')
+        self.posts['resolution'] = \
+                model.POST_RESOLUTION_DEFAULTS.get(self['type']) or ''
+        db.Resource.created(self)
+
     def updated(self):
+        if 'resolution' in self.posts:
+            allowed_type = model.POST_RESOLUTIONS.get(self['resolution'])
+            enforce(allowed_type and allowed_type == self['type'] or
+                    self['type'] == 'question',
+                    http.BadRequest, 'Inappropriate resolution')
         if self.posts.get('state') == 'deleted':
             if self['topic']:
                 self._update_replies(self['topic'], -1)
