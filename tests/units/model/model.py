@@ -17,13 +17,21 @@ from sugar_network.toolkit.coroutine import this
 class ModelTest(tests.Test):
 
     def test_RatingSort(self):
-        directory = db.Volume('db', [Post])['post']
+        this.volume = db.Volume('db', [Context, Post])
+        directory = this.volume['post']
 
-        directory.create({'guid': '1', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [0, 0]})
-        directory.create({'guid': '2', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 2]})
-        directory.create({'guid': '3', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 4]})
-        directory.create({'guid': '4', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10, 10]})
-        directory.create({'guid': '5', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [30, 90]})
+        context = this.volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+
+        directory.create({'guid': '1', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [0, 0]})
+        directory.create({'guid': '2', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 2]})
+        directory.create({'guid': '3', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 4]})
+        directory.create({'guid': '4', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10, 10]})
+        directory.create({'guid': '5', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [30, 90]})
 
         self.assertEqual(
                 ['1', '2', '3', '4', '5'],
@@ -36,13 +44,21 @@ class ModelTest(tests.Test):
                 [i.guid for i in directory.find(order_by='-rating')[0]])
 
     def test_RatingSecondarySortByVotes(self):
-        directory = db.Volume('db', [Post])['post']
+        this.volume = db.Volume('db', [Context, Post])
+        directory = this.volume['post']
 
-        directory.create({'guid': '1', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10, 10]})
-        directory.create({'guid': '2', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 1]})
-        directory.create({'guid': '3', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10000, 10000]})
-        directory.create({'guid': '4', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1000, 1000]})
-        directory.create({'guid': '5', 'context': '', 'type': 'topic', 'title': {}, 'message': {}, 'rating': [100, 100]})
+        context = this.volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+
+        directory.create({'guid': '1', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10, 10]})
+        directory.create({'guid': '2', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1, 1]})
+        directory.create({'guid': '3', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [10000, 10000]})
+        directory.create({'guid': '4', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [1000, 1000]})
+        directory.create({'guid': '5', 'context': context, 'type': 'topic', 'title': {}, 'message': {}, 'rating': [100, 100]})
 
         self.assertEqual(
                 ['1', '2', '3', '4', '5'],

@@ -16,7 +16,7 @@
 from sugar_network import db, model
 from sugar_network.toolkit.router import ACL
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import enforce
+from sugar_network.toolkit import http, enforce
 
 
 class Post(db.Resource):
@@ -35,15 +35,21 @@ class Post(db.Resource):
         self._update_replies(value, +1)
         return value
 
-    @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES,
+    @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES.keys(),
             acl=ACL.CREATE | ACL.READ)
     def type(self, value):
         return value
 
     @type.setter
     def type(self, value):
-        is_not_topic = value in ('post', 'solution')
-        enforce(is_not_topic == bool(self['topic']), 'Inappropriate type')
+        context = this.volume['context'][self['context']]
+        enforce(context.available, http.BadRequest, 'Context does not exist')
+        allowed_contexts = model.POST_TYPES[value]
+        enforce(allowed_contexts is None or
+                allowed_contexts & set(context['type']),
+                http.BadRequest, 'Inappropriate type')
+        enforce((value == 'post') == bool(self['topic']),
+                http.BadRequest, 'Inappropriate relation')
         return value
 
     @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True,

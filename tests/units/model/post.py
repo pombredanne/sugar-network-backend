@@ -3,7 +3,7 @@
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, model
 from sugar_network.client import Connection, keyfile
 from sugar_network.model.context import Context
 from sugar_network.node.auth import RootAuth
@@ -19,7 +19,7 @@ class PostTest(tests.Test):
         this.volume = volume
 
         context = volume['context'].create({
-            'type': 'activity',
+            'type': ['activity', 'book', 'talks', 'project'],
             'title': {},
             'summary': {},
             'description': {},
@@ -63,7 +63,13 @@ class PostTest(tests.Test):
 
     def test_ShiftContextRatingOnDeletes(self):
         volume = self.start_master(auth=RootAuth())
-        context = this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
+
+        context = volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
 
         post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': '', 'vote': 1})
         post2 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': '', 'vote': 2})
@@ -77,7 +83,13 @@ class PostTest(tests.Test):
 
     def test_DoNotShiftRatingOnZeroVotes(self):
         volume = self.start_master(auth=RootAuth())
-        context = this.call(method='POST', path=['context'], content={'title': '', 'summary': '', 'description': '', 'type': 'activity'})
+
+        context = volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
 
         post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': ''})
         self.assertEqual([0, 0], volume['context'][context]['rating'])
@@ -96,7 +108,7 @@ class PostTest(tests.Test):
         this.volume = volume
 
         context = volume['context'].create({
-            'type': 'activity',
+            'type': ['activity', 'book', 'talks', 'project'],
             'title': {},
             'summary': {},
             'description': {},
@@ -155,10 +167,17 @@ class PostTest(tests.Test):
 
     def test_ShiftTopicRatingOnDeletes(self):
         volume = self.start_master(auth=RootAuth())
-        topic = this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
 
-        post1 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': '', 'vote': 1})
-        post2 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': '', 'vote': 2})
+        context = volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        topic = this.call(method='POST', path=['post'], content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+
+        post1 = this.call(method='POST', path=['post'], content={'context': context, 'topic': topic, 'type': 'post', 'title': '', 'message': '', 'vote': 1})
+        post2 = this.call(method='POST', path=['post'], content={'context': context, 'topic': topic, 'type': 'post', 'title': '', 'message': '', 'vote': 2})
         self.assertEqual([2, 3], volume['post'][topic]['rating'])
 
         this.call(method='DELETE', path=['post', post1])
@@ -167,35 +186,63 @@ class PostTest(tests.Test):
         this.call(method='DELETE', path=['post', post2])
         self.assertEqual([0, 0], volume['post'][topic]['rating'])
 
-    def test_DoesTypeCorrespondToTopicValue(self):
+    def test_ContextExistance(self):
         volume = self.start_master(auth=RootAuth())
 
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'type': 'post', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'type': 'solution', 'title': '', 'message': ''})
+        context = volume['context'].create({
+            'type': ['talks'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
 
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'topic', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'review', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'artefact', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'question', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'issue', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'idea', 'title': '', 'message': ''})
-        self.assertRaises(RuntimeError, this.call, method='POST', path=['post'],
-                content={'context': '', 'topic': 'topic', 'type': 'notice', 'title': '', 'message': ''})
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': 'absent', 'type': 'topic', 'title': '', 'message': ''})
+        assert this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+
+        volume['context'].update(context, {'state': 'deleted'})
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+
+    def test_InappropriateType(self):
+        volume = self.start_master(auth=RootAuth())
+
+        context = volume['context'].create({
+            'type': ['talks'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': context, 'type': 'poll', 'title': '', 'message': ''})
+        assert this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+
+    def test_InappropriateRelation(self):
+        volume = self.start_master(auth=RootAuth())
+
+        context = volume['context'].create({
+            'type': ['talks'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        topic = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': context, 'type': 'post', 'title': '', 'message': ''})
+        assert this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'post', 'topic': topic, 'title': '', 'message': ''})
 
     def test_ShiftReplies(self):
         volume = db.Volume('.', [Context, Post])
         this.volume = volume
 
         context = volume['context'].create({
-            'type': 'activity',
+            'type': ['activity', 'book', 'talks', 'project'],
             'title': {},
             'summary': {},
             'description': {},
@@ -228,10 +275,17 @@ class PostTest(tests.Test):
 
     def test_ShiftRepliesOnDeletes(self):
         volume = self.start_master(auth=RootAuth())
-        topic = this.call(method='POST', path=['post'], content={'context': '', 'type': 'topic', 'title': '', 'message': ''})
 
-        post1 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': ''})
-        post2 = this.call(method='POST', path=['post'], content={'context': '', 'topic': topic, 'type': 'post', 'title': '', 'message': ''})
+        context = volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        topic = this.call(method='POST', path=['post'], content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+
+        post1 = this.call(method='POST', path=['post'], content={'context': context, 'topic': topic, 'type': 'post', 'title': '', 'message': ''})
+        post2 = this.call(method='POST', path=['post'], content={'context': context, 'topic': topic, 'type': 'post', 'title': '', 'message': ''})
         self.assertEqual(2, volume['post'][topic]['replies'])
 
         this.call(method='DELETE', path=['post', post1])
