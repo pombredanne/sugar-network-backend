@@ -201,7 +201,7 @@ class Application(application.Application):
         if not this.volume['context'][SN_GUID].exists:
             this.volume['context'].create({
                     'guid': SN_GUID,
-                    'type': ['talks'],
+                    'type': ['project', 'talks'],
                     'title': {'en': 'Sugar Network'},
                     'summary': {'en': 'Sugar Network'},
                     'description': {'en': 'Sugar Network'},
@@ -234,7 +234,7 @@ class Application(application.Application):
         if not this.volume['context'][PACKAGES_GUID].exists:
             this.volume['context'].create({
                     'guid': PACKAGES_GUID,
-                    'type': ['project'],
+                    'type': ['project', 'talks'],
                     'title': {'en': 'Packages'},
                     'summary': {
                         'en': 'Collection of GNU/Linux packages metadata',
@@ -629,7 +629,7 @@ class Application(application.Application):
 
         directory.update(bundle_id, {
                 'guid': bundle_id,
-                'type': ['activity', 'project'],
+                'type': ['activity', 'project', 'talks'],
                 'title': self.get_i18n_field(title),
                 'summary': self.get_i18n_field(summary),
                 'description': self.get_i18n_field(description),
