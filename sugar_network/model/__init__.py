@@ -51,6 +51,24 @@ POST_TYPES = {
         'post': None,
         }
 
+POST_RESOLUTIONS = {
+        None: 'question',
+        'takeback': 'question',
+        'new': 'issue',
+        'needinfo': 'issue',
+        'resolved': 'issue',
+        'unrelated': 'issue',
+        'obsolete': 'issue',
+        'duplicate': 'issue',
+        'open': 'poll',
+        'closed': 'poll',
+        }
+
+POST_RESOLUTION_DEFAULTS = {
+        'issue': 'new',
+        'poll': 'open',
+        }
+
 STABILITIES = [
         'insecure', 'buggy', 'developer', 'testing', 'stable',
         ]

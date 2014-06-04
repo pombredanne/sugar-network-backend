@@ -1179,6 +1179,54 @@ class NodeRoutesTest(tests.Test):
         guid = this.call(method='POST', path=['testdocument'], content={}, environ=auth_env(tests.UID))
         assert guid
 
+    def test_ForbiddenResolution(self):
+        volume = self.start_master()
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
+
+        context = this.call(method='POST', path=['context'], environ=auth_env(tests.UID2), content={
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': '',
+            'summary': '',
+            'description': '',
+            })
+
+        question = this.call(method='POST', path=['post'], environ=auth_env(tests.UID), content={
+            'context': context,
+            'type': 'question',
+            'title': '',
+            'message': '',
+            })
+        self.assertEqual('', volume['post'][question]['resolution'])
+        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['post', question, 'resolution'], environ=auth_env(tests.UID2), content='takeback')
+        self.assertEqual('', volume['post'][question]['resolution'])
+        this.call(method='PUT', path=['post', question, 'resolution'], environ=auth_env(tests.UID), content='takeback')
+        self.assertEqual('takeback', volume['post'][question]['resolution'])
+
+        issue = this.call(method='POST', path=['post'], environ=auth_env(tests.UID), content={
+            'context': context,
+            'type': 'issue',
+            'title': '',
+            'message': '',
+            })
+        self.assertEqual('new', volume['post'][issue]['resolution'])
+        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['post', issue, 'resolution'], environ=auth_env(tests.UID), content='resolved')
+        self.assertEqual('new', volume['post'][issue]['resolution'])
+        this.call(method='PUT', path=['post', issue, 'resolution'], environ=auth_env(tests.UID2), content='resolved')
+        self.assertEqual('resolved', volume['post'][issue]['resolution'])
+
+        poll = this.call(method='POST', path=['post'], environ=auth_env(tests.UID), content={
+            'context': context,
+            'type': 'poll',
+            'title': '',
+            'message': '',
+            })
+        self.assertEqual('open', volume['post'][poll]['resolution'])
+        self.assertRaises(http.Forbidden, this.call, method='PUT', path=['post', poll, 'resolution'], environ=auth_env(tests.UID2), content='closed')
+        self.assertEqual('open', volume['post'][poll]['resolution'])
+        this.call(method='PUT', path=['post', poll, 'resolution'], environ=auth_env(tests.UID), content='closed')
+        self.assertEqual('closed', volume['post'][poll]['resolution'])
+
 
 def auth_env(uid):
     key = RSA.load_key(join(tests.root, 'data', uid))

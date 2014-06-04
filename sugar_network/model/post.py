@@ -62,8 +62,19 @@ class Post(db.Resource):
     def message(self, value):
         return value
 
-    @db.indexed_property(db.Reference, prefix='R', default='')
-    def solution(self, value):
+    @db.indexed_property(db.Reference, prefix='R', default='', acl=ACL.READ)
+    def resolution(self, value):
+        return value
+
+    @resolution.setter
+    def resolution(self, value):
+        if not value:
+            value = model.POST_RESOLUTION_DEFAULTS.get(self['type']) or ''
+        else:
+            allowed_type = model.POST_RESOLUTIONS.get(value)
+            enforce(allowed_type and allowed_type == self['type'] or
+                    self['type'] == 'question',
+                    http.BadRequest, 'Inappropriate resolution')
         return value
 
     @db.indexed_property(db.Enum, prefix='V', items=range(6), default=0,

@@ -1288,16 +1288,16 @@
         </dia:composite>
         <dia:composite type="umlattribute">
           <dia:attribute name="name">
-            <dia:string>#solution#</dia:string>
+            <dia:string>#resolution#</dia:string>
           </dia:attribute>
           <dia:attribute name="type">
-            <dia:string>#Post [R W]#</dia:string>
+            <dia:string>#enum [R]#</dia:string>
           </dia:attribute>
           <dia:attribute name="value">
             <dia:string>#null#</dia:string>
           </dia:attribute>
           <dia:attribute name="comment">
-            <dia:string>#If current Post has a "solution" Post, e.g., an answer to a question or issue resolution#</dia:string>
+            <dia:string>#The status of "question", "issue", "poll" type Post objects; see Wiki for details#</dia:string>
           </dia:attribute>
           <dia:attribute name="visibility">
             <dia:enum val="0"/>

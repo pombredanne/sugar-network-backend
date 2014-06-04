@@ -237,6 +237,48 @@ class PostTest(tests.Test):
         assert this.call(method='POST', path=['post'],
                 content={'context': context, 'type': 'post', 'topic': topic, 'title': '', 'message': ''})
 
+    def test_DefaultResolution(self):
+        volume = self.start_master(auth=RootAuth())
+
+        context = volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+
+        topic = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
+        self.assertEqual('', volume['post'][topic]['resolution'])
+
+        question = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'question', 'title': '', 'message': ''})
+        self.assertEqual('', volume['post'][question]['resolution'])
+
+        issue = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'issue', 'title': '', 'message': ''})
+        self.assertEqual('new', volume['post'][issue]['resolution'])
+
+        poll = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'poll', 'title': '', 'message': ''})
+        self.assertEqual('open', volume['post'][poll]['resolution'])
+
+    def test_InappropriateResolution(self):
+        volume = self.start_master(auth=RootAuth())
+
+        context = volume['context'].create({
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        topic = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'issue', 'title': '', 'message': ''})
+
+        self.assertRaises(http.BadRequest, this.call, method='PUT', path=['post', topic, 'resolution'], content='closed')
+        this.call(method='PUT', path=['post', topic, 'resolution'], content='resolved')
+        self.assertEqual('resolved', volume['post'][topic]['resolution'])
+
     def test_ShiftReplies(self):
         volume = db.Volume('.', [Context, Post])
         this.volume = volume
