@@ -21,14 +21,14 @@ import sys
 import shlex
 import types
 from json import dumps, loads
-from os.path import join, exists, isfile
+from os.path import join, exists
 
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
 from sugar_network import db, client, toolkit
 from sugar_network.model import RESOURCES
-from sugar_network.client import IPCConnection, Connection
+from sugar_network.client import IPCConnection
 from sugar_network.client.auth import BasicCreds, SugarCreds
 from sugar_network.client.routes import ClientRoutes
 from sugar_network.client.injector import Injector
@@ -67,7 +67,6 @@ offline = Option(
 
 
 _ESCAPE_VALUE_RE = re.compile(r'([^\[\]\{\}0-9][^\]\[\{\}]+)')
-_LIST_RE = re.compile(r'\s*[;,:]+\s*')
 
 
 class Application(application.Application):
@@ -79,53 +78,6 @@ class Application(application.Application):
 
         if not exists(toolkit.cachedir.value):
             os.makedirs(toolkit.cachedir.value)
-
-    @application.command(
-            'launch a Sugar activity; the COMMAND-LINE-ARGUMENTS might '
-            'include arguments supported by sugar-activity application',
-            args='BUNDLE_ID [COMMAND-LINE-ARGUMENTS]',
-            interspersed_args=False,
-            )
-    def launch(self):
-        enforce(self.check_for_instance(), 'No sugar-network-client session')
-        ipc = IPCConnection()
-
-        enforce(self.args, 'BUNDLE_ID was not specified')
-        bundle_id = self.args.pop(0)
-
-        params = {}
-        if self.args:
-            params['args'] = self.args
-
-        ipc.get(['context', bundle_id], cmd='launch', **params)
-
-    @application.command(
-            'upload new release for a context; if BUNDLE_PATH points '
-            'not to a .xo bundle, specify all release PROPERTYs for the '
-            'new release (at least context and version)',
-            args='BUNDLE_PATH [PROPERTY=VALUE]',
-            )
-    def release(self):
-        enforce(self.args, 'BUNDLE_PATH was not specified')
-        path = self.args.pop(0)
-        enforce(isfile(path), 'Cannot open bundle')
-
-        props = {}
-        self._parse_args(props)
-        if 'license' in props:
-            value = [i for i in _LIST_RE.split(props['license'].strip()) if i]
-            props['license'] = value
-
-        if self.check_for_instance():
-            conn = IPCConnection()
-        else:
-            conn = Connection(client.api.value)
-        guid = conn.upload(['context'], path, cmd='submit', **props)
-
-        if porcelain.value:
-            self._print(guid, '\n')
-        else:
-            self._print('-- Uploaded %s release' % guid, '\n')
 
     @application.command(
             'send raw API POST request; '
