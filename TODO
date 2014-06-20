@@ -1,3 +1,5 @@
+- relogon on expired creds to avoid loosing POST/PUT data
+
 - "allow_3rd_party" for solving activities
 
 - auth while offline posts
@@ -12,6 +14,7 @@
 v1.0
 ====
 - move API docs to sources to share them from `GET /` route
+- do not subscribe on client to keep UI up-to-date
 
 v2.0
 ====

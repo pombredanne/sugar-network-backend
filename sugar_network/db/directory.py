@@ -160,6 +160,8 @@ class Directory(object):
         self._index.delete(guid, self._postdelete, guid, event)
 
     def get(self, guid):
+        if not guid:
+            return self.resource(None, None)
         cached_props = self._index.get_cached(guid)
         record = self._storage.get(guid)
         return self.resource(guid, record, cached_props)

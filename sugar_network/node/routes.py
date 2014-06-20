@@ -98,6 +98,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
                 result = model.diff_resource(pull)
         if exception is None and self._stats is not None:
             self._stats.count(request)
+        this.response.headers['seqno'] = self.volume.seqno.value
         return result
 
     @route('GET', cmd='logon', acl=ACL.AUTH)
