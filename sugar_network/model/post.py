@@ -50,7 +50,7 @@ class Post(db.Resource):
     def message(self, value):
         return value
 
-    @db.indexed_property(db.Reference, prefix='R', default='', acl=ACL.READ)
+    @db.indexed_property(prefix='R', default='', acl=ACL.CREATE | ACL.READ)
     def resolution(self, value):
         return value
 
@@ -84,7 +84,7 @@ class Post(db.Resource):
     def replies(self, value):
         return value
 
-    def created(self):
+    def routed_creating(self):
         context = this.volume['context'][self['context']]
         enforce(context.available, http.BadRequest, 'Context does not exist')
         allowed_contexts = model.POST_TYPES[self['type']]
@@ -93,22 +93,39 @@ class Post(db.Resource):
                 http.BadRequest, 'Inappropriate type')
         enforce((self['type'] == 'post') == bool(self['topic']),
                 http.BadRequest, 'Inappropriate relation')
-        self.posts['resolution'] = \
-                model.POST_RESOLUTION_DEFAULTS.get(self['type']) or ''
-        db.Resource.created(self)
+        if self['resolution']:
+            enforce(self['topic'], http.BadRequest,
+                    'Inappropriate resolution')
+            topic = this.volume['post'][self['topic']]
+            enforce(topic.available, http.NotFound, 'Topic not found')
+            allowed_topic = model.POST_RESOLUTIONS.get(self['resolution'])
+            enforce(allowed_topic == topic['type'], http.BadRequest,
+                    'Inappropriate resolution')
+            if not this.principal.cap_author_override:
+                if topic['type'] == 'issue':
+                    author = this.volume['context'][topic['context']]['author']
+                    message = 'Context authors only'
+                else:
+                    author = topic['author']
+                    message = 'Topic authors only'
+                enforce(this.principal in author, http.Forbidden, message)
+        else:
+            self.posts['resolution'] = \
+                    model.POST_RESOLUTION_DEFAULTS.get(self['type']) or ''
+        db.Resource.routed_creating(self)
 
-    def updated(self):
-        if 'resolution' in self.posts:
-            allowed_type = model.POST_RESOLUTIONS.get(self['resolution'])
-            enforce(allowed_type and allowed_type == self['type'] or
-                    self['type'] == 'question',
-                    http.BadRequest, 'Inappropriate resolution')
-        if self.posts.get('state') == 'deleted':
-            if self['topic']:
-                self._update_replies(self['topic'], -1)
-            if self['vote']:
-                self._update_rating(self['vote'], -1)
-        db.Resource.updated(self)
+    def routed_created(self):
+        db.Resource.routed_created(self)
+        if self['resolution'] and self['topic']:
+            this.volume['post'].update(self['topic'], {
+                'resolution': self['resolution'],
+                })
+
+    def deleted(self):
+        if self['topic']:
+            self._update_replies(self['topic'], -1)
+        if self['vote']:
+            self._update_rating(self['vote'], -1)
 
     @staticmethod
     def recalc():

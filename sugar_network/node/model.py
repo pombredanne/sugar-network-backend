@@ -43,8 +43,9 @@ _presolve_queue = Queue()
 
 class User(_user.User):
 
-    def created(self):
+    def routed_creating(self):
         self.posts['guid'] = str(hashlib.sha1(self['pubkey']).hexdigest())
+        _user.User.routed_creating(self)
 
 
 class _ReleaseValue(dict):
@@ -92,12 +93,12 @@ class Context(_context.Context):
     def releases(self, value):
         return value
 
-    def created(self):
-        _context.Context.created(self)
+    def routed_creating(self):
+        _context.Context.routed_creating(self)
         self._invalidate_solutions()
 
-    def updated(self):
-        _context.Context.updated(self)
+    def routed_updating(self):
+        _context.Context.routed_updating(self)
         self._invalidate_solutions()
 
     def _invalidate_solutions(self):

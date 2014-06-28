@@ -654,6 +654,8 @@ class DbRoutesTest(tests.Test):
 
         class TestDocument(db.Resource):
 
+            created_count = 0
+
             @db.indexed_property(slot=1, default='')
             def prop(self, value):
                 return value
@@ -662,17 +664,23 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-            def created(self):
+            def routed_creating(self):
                 self.posts['prop'] = 'overriden'
+
+            def routed_created(self):
+                self.posts['prop'] = 'lost'
+                TestDocument.created_count += 1
 
         volume = db.Volume(tests.tmpdir, [TestDocument])
         router = Router(db.Routes(volume))
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'})
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
+        self.assertEqual(1, TestDocument.created_count)
 
         this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'})
         self.assertEqual('bar', volume['testdocument'].get(guid)['prop'])
+        self.assertEqual(1, TestDocument.created_count)
 
     def test_on_update(self):
 
@@ -701,6 +709,8 @@ class DbRoutesTest(tests.Test):
 
         class TestDocument(db.Resource):
 
+            updated_count = 0
+
             @db.indexed_property(slot=1, default='')
             def prop(self, value):
                 return value
@@ -709,17 +719,23 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-            def updated(self):
+            def routed_updating(self):
                 self.posts['prop'] = 'overriden'
+
+            def routed_updated(self):
+                self.posts['prop'] = 'lost'
+                TestDocument.updated_count += 1
 
         volume = db.Volume(tests.tmpdir, [TestDocument])
         router = Router(db.Routes(volume))
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'})
         self.assertEqual('foo', volume['testdocument'].get(guid)['prop'])
+        self.assertEqual(0, TestDocument.updated_count)
 
         this.call(method='PUT', path=['testdocument', guid], content={'prop': 'bar'})
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
+        self.assertEqual(1, TestDocument.updated_count)
 
     def test_seqno(self):
 

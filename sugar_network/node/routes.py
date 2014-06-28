@@ -254,23 +254,6 @@ class NodeRoutes(db.Routes, FrontRoutes):
         enforce(self._stats is not None, 'Statistics disabled')
         return self._stats.get(start, end, limit, event)
 
-    @route('PUT', ['post', None, 'resolution'], acl=ACL.AUTH,
-            mime_type='application/json')
-    def resolution(self):
-        topic = this.resource
-        enforce(topic.available, http.NotFound, 'Resource not found')
-        if not this.principal.cap_author_override:
-            if topic['type'] == 'issue':
-                authors = this.volume['context'][topic['context']]['author']
-                message = 'Context authors only'
-            else:
-                authors = topic['author']
-                message = 'Authors only'
-            enforce(this.principal in authors, http.Forbidden, message)
-        topic.posts['resolution'] = this.request.content
-        topic.updated()
-        this.volume['post'].update(topic.guid, topic.posts)
-
     def create(self):
         if this.principal and this.principal.cap_create_with_guid:
             guid = this.request.content.get('guid')

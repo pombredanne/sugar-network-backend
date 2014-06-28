@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # sugar-lint: disable
 
+import time
+import hashlib
+from M2Crypto import RSA
+from os.path import join
+
 from __init__ import tests
 
 from sugar_network import db, model
@@ -251,10 +256,6 @@ class PostTest(tests.Test):
                 content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
         self.assertEqual('', volume['post'][topic]['resolution'])
 
-        question = this.call(method='POST', path=['post'],
-                content={'context': context, 'type': 'question', 'title': '', 'message': ''})
-        self.assertEqual('', volume['post'][question]['resolution'])
-
         issue = this.call(method='POST', path=['post'],
                 content={'context': context, 'type': 'issue', 'title': '', 'message': ''})
         self.assertEqual('new', volume['post'][issue]['resolution'])
@@ -272,12 +273,73 @@ class PostTest(tests.Test):
             'summary': {},
             'description': {},
             })
+
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': context, 'type': 'poll', 'title': '', 'message': '', 'resolution': 'open'})
+
         topic = this.call(method='POST', path=['post'],
                 content={'context': context, 'type': 'issue', 'title': '', 'message': ''})
-
-        self.assertRaises(http.BadRequest, this.call, method='PUT', path=['post', topic, 'resolution'], content='closed')
-        this.call(method='PUT', path=['post', topic, 'resolution'], content='resolved')
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'open', 'title': '', 'message': ''})
+        this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'resolved', 'title': '', 'message': ''})
         self.assertEqual('resolved', volume['post'][topic]['resolution'])
+
+        topic = this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'poll', 'title': '', 'message': ''})
+        self.assertRaises(http.BadRequest, this.call, method='POST', path=['post'],
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'resolved', 'title': '', 'message': ''})
+        this.call(method='POST', path=['post'],
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'closed', 'title': '', 'message': ''})
+        self.assertEqual('closed', volume['post'][topic]['resolution'])
+
+    def test_ForbiddenIssueResolution(self):
+        volume = self.start_master()
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
+
+        context = this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': '',
+            'summary': '',
+            'description': '',
+            })
+        topic = this.call(method='POST', path=['post'], environ=auth_env(tests.UID2), content={
+            'context': context,
+            'type': 'issue',
+            'title': '',
+            'message': '',
+            })
+
+        self.assertRaises(http.Forbidden, this.call, method='POST', path=['post'], environ=auth_env(tests.UID2),
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'resolved', 'title': '', 'message': ''})
+        this.call(method='POST', path=['post'], environ=auth_env(tests.UID),
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'resolved', 'title': '', 'message': ''})
+        self.assertEqual('resolved', volume['post'][topic]['resolution'])
+
+    def test_ForbiddenPollResolution(self):
+        volume = self.start_master()
+        volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
+        volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
+
+        context = this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
+            'type': ['activity', 'book', 'talks', 'project'],
+            'title': '',
+            'summary': '',
+            'description': '',
+            })
+        topic = this.call(method='POST', path=['post'], environ=auth_env(tests.UID2), content={
+            'context': context,
+            'type': 'poll',
+            'title': '',
+            'message': '',
+            })
+
+        self.assertRaises(http.Forbidden, this.call, method='POST', path=['post'], environ=auth_env(tests.UID),
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'closed', 'title': '', 'message': ''})
+        this.call(method='POST', path=['post'], environ=auth_env(tests.UID2),
+                content={'context': context, 'type': 'post', 'topic': topic, 'resolution': 'closed', 'title': '', 'message': ''})
+        self.assertEqual('closed', volume['post'][topic]['resolution'])
 
     def test_ShiftReplies(self):
         volume = db.Volume('.', [Context, Post])
@@ -335,6 +397,16 @@ class PostTest(tests.Test):
 
         this.call(method='DELETE', path=['post', post2])
         self.assertEqual(0, volume['post'][topic]['replies'])
+
+
+def auth_env(uid):
+    key = RSA.load_key(join(tests.root, 'data', uid))
+    nonce = int(time.time() + 2)
+    data = hashlib.sha1('%s:%s' % (uid, nonce)).digest()
+    signature = key.sign(data).encode('hex')
+    authorization = 'Sugar username="%s",nonce="%s",signature="%s"' % \
+            (uid, nonce, signature)
+    return {'HTTP_AUTHORIZATION': authorization}
 
 
 if __name__ == '__main__':

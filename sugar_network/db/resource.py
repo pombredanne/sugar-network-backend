@@ -76,6 +76,12 @@ class Resource(object):
     def state(self, value):
         return value
 
+    @state.setter
+    def state(self, value):
+        if value == 'deleted':
+            self.deleted()
+        return value
+
     @indexed_property(List, prefix='RT', full_text=True, default=[])
     def tags(self, value):
         return value
@@ -98,13 +104,22 @@ class Resource(object):
     def available(self):
         return self.exists and self['state'] != 'deleted'
 
-    def created(self):
+    def routed_creating(self):
         ts = int(time.time())
         self.posts['ctime'] = ts
         self.posts['mtime'] = ts
 
-    def updated(self):
+    def routed_created(self):
+        pass
+
+    def routed_updating(self):
         self.posts['mtime'] = int(time.time())
+
+    def routed_updated(self):
+        pass
+
+    def deleted(self):
+        pass
 
     def get(self, prop, default=None):
         """Get document's property value.

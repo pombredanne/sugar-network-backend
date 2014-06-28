@@ -43,12 +43,13 @@ class Routes(object):
     @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
     def create(self):
         with self._post(ACL.CREATE) as doc:
-            doc.created()
+            doc.routed_creating()
             if this.principal:
                 authors = doc.posts['author'] = {}
                 self._useradd(authors, this.principal, Author.ORIGINAL)
             self.volume[this.request.resource].create(doc.posts)
             this.request.guid = doc.guid
+            doc.routed_created()
             return doc.guid
 
     @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
@@ -56,8 +57,9 @@ class Routes(object):
         with self._post(ACL.WRITE) as doc:
             if not doc.posts:
                 return
-            doc.updated()
+            doc.routed_updating()
             self.volume[this.request.resource].update(doc.guid, doc.posts)
+            doc.routed_updated()
 
     @route('PUT', [None, None, None], acl=ACL.AUTH | ACL.AUTHOR)
     def update_prop(self):
@@ -73,8 +75,9 @@ class Routes(object):
         doc = directory[this.request.guid]
         enforce(doc.available, http.NotFound, 'Resource not found')
         doc.posts['state'] = 'deleted'
-        doc.updated()
+        doc.routed_updating()
         directory.update(doc.guid, doc.posts, 'delete')
+        doc.routed_updated()
 
     @route('GET', [None],
             arguments={'offset': int, 'limit': int, 'reply': ('guid',)},
@@ -289,8 +292,9 @@ class Routes(object):
             role = Author.ORIGINAL if this.principal in doc['author'] else 0
             self._useradd(authors, this.principal, role)
         doc.posts[request.prop] = {aggid: aggvalue}
-        doc.updated()
+        doc.routed_updating()
         self.volume[request.resource].update(request.guid, doc.posts)
+        doc.routed_updated()
 
         return aggid
 

@@ -27,3 +27,4 @@ v2.0
   * etc
 - sort out contexts by school subjects
 - handle forks
+- Post.popup_level to reproduce Q&A workflow for any topic type

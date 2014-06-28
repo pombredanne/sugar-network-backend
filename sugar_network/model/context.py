@@ -87,7 +87,7 @@ class Context(db.Resource):
         """
         return value
 
-    def created(self):
+    def routed_created(self):
         if 'package' in self['type']:
             self.post('icon', 'assets/package.png')
             self.post('logo', 'assets/package-logo.png')
@@ -95,7 +95,7 @@ class Context(db.Resource):
         elif 'activity' not in self['type']:
             if self['artefact_icon'] == self.metadata['artefact_icon'].default:
                 self._generate_default_icons(self['type'])
-        db.Resource.created(self)
+        db.Resource.routed_created(self)
 
     def _generate_default_icons(self, types):
         blobs = this.volume.blobs
