@@ -258,7 +258,7 @@ class PostTest(tests.Test):
 
         issue = this.call(method='POST', path=['post'],
                 content={'context': context, 'type': 'issue', 'title': '', 'message': ''})
-        self.assertEqual('new', volume['post'][issue]['resolution'])
+        self.assertEqual('unconfirmed', volume['post'][issue]['resolution'])
 
         poll = this.call(method='POST', path=['post'],
                 content={'context': context, 'type': 'poll', 'title': '', 'message': ''})

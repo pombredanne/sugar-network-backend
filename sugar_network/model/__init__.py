@@ -50,6 +50,7 @@ POST_TYPES = {
         }
 
 POST_RESOLUTIONS = {
+        'unconfirmed': 'issue',
         'new': 'issue',
         'needinfo': 'issue',
         'resolved': 'issue',
@@ -61,7 +62,7 @@ POST_RESOLUTIONS = {
         }
 
 POST_RESOLUTION_DEFAULTS = {
-        'issue': 'new',
+        'issue': 'unconfirmed',
         'poll': 'open',
         }
 
