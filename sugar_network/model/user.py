@@ -43,6 +43,6 @@ class User(db.Resource):
             value = this.avatars.get(self['email'], value)
         return value
 
-    @db.stored_property()
+    @db.stored_property(default='')
     def pubkey(self, value):
         return value

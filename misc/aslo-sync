@@ -249,6 +249,7 @@ class Application(application.Application):
                     'logo': 'assets/package-logo.png',
                     })
 
+        self.sync_users()
         if self.args:
             for addon_id in self.args:
                 self.sync_activities(addon_id)
@@ -260,6 +261,53 @@ class Application(application.Application):
             'Sugar Network server')
     def push(self):
         this.call(method='POST', cmd='online_sync', no_pull=True)
+
+    def sync_users(self):
+        directory = this.volume['user']
+        items, __ = directory.find(not_state='deleted')
+        existing = set([i.guid for i in items])
+        existing.remove(ASLO_AUTHOR.keys()[0])
+
+        sql = """
+            SELECT
+                created,
+                modified,
+                nickname,
+                CONCAT_WS(' ', firstname, lastname),
+                email,
+                location,
+                picture_data
+            FROM
+                users
+            WHERE
+                email is not null
+            """
+        for created, modified, nickname, fullname, email, location, \
+                picture_data in self.sqlexec(sql):
+            if not created:
+                continue
+            for guid, user in format_author(email, nickname, fullname).items():
+                break
+            if guid in existing:
+                existing.remove(guid)
+                continue
+            avatar = None
+            if picture_data:
+                picture_data = scale_png(picture_data, 48, 48)
+                avatar = this.volume.blobs.post(picture_data, 'image/png').digest
+            directory.create({
+                'guid': guid,
+                'ctime': int(time.mktime(created.timetuple())),
+                'mtime': int(time.mktime(modified.timetuple())),
+                'name': user['name'],
+                'email': email,
+                'location': location,
+                'avatar': avatar,
+                })
+
+        for guid in existing:
+            print '-- Hide %s %s deleted user' % guid
+            directory.update(guid, {'state': 'deleted'})
 
     def sync_activities(self, addon_id=None):
         directory = this.volume['context']
@@ -707,6 +755,22 @@ def format_author(email, nickname, fullname, db_role=None):
         'role': role,
         'name': fullname.strip() or nickname,
         }}
+
+
+def scale_png(data, w, h):
+    with toolkit.NamedTemporaryFile() as src:
+        src.write(data)
+        src.flush()
+        with toolkit.NamedTemporaryFile() as dst:
+            toolkit.assert_call(['convert',
+                '-thumbnail', '%sx%s' % (w, h),
+                '-background', 'transparent',
+                '-gravity', 'center',
+                '-extent', '%sx%s' % (w, h),
+                src.name, dst.name,
+                ])
+            with file(dst.name, 'rb') as f:
+                return f.read()
 
 
 mysql_server = Option(
