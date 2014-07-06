@@ -329,6 +329,7 @@ class Blob(Property):
         return this.volume.blobs.post(value, mime_type).digest
 
     def reprcast(self, value):
+        print '>>> %r' % value
         if not value:
             return File.AWAY
         return this.volume.blobs.get(value)
@@ -422,5 +423,9 @@ class Author(Dict):
         for guid, props in value.items():
             if 'name' in props:
                 yield toolkit.ascii(props['name'])
+            elif this.principal is not None:
+                name = this.principal['name']
+                if name:
+                    yield toolkit.ascii(name)
             if not (props['role'] & Author.INSYSTEM):
                 yield guid

@@ -249,7 +249,6 @@ class Routes(object):
         props = {}
         user_doc = self.volume['user'][user]
         if user_doc.available:
-            props['name'] = user_doc['name']
             role |= Author.INSYSTEM
         else:
             role &= ~Author.INSYSTEM

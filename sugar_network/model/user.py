@@ -38,7 +38,8 @@ class User(db.Resource):
     @db.stored_property(db.Blob, mime_type='image/png',
             default='assets/missing-avatar.png')
     def avatar(self, value):
-        if not value.is_blob and self['email'] and hasattr(this, 'avatars'):
+        if value is not None and not value.is_blob and self['email'] and \
+                hasattr(this, 'avatars'):
             value = this.avatars.get(self['email'], value)
         return value
 

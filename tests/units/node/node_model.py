@@ -1155,7 +1155,7 @@ class NodeModelTest(tests.Test):
             })
         self.assertEqual({
             '*': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 'ctime': 0,
                 'seqno': 3,
@@ -1180,7 +1180,7 @@ class NodeModelTest(tests.Test):
             })
         self.assertEqual({
             'Gentoo': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 'ctime': 0,
                 'seqno': 5,
@@ -1203,7 +1203,7 @@ class NodeModelTest(tests.Test):
             })
         self.assertEqual({
             'Debian-6.0': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 'ctime': 0,
                 'seqno': 7,
@@ -1236,7 +1236,7 @@ class NodeModelTest(tests.Test):
             })
         self.assertEqual({
             '*': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['pkg1.bin', 'pkg2.bin'], 'devel': ['pkg3.devel']},
                 'ctime': 0,
                 'seqno': 3,
@@ -1268,7 +1268,7 @@ class NodeModelTest(tests.Test):
         conn.put(['context', guid, 'releases', '*'], {'binary': '1'})
         self.assertEqual({
             '*': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['1']},
                 'ctime': 0,
                 'seqno': 3,
@@ -1285,13 +1285,13 @@ class NodeModelTest(tests.Test):
         conn.put(['context', guid, 'releases', 'Debian'], {'binary': '2'})
         self.assertEqual({
             '*': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['1']},
                 'ctime': 0,
                 'seqno': 3,
                 },
             'Debian': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['2']},
                 'ctime': 0,
                 'seqno': 4,
@@ -1308,19 +1308,19 @@ class NodeModelTest(tests.Test):
         conn.put(['context', guid, 'releases', 'Debian-6.0'], {'binary': '3'})
         self.assertEqual({
             '*': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['1']},
                 'ctime': 0,
                 'seqno': 3,
                 },
             'Debian': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['2']},
                 'ctime': 0,
                 'seqno': 4,
                 },
             'Debian-6.0': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['3']},
                 'ctime': 0,
                 'seqno': 5,
@@ -1337,19 +1337,19 @@ class NodeModelTest(tests.Test):
         conn.put(['context', guid, 'releases', 'Debian'], {'binary': '4'})
         self.assertEqual({
             '*': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['1']},
                 'ctime': 0,
                 'seqno': 3,
                 },
             'Debian': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['4']},
                 'ctime': 0,
                 'seqno': 6,
                 },
             'Debian-6.0': {
-                'author': {tests.UID: {'name': 'test', 'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
                 'value': {'binary': ['3']},
                 'ctime': 0,
                 'seqno': 5,
@@ -2362,7 +2362,7 @@ class NodeModelTest(tests.Test):
         self.assertEqual(['image/bmp', 'image/gif'], context['mime_types'])
         assert context['ctime'] > 0
         assert context['mtime'] > 0
-        self.assertEqual({tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL, 'name': 'user'}}, context['author'])
+        self.assertEqual({tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, context['author'])
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']

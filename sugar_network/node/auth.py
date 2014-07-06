@@ -47,6 +47,7 @@ class Principal(str):
         # pylint: disable-msg=W0212
         self._caps = caps
         self._backup = 0
+        self._props = this.volume['user'][value]
         return self
 
     @property
@@ -81,6 +82,12 @@ class Principal(str):
             self._caps |= 4
         else:
             self._caps ^= 4
+
+    def __getitem__(self, key):
+        return self._props.get(key)
+
+    def __contains__(self, key):
+        return key in self._props
 
     def __enter__(self):
         self._backup = self._caps
