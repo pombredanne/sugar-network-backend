@@ -383,21 +383,23 @@ class File(str):
         meta = toolkit.CaseInsensitiveDict(meta or [])
 
         url = ''
+        is_blob = digest and '/' not in digest
         if meta:
             url = meta.get('location')
         if not url and digest:
             if this.static_prefix:
                 url = '/'.join([this.static_prefix, digest])
-            elif '/' in digest:
-                url = '/'.join([this.request.host, digest])
-            else:
+            elif is_blob:
                 url = '/'.join([this.request.host, 'blobs', digest])
+            else:
+                url = '/'.join([this.request.host, digest])
         self = str.__new__(cls, url)
 
         self.meta = meta
         self.path = path
         self.digest = File.Digest(digest) if digest else None
         self.stat = None
+        self.is_blob = is_blob
 
         return self
 

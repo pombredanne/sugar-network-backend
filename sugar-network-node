@@ -25,6 +25,7 @@ coroutine.inject()
 from sugar_network import db, toolkit
 from sugar_network.model.post import Post
 from sugar_network.node.auth import SugarAuth
+from sugar_network.node.avatars import Avatars
 from sugar_network.node import obs, master, slave, model, stats
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
@@ -86,6 +87,12 @@ keyfile = Option(
 certfile = Option(
         'path to SSL certificate file to serve requests via HTTPS',
         name='certfile')
+
+avatars = Option(
+        'for missed User.avatar, reuse external avatars hosting; '
+        'supported values: gravatar',
+        name='avatars')
+
 
 SUPPORTED_API = {
         'master': {
@@ -158,6 +165,10 @@ class Application(application.Daemon):
                 'find_limit': find_limit.value,
                 }
         self.routes = dict([(v, c(**routes_args)) for v, c in apis.items()])
+
+        if avatars.value:
+            enforce(avatars.value == 'gravatar', 'Only gravatar is supported')
+            this.avatars = Avatars()
 
         self.jobs.spawn(stats_monitor.auto_commit)
         self.jobs.spawn(volume.populate)
@@ -287,7 +298,7 @@ Option.seek('main', [toolkit.cachedir])
 Option.seek('node', stats)
 Option.seek('node', [
     data_root, mode, host, port, default_api, master_url, static_url,
-    backdoor, http_logdir, find_limit, keyfile, certfile,
+    backdoor, http_logdir, find_limit, keyfile, certfile, avatars,
     ])
 Option.seek('obs', obs)
 Option.seek('db', db)

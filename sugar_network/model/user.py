@@ -14,7 +14,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from sugar_network import db
-from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit.coroutine import this
 
 
 class User(db.Resource):
@@ -31,6 +31,17 @@ class User(db.Resource):
     def birthday(self, value):
         return value
 
-    @db.stored_property(acl=ACL.READ | ACL.CREATE)
+    @db.stored_property(default='')
+    def email(self, value):
+        return value
+
+    @db.stored_property(db.Blob, mime_type='image/png',
+            default='assets/missing-avatar.png')
+    def avatar(self, value):
+        if not value.is_blob and self['email'] and hasattr(this, 'avatars'):
+            value = this.avatars.get(self['email'], value)
+        return value
+
+    @db.stored_property()
     def pubkey(self, value):
         return value
