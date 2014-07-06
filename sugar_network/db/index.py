@@ -1,4 +1,4 @@
-# Copyright (C) 2011-2012 Aleksey Lim
+# Copyright (C) 2011-2014 Aleksey Lim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ import logging
 
 import xapian
 
+from sugar_network import toolkit
 from sugar_network.db.metadata import GUID_PREFIX
 from sugar_network.toolkit import Option, coroutine, enforce
 
@@ -434,4 +435,4 @@ class IndexWriter(IndexReader):
 
 
 def _term(prefix, value):
-    return _EXACT_PREFIX + prefix + str(value).split('\n')[0][:243]
+    return _EXACT_PREFIX + prefix + toolkit.ascii(value).split('\n')[0][:243]
