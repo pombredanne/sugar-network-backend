@@ -46,9 +46,7 @@ master_url = Option(
         'to provide from (for master nodes)', name='master-url')
 
 DOWNLOAD_URL = 'http://download.sugarlabs.org/activities'
-ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {
-    'role': db.Author.INSYSTEM, 'name': 'Activity Library',
-    }}
+ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {'role': 0}}
 ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
@@ -289,8 +287,7 @@ class Application(application.Application):
                 picture_data in self.sqlexec(sql):
             if not created:
                 continue
-            for guid, user in format_author(email, nickname, fullname).items():
-                break
+            guid = format_author(email, nickname).keys()[0]
             if guid in existing:
                 existing.remove(guid)
                 continue
@@ -300,12 +297,13 @@ class Application(application.Application):
             avatar = None
             if picture_data:
                 picture_data = scale_png(picture_data, 48, 48)
-                avatar = this.volume.blobs.post(picture_data, 'image/png').digest
+                avatar = this.volume.blobs.post(
+                        picture_data, 'image/png').digest
             directory.create({
                 'guid': guid,
                 'ctime': int(time.mktime(created.timetuple())),
                 'mtime': int(time.mktime(modified.timetuple())),
-                'name': user['name'],
+                'name': fullname.strip(),
                 'email': email,
                 'location': location,
                 'avatar': avatar,
@@ -401,8 +399,7 @@ class Application(application.Application):
                 reviews.body,
                 reviews.rating,
                 users.email,
-                users.nickname,
-                CONCAT_WS(' ', users.firstname, users.lastname)
+                users.nickname
             FROM
                 reviews
                 INNER JOIN versions ON versions.id = reviews.version_id
@@ -410,8 +407,8 @@ class Application(application.Application):
             WHERE
                 reply_to IS NULL AND versions.addon_id = %s
             """ % addon_id
-        for topic, created, modified, title, content, vote, email, nickname, \
-                fullname in self.sqlexec(sql):
+        for topic, created, modified, title, content, vote, email, nickname \
+                in self.sqlexec(sql):
             topic = str(topic)
             if topic in existing_topics:
                 existing_topics.remove(topic)
@@ -425,7 +422,7 @@ class Application(application.Application):
                         'title': self.get_i18n_field(title),
                         'message': self.get_i18n_field(content),
                         'vote': vote,
-                        'author': format_author(email, nickname, fullname),
+                        'author': format_author(email, nickname),
                         })
 
                 items, __ = directory.find(context=bundle_id, topic=topic,
@@ -439,8 +436,7 @@ class Application(application.Application):
                         reviews.title,
                         reviews.body,
                         users.email,
-                        users.nickname,
-                        CONCAT_WS(' ', users.firstname, users.lastname)
+                        users.nickname
                     FROM
                         reviews
                         INNER JOIN versions ON versions.id = reviews.version_id
@@ -450,8 +446,8 @@ class Application(application.Application):
                     ORDER BY
                         reviews.created
                     """ % topic
-                for guid, created, modified, title, content, email, nickname, \
-                        fullname in self.sqlexec(sql):
+                for guid, created, modified, title, content, email, nickname \
+                        in self.sqlexec(sql):
                     guid = str(guid)
                     if guid in existing_comments:
                         existing_comments.remove(guid)
@@ -465,7 +461,7 @@ class Application(application.Application):
                             'type': 'post',
                             'title': self.get_i18n_field(title),
                             'message': self.get_i18n_field(content),
-                            'author': format_author(email, nickname, fullname),
+                            'author': format_author(email, nickname),
                             })
                 for guid in existing_comments:
                     print '-- Hide %s %s deleted comment' % (bundle_id, guid)
@@ -495,8 +491,7 @@ class Application(application.Application):
                 (select version from appversions where
                     id=applications_versions.max),
                 users.email,
-                users.nickname,
-                CONCAT_WS(' ', users.firstname, users.lastname)
+                users.nickname
             FROM addons
                 INNER JOIN versions ON versions.addon_id=addons.id
                 LEFT JOIN licenses ON licenses.id=versions.license_id
@@ -512,7 +507,7 @@ class Application(application.Application):
 
         for version_id, version, license_id, alicense, release_date, \
                 releasenotes, filename, sugar_min, sugar_max, \
-                email, nickname, fullname in self.sqlexec(sql):
+                email, nickname in self.sqlexec(sql):
             if version_id in IGNORE_VERSIONS:
                 continue
 
@@ -590,12 +585,12 @@ class Application(application.Application):
                         release_notes=self.get_i18n_field(releasenotes),
                         update_context=most_recent)
                 updates[version_id] = {
-                    'author': format_author(email, nickname, fullname),
+                    'author': format_author(email, nickname),
                     'value': release,
                     'ctime': int(time.mktime(release_date.timetuple())),
                     }
                 this.volume['post'].update(release['announce'], {
-                    'author': format_author(email, nickname, fullname),
+                    'author': format_author(email, nickname),
                     'ctime': int(time.mktime(release_date.timetuple())),
                     })
                 most_recent = False
@@ -665,13 +660,12 @@ class Application(application.Application):
             tags.add(row[0])
 
         authors = {}
-        for role, email, nickname, fullname in self.sqlexec(
+        for role, email, nickname in self.sqlexec(
                 """
                 SELECT
                     addons_users.role,
                     users.email,
-                    users.nickname,
-                    CONCAT_WS(' ', users.firstname, users.lastname)
+                    users.nickname
                 FROM
                     addons_users
                     INNER JOIN users on users.id=addons_users.user_id
@@ -680,7 +674,7 @@ class Application(application.Application):
                 ORDER BY
                     position
                 """ % addon_id):
-            authors.update(format_author(email, nickname, fullname, role))
+            authors.update(format_author(email, nickname, role))
 
         directory.update(bundle_id, {
                 'guid': bundle_id,
@@ -752,16 +746,13 @@ class Auth(object):
         return Principal(ASLO_AUTHOR.keys()[0], 0xF)
 
 
-def format_author(email, nickname, fullname, db_role=None):
+def format_author(email, nickname, db_role=None):
     if not nickname:
         nickname = email.split('@')[0]
-    role = db.Author.INSYSTEM
+    role = 0
     if db_role is None or db_role == 5:
         role |= db.Author.ORIGINAL
-    return {nickname: {
-        'role': role,
-        'name': fullname.strip() or nickname,
-        }}
+    return {nickname: {'role': role}}
 
 
 def scale_png(data, w, h):
