@@ -18,7 +18,7 @@ import time
 from sugar_network.db.metadata import indexed_property, Localized
 from sugar_network.db.metadata import Numeric, List, Author, Enum
 from sugar_network.db.metadata import Composite, Aggregated
-from sugar_network.toolkit.router import ACL
+from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import ranges
 
@@ -71,14 +71,15 @@ class Resource(object):
     @indexed_property(Author, prefix='RA', default={}, full_text=True,
             acl=ACL.READ)
     def author(self, value):
-        for guid, props in value.items():
-            if not props['role'] & Author.INSYSTEM:
-                continue
-            user = this.volume['user'][guid]
-            if not user.exists:
-                continue
-            props['name'] = user['name']
-            props['avatar'] = user.repr('avatar')
+        for guid, user in value.items():
+            avatar = None
+            if 'name' not in user:
+                db_user = this.volume['user'][guid]
+                if db_user.exists:
+                    avatar = db_user.repr('avatar')
+                    user['name'] = db_user['name']
+                    user['role'] |= Author.INSYSTEM
+            user['avatar'] = avatar or File(digest='assets/missing-avatar.png')
         return value
 
     @indexed_property(Enum, STATES, prefix='RE', default=STATES[0], acl=0)

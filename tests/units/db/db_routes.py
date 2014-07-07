@@ -1115,7 +1115,10 @@ class DbRoutesTest(tests.Test):
 
         guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual(
-                {'user': {'role': db.Author.ORIGINAL}},
+                {'user': {
+                    'role': db.Author.ORIGINAL,
+                    'avatar': 'http://localhost/assets/missing-avatar.png',
+                    }},
                 this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual(
                 {'user': {'role': db.Author.ORIGINAL}},
@@ -1132,7 +1135,7 @@ class DbRoutesTest(tests.Test):
                     }},
                 this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual(
-                {'user': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                {'user': {'role': db.Author.ORIGINAL}},
                 volume['document'].get(guid)['author'])
 
     def test_FindByAuthor(self):
@@ -1207,7 +1210,7 @@ class DbRoutesTest(tests.Test):
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user1': {'role': db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
 
@@ -1226,8 +1229,8 @@ class DbRoutesTest(tests.Test):
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
-            'user2': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user1': {'role': db.Author.ORIGINAL},
+            'user2': {'role': db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
 
@@ -1243,12 +1246,15 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM | db.Author.ORIGINAL,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User3': {'role': db.Author.ORIGINAL},
+            'User3': {
+                'role': db.Author.ORIGINAL,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
-            'user2': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user1': {'role': db.Author.ORIGINAL},
+            'user2': {'role': db.Author.ORIGINAL},
             'User3': {'role': db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
@@ -1265,13 +1271,19 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM | db.Author.ORIGINAL,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User3': {'role': db.Author.ORIGINAL},
-            'User4': {'role': 0},
+            'User3': {
+                'role': db.Author.ORIGINAL,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
+            'User4': {
+                'role': 0,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
-            'user2': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user1': {'role': db.Author.ORIGINAL},
+            'user2': {'role': db.Author.ORIGINAL},
             'User3': {'role': db.Author.ORIGINAL},
             'User4': {'role': 0},
             },
@@ -1296,11 +1308,14 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM | db.Author.ORIGINAL,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User2': {'role': 0},
+            'User2': {
+                'role': 0,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
+            'user1': {'role': db.Author.ORIGINAL},
             'User2': {'role': 0},
             },
             volume['document'].get(guid)['author'])
@@ -1312,11 +1327,14 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User2': {'role': 0},
+            'User2': {
+                'role': 0,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM},
+            'user1': {'role': 0},
             'User2': {'role': 0},
             },
             volume['document'].get(guid)['author'])
@@ -1328,11 +1346,14 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User2': {'role': db.Author.ORIGINAL},
+            'User2': {
+                'role': db.Author.ORIGINAL,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM},
+            'user1': {'role': 0},
             'User2': {'role': db.Author.ORIGINAL},
             },
             volume['document'].get(guid)['author'])
@@ -1362,12 +1383,15 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User3': {'role': 0},
+            'User3': {
+                'role': 0,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user1': {'role': db.Author.INSYSTEM | db.Author.ORIGINAL},
-            'user2': {'role': db.Author.INSYSTEM},
+            'user1': {'role': db.Author.ORIGINAL},
+            'user2': {'role': 0},
             'User3': {'role': 0},
             },
             volume['document'].get(guid)['author'])
@@ -1386,11 +1410,14 @@ class DbRoutesTest(tests.Test):
                 'role': db.Author.INSYSTEM,
                 'avatar': 'http://localhost/assets/missing-avatar.png',
                 },
-            'User3': {'role': 0},
+            'User3': {
+                'role': 0,
+                'avatar': 'http://localhost/assets/missing-avatar.png',
+                },
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user2': {'role': db.Author.INSYSTEM},
+            'user2': {'role': 0},
             'User3': {'role': 0},
             },
             volume['document'].get(guid)['author'])
@@ -1406,7 +1433,7 @@ class DbRoutesTest(tests.Test):
             },
             this.call(method='GET', path=['document', guid, 'author']))
         self.assertEqual({
-            'user2': {'role': db.Author.INSYSTEM},
+            'user2': {'role': 0},
             },
             volume['document'].get(guid)['author'])
 

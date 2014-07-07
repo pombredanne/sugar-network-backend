@@ -246,14 +246,7 @@ class Routes(object):
         return result
 
     def _useradd(self, authors, user, role):
-        props = {}
-        user_doc = self.volume['user'][user]
-        if user_doc.available:
-            role |= Author.INSYSTEM
-        else:
-            role &= ~Author.INSYSTEM
-        props['role'] = role & (Author.INSYSTEM | Author.ORIGINAL)
-
+        props = {'role': role & Author.ORIGINAL}
         if user in authors:
             authors[user].update(props)
         else:

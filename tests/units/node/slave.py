@@ -272,7 +272,6 @@ class SlaveTest(tests.Test):
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         {'resource': 'document'},
-                        {'resource': 'user'},
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[3, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
@@ -325,7 +324,6 @@ class SlaveTest(tests.Test):
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         {'resource': 'document'},
-                        {'resource': 'user'},
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[3, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
@@ -349,7 +347,6 @@ class SlaveTest(tests.Test):
                     ({'ack': [[101, 103]], 'from': '127.0.0.1:7777', 'segment': 'ack', 'ranges': [[1, 3]], 'to': self.slave_routes.guid}, [
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
-                        {'resource': 'user'},
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, 100], [104, None]], 'to': '127.0.0.1:7777'}, [
                         ]),
@@ -396,7 +393,6 @@ class SlaveTest(tests.Test):
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'push', 'to': '127.0.0.1:7777'}, [
                         {'resource': 'document'},
-                        {'resource': 'user'},
                         ]),
                     ({'from': self.slave_routes.guid, 'segment': 'pull', 'ranges': [[1, None]], 'to': '127.0.0.1:7777'}, [
                         ]),

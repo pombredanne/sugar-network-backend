@@ -460,7 +460,7 @@ class NodeRoutesTest(tests.Test):
         assert release1 == str(hashlib.sha1(bundle1).hexdigest())
         self.assertEqual({
             release1: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:1')[0]).guid,
@@ -490,7 +490,7 @@ class NodeRoutesTest(tests.Test):
         assert release2 == str(hashlib.sha1(bundle2).hexdigest())
         self.assertEqual({
             release1: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:1')[0]).guid,
@@ -504,7 +504,7 @@ class NodeRoutesTest(tests.Test):
                 'seqno': 6,
                 },
             release2: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:2')[0]).guid,
@@ -524,12 +524,12 @@ class NodeRoutesTest(tests.Test):
         conn.delete(['context', context, 'releases', release1])
         self.assertEqual({
             release1: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'ctime': ts,
                 'seqno': 11,
                 },
             release2: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': next(volume['post'].find(query='title:2')[0]).guid,
@@ -549,12 +549,12 @@ class NodeRoutesTest(tests.Test):
         conn.delete(['context', context, 'releases', release2])
         self.assertEqual({
             release1: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'ctime': ts,
                 'seqno': 11,
                 },
             release2: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'ctime': ts,
                 'seqno': 13,
                 },
@@ -587,7 +587,7 @@ class NodeRoutesTest(tests.Test):
 
         self.assertEqual({
             release: {
-                'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}},
+                'author': {tests.UID: {'role': db.Author.ORIGINAL}},
                 'value': {
                     'license': ['Public Domain'],
                     'announce': announce,
@@ -820,15 +820,15 @@ class NodeRoutesTest(tests.Test):
         agg1 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID))
         agg2 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID2))
         self.assertEqual({
-            agg1: {'seqno': 4, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
-            agg2: {'seqno': 5, 'author': {tests.UID2: {'role': db.Author.INSYSTEM}}, 'value': None, 'ctime': 0},
+            agg1: {'seqno': 4, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
+            agg2: {'seqno': 5, 'author': {tests.UID2: {'role': 0}}, 'value': None, 'ctime': 0},
             },
             volume['document'][guid]['prop1'])
 
         agg3 = this.call(method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID))
         self.assertRaises(http. Forbidden, this.call, method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID2))
         self.assertEqual({
-            agg3: {'seqno': 6, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
+            agg3: {'seqno': 6, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
             },
             volume['document'][guid]['prop2'])
 
@@ -855,8 +855,8 @@ class NodeRoutesTest(tests.Test):
         agg1 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID))
         agg2 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID2))
         self.assertEqual({
-            agg1: {'seqno': 4, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
-            agg2: {'seqno': 5, 'author': {tests.UID2: {'role': db.Author.INSYSTEM}}, 'value': None, 'ctime': 0},
+            agg1: {'seqno': 4, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
+            agg2: {'seqno': 5, 'author': {tests.UID2: {'role': 0}}, 'value': None, 'ctime': 0},
             },
             volume['document'][guid]['prop1'])
         self.assertRaises(http. Forbidden, this.call, method='PUT', path=['document', guid, 'prop1', agg1], environ=auth_env(tests.UID2))
@@ -865,7 +865,7 @@ class NodeRoutesTest(tests.Test):
         agg3 = this.call(method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID))
         self.assertRaises(http. Forbidden, this.call, method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID2))
         self.assertEqual({
-            agg3: {'seqno': 7, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
+            agg3: {'seqno': 7, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'value': None, 'ctime': 0},
             },
             volume['document'][guid]['prop2'])
 
@@ -891,45 +891,45 @@ class NodeRoutesTest(tests.Test):
         agg1 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID), content=True)
         agg2 = this.call(method='POST', path=['document', guid, 'prop1'], environ=auth_env(tests.UID2), content=True)
         self.assertEqual({
-            agg1: {'seqno': 4, 'value': True, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
-            agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'role': db.Author.INSYSTEM}}, 'ctime': 0},
+            agg1: {'seqno': 4, 'value': True, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
+            agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'role': 0}}, 'ctime': 0},
             },
             volume['document'][guid]['prop1'])
         self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg1], environ=auth_env(tests.UID2))
         self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop1', agg2], environ=auth_env(tests.UID))
         self.assertEqual({
-            agg1: {'seqno': 4, 'value': True, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
-            agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'role': db.Author.INSYSTEM}}, 'ctime': 0},
+            agg1: {'seqno': 4, 'value': True, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
+            agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'role': 0}}, 'ctime': 0},
             },
             volume['document'][guid]['prop1'])
 
         this.call(method='DELETE', path=['document', guid, 'prop1', agg1], environ=auth_env(tests.UID))
         self.assertEqual({
-            agg1: {'seqno': 6, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
-            agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'role': db.Author.INSYSTEM}}, 'ctime': 0},
+            agg1: {'seqno': 6, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
+            agg2: {'seqno': 5, 'value': True, 'author': {tests.UID2: {'role': 0}}, 'ctime': 0},
             },
             volume['document'][guid]['prop1'])
         this.call(method='DELETE', path=['document', guid, 'prop1', agg2], environ=auth_env(tests.UID2))
         self.assertEqual({
-            agg1: {'seqno': 6, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
-            agg2: {'seqno': 7, 'author': {tests.UID2: {'role': db.Author.INSYSTEM}}, 'ctime': 0},
+            agg1: {'seqno': 6, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
+            agg2: {'seqno': 7, 'author': {tests.UID2: {'role': 0}}, 'ctime': 0},
             },
             volume['document'][guid]['prop1'])
 
         agg3 = this.call(method='POST', path=['document', guid, 'prop2'], environ=auth_env(tests.UID), content=True)
         self.assertEqual({
-            agg3: {'seqno': 8, 'value': True, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
+            agg3: {'seqno': 8, 'value': True, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
             },
             volume['document'][guid]['prop2'])
 
         self.assertRaises(http.Forbidden, this.call, method='DELETE', path=['document', guid, 'prop2', agg3], environ=auth_env(tests.UID2))
         self.assertEqual({
-            agg3: {'seqno': 8, 'value': True, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
+            agg3: {'seqno': 8, 'value': True, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
             },
             volume['document'][guid]['prop2'])
         this.call(method='DELETE', path=['document', guid, 'prop2', agg3], environ=auth_env(tests.UID))
         self.assertEqual({
-            agg3: {'seqno': 9, 'author': {tests.UID: {'role': db.Author.INSYSTEM | db.Author.ORIGINAL}}, 'ctime': 0},
+            agg3: {'seqno': 9, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}, 'ctime': 0},
             },
             volume['document'][guid]['prop2'])
 
