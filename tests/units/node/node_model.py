@@ -2120,7 +2120,8 @@ class NodeModelTest(tests.Test):
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
-        self.assertEqual('notice', post['type'])
+        self.assertEqual('topic', post['type'])
+        self.assertEqual(['announce'], post['tags'])
         self.assertEqual({
             'en': 'Activity 1 release',
             'es': 'Activity 1 release',
@@ -2161,7 +2162,8 @@ class NodeModelTest(tests.Test):
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
-        self.assertEqual('notice', post['type'])
+        self.assertEqual('topic', post['type'])
+        self.assertEqual(['announce'], post['tags'])
         self.assertEqual({
             'en': 'NonActivity 2 release',
             'es': 'NonActivity 2 release',
@@ -2366,7 +2368,8 @@ class NodeModelTest(tests.Test):
 
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
-        self.assertEqual('notice', post['type'])
+        self.assertEqual('topic', post['type'])
+        self.assertEqual(['announce'], post['tags'])
         self.assertEqual({
             'en': 'Image Viewer 1 release',
             'es': 'Image Viewer 1 release',
@@ -2487,7 +2490,8 @@ class NodeModelTest(tests.Test):
         post = volume['post'][release['announce']]
         assert tests.UID not in post['author']
         assert tests.UID2 in post['author']
-        self.assertEqual('notice', post['type'])
+        self.assertEqual('topic', post['type'])
+        self.assertEqual(['announce'], post['tags'])
         self.assertEqual({
             'en': 'Activity 1 third-party release',
             'es': 'Activity 1 third-party release',
@@ -2507,7 +2511,8 @@ class NodeModelTest(tests.Test):
         post = volume['post'][release['announce']]
         assert tests.UID in post['author']
         assert tests.UID2 not in post['author']
-        self.assertEqual('notice', post['type'])
+        self.assertEqual('topic', post['type'])
+        self.assertEqual(['announce'], post['tags'])
         self.assertEqual({
             'en': 'Activity2 1 release',
             'es': 'Activity2 1 release',
