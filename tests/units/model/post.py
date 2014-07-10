@@ -76,8 +76,8 @@ class PostTest(tests.Test):
             'description': {},
             })
 
-        post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': '', 'vote': 1})
-        post2 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': '', 'vote': 2})
+        post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'topic', 'title': '', 'message': '', 'vote': 1})
+        post2 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'topic', 'title': '', 'message': '', 'vote': 2})
         self.assertEqual([2, 3], volume['context'][context]['rating'])
 
         this.call(method='DELETE', path=['post', post1])
@@ -96,10 +96,10 @@ class PostTest(tests.Test):
             'description': {},
             })
 
-        post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': ''})
+        post1 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
         self.assertEqual([0, 0], volume['context'][context]['rating'])
 
-        post2 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'review', 'title': '', 'message': ''})
+        post2 = this.call(method='POST', path=['post'], content={'context': context, 'type': 'topic', 'title': '', 'message': ''})
         self.assertEqual([0, 0], volume['context'][context]['rating'])
 
         this.call(method='DELETE', path=['post', post1])

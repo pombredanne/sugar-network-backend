@@ -386,8 +386,8 @@ class Application(application.Application):
 
     def sync_reviews(self, addon_id, bundle_id):
         directory = this.volume['post']
-        items, __ = directory.find(context=bundle_id, type='review',
-                not_state='deleted')
+        items, __ = directory.find(context=bundle_id, type='topic',
+                tags='review', not_state='deleted')
         existing_topics = set([i.guid for i in items])
 
         sql = """
@@ -418,7 +418,8 @@ class Application(application.Application):
                         'ctime': int(time.mktime(created.timetuple())),
                         'mtime': int(time.mktime(modified.timetuple())),
                         'context': bundle_id,
-                        'type': 'review',
+                        'type': 'topic',
+                        'tags': ['review'],
                         'title': self.get_i18n_field(title),
                         'message': self.get_i18n_field(content),
                         'vote': vote,
