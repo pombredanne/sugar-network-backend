@@ -395,7 +395,9 @@ class Aggregated(Composite):
             if 'value' not in aggvalue:
                 continue
             aggvalue['key'] = key
-            aggvalue['value'] = self._subtype.reprcast(aggvalue['value'])
+            aggvalue['value'] = self.subreprcast(aggvalue['value'])
+            if 'author' in aggvalue:
+                Author.format(aggvalue['author'])
             result.append(aggvalue)
         return result
 
@@ -417,6 +419,18 @@ class Author(Dict):
 
     INSYSTEM = 1 << 0
     ORIGINAL = 1 << 16
+
+    @staticmethod
+    def format(authors):
+        for guid, user in authors.items():
+            avatar = None
+            if 'name' not in user:
+                db_user = this.volume['user'][guid]
+                if db_user.exists:
+                    avatar = db_user.repr('avatar')
+                    user['name'] = db_user['name']
+                    user['role'] |= Author.INSYSTEM
+            user['avatar'] = avatar or File(digest='assets/missing-avatar.png')
 
     def encode(self, value):
         for guid, props in value.items():

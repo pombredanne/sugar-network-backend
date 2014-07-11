@@ -412,6 +412,7 @@ def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
                                     this.request.accept_language)
                     release_info['ctime'] = agg_value['ctime']
                     release_info['author'] = agg_value['author']
+                    db.Author.format(agg_value['author'])
                 unpack_size = bundle.get('unpack_size')
                 if unpack_size is not None:
                     release_info['unpack_size'] = unpack_size
