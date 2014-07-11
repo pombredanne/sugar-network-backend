@@ -226,17 +226,17 @@ The example code uses all mentioned above features::
 
         @db.directory_command(method='GET', cmd='count')
         def count(self, document):
-            items, total = self.volume[document].find()
+            items, total = this.volume[document].find()
             return total
 
         @db.document_command(method='POST', cmd='clone')
         def clone(self, document, guid):
-            item = self.volume[document].get(guid)
-            return self.volume[document].create(item.properties(['prop1', 'prop2']))
+            item = this.volume[document].get(guid)
+            return this.volume[document].create(item.properties(['prop1', 'prop2']))
 
         @db.property_command(method='PUT', cmd='mutate')
         def mutate(self, document, guid, prop):
-            self.volume[document].update(guid, {prop: this.request.content})
+            this.volume[document].update(guid, {prop: this.request.content})
 
     volume = db.Volume('db', [MyDocyment])
     cp = MyCommands(volume)

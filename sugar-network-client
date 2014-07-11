@@ -64,11 +64,11 @@ class Application(application.Daemon):
 
         printf.info('Index database in %r', client.local_root.value)
 
-        volume = Volume(client.path())
+        this.volume = Volume(client.path())
         try:
-            volume.populate()
+            this.volume.populate()
         finally:
-            volume.close()
+            this.volume.close()
 
     @application.command(hidden=True)
     def graceful_start(self):
@@ -100,14 +100,14 @@ class Application(application.Daemon):
         this.injector = Injector(client.path('cache'),
                 client.cache_lifetime.value, client.cache_limit.value,
                 client.cache_limit_percent.value)
-        volume = Volume(client.path())
+        this.volume = Volume(client.path())
         if client.login.value and client.password.value:
             creds = BasicCreds(client.login.value, client.password.value)
         elif client.keyfile.value:
             creds = SugarCreds(client.keyfile.value)
         else:
             raise RuntimeError('No credentials specified')
-        routes = ClientRoutes(volume, creds)
+        routes = ClientRoutes(creds)
         router = Router(routes, allow_spawn=True)
 
         logging.info('Listening for IPC requests on %s port',
@@ -120,7 +120,7 @@ class Application(application.Daemon):
         self.accept()
 
         def final_start():
-            volume.populate()
+            this.volume.populate()
 
             if webui.webui.value:
                 host = (webui.webui_host.value, webui.webui_port.value)
@@ -162,6 +162,7 @@ class Application(application.Daemon):
         finally:
             self.jobs.kill()
             routes.close()
+            this.volume.close()
 
     def shutdown(self):
         self.jobs.kill()

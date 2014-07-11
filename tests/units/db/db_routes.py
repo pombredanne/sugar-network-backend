@@ -47,8 +47,8 @@ class DbRoutesTest(tests.Test):
             def not_stored_default(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
 
         self.assertRaises(RuntimeError, this.call, method='POST', path=['document'], content={})
 
@@ -74,7 +74,7 @@ class DbRoutesTest(tests.Test):
             pass
 
         with db.Volume(tests.tmpdir, [Document]) as volume:
-            router = Router(db.Routes(volume))
+            router = Router(db.Routes())
             for __ in volume['document'].populate():
                 pass
             self.assertEqual(
@@ -87,7 +87,7 @@ class DbRoutesTest(tests.Test):
             pass
 
         with db.Volume(tests.tmpdir, [Document]) as volume:
-            router = Router(db.Routes(volume))
+            router = Router(db.Routes())
             for __ in volume['document'].populate():
                 pass
             self.assertEqual(
@@ -106,8 +106,8 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         volume['testdocument'].create({'guid': 'guid'})
 
@@ -169,8 +169,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
@@ -192,8 +192,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={})
 
         self.assertRaises(http.BadRequest, this.call, method='PUT', path=['testdocument', guid, 'blob'],
@@ -217,8 +217,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'blob': 'blob'})
         blob = this.call(method='GET', path=['testdocument', guid, 'blob'], environ={'HTTP_HOST': 'localhost'})
@@ -249,8 +249,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={'blob': 'blob'})
 
         self.assertEqual('blob', file(this.call(method='GET', path=['testdocument', guid, 'blob']).path).read())
@@ -266,8 +266,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={'blob': 'blob1'})
 
         blob1 = this.call(method='GET', path=['testdocument', guid, 'blob'])
@@ -293,8 +293,8 @@ class DbRoutesTest(tests.Test):
                     raise RuntimeError()
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
@@ -311,8 +311,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={})
 
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content='blob1')
@@ -350,8 +350,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         blob = 'blob'
@@ -379,8 +379,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid1 = this.call(method='POST', path=['testdocument'], content={})
 
         assert this.call(method='GET', path=['testdocument', guid1, 'blob']) is File.AWAY
@@ -430,8 +430,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
@@ -451,8 +451,8 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 'value'})
 
         self.assertEqual(
@@ -479,8 +479,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop': '-1'})
         self.assertEqual(-1, this.call(method='GET', path=['testdocument', guid, 'prop']))
@@ -498,8 +498,8 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         directory = volume['testdocument']
         guid = this.call(method='POST', path=['testdocument'], content={'localized_prop': 'value_ru'},
                 environ={'HTTP_ACCEPT_LANGUAGE': 'ru'})
@@ -531,8 +531,8 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         directory = volume['testdocument']
 
         guid = this.call(method='POST', path=['testdocument'], content={
@@ -626,7 +626,7 @@ class DbRoutesTest(tests.Test):
                 )
         sys.path.insert(0, '.')
 
-        volume = db.Volume('.', ['foo.bar'])
+        this.volume = volume = db.Volume('.', ['foo.bar'])
         volume['bar'].find()
         assert exists('index/bar')
         volume.close()
@@ -643,8 +643,8 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         ts = int(time.time())
         guid = this.call(method='POST', path=['testdocument'], content={})
@@ -672,8 +672,8 @@ class DbRoutesTest(tests.Test):
                 self.posts['prop'] = 'lost'
                 TestDocument.created_count += 1
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'})
         self.assertEqual('overriden', volume['testdocument'].get(guid)['prop'])
@@ -695,8 +695,8 @@ class DbRoutesTest(tests.Test):
             def localized_prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         prev_mtime = volume['testdocument'].get(guid)['mtime']
@@ -727,8 +727,8 @@ class DbRoutesTest(tests.Test):
                 self.posts['prop'] = 'lost'
                 TestDocument.updated_count += 1
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 'foo'})
         self.assertEqual('foo', volume['testdocument'].get(guid)['prop'])
@@ -746,8 +746,8 @@ class DbRoutesTest(tests.Test):
         class Document2(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [Document1, Document2])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document1, Document2])
+        router = Router(db.Routes())
 
         self.assertEqual(0, volume.seqno.value)
 
@@ -762,7 +762,7 @@ class DbRoutesTest(tests.Test):
 
         self.assertEqual(4, volume.seqno.value)
         volume.seqno.commit()
-        volume = db.Volume(tests.tmpdir, [Document1, Document2])
+        this.volume = volume = db.Volume(tests.tmpdir, [Document1, Document2])
         self.assertEqual(4, volume.seqno.value)
 
     def test_Events(self):
@@ -796,7 +796,7 @@ class DbRoutesTest(tests.Test):
         events = []
         this.localcast = lambda x: events.append(x)
         this.broadcast = lambda x: events.append(x)
-        volume = db.Volume(tests.tmpdir, [Document1, Document2])
+        this.volume = volume = db.Volume(tests.tmpdir, [Document1, Document2])
         volume['document1']
         volume['document2']
         coroutine.sleep(.1)
@@ -856,8 +856,8 @@ class DbRoutesTest(tests.Test):
             def blob(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={})
 
         self.assertRaises(http.Forbidden, this.call, method='POST', path=['testdocument'], content={'prop': 'value'})
@@ -878,8 +878,8 @@ class DbRoutesTest(tests.Test):
             def blob2(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         this.call(method='PUT', path=['testdocument', guid], content={'blob1': 'value1', 'blob2': 'value2'})
@@ -909,8 +909,8 @@ class DbRoutesTest(tests.Test):
                 blob.meta['foo'] = 'bar'
                 return blob
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={})
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content='old-blob')
@@ -940,8 +940,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return '_%s' % value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={})
 
         self.assertEqual('_1', this.call(method='GET', path=['testdocument', guid, 'prop']))
@@ -964,8 +964,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value + (self.orig('prop') or 0)
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 1})
         self.assertEqual(1, this.call(method='GET', path=['testdocument', guid, 'prop']))
@@ -1000,8 +1000,8 @@ class DbRoutesTest(tests.Test):
             def prop3(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop1': 1, 'prop2': 2, 'prop3': 3})
         self.assertEqual(4, this.call(method='GET', path=['testdocument', guid, 'prop1']))
@@ -1024,8 +1024,8 @@ class DbRoutesTest(tests.Test):
             def prop2(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['testdocument'], content={'prop1': 1})
         self.assertEqual(1, this.call(method='GET', path=['testdocument', guid, 'prop1']))
@@ -1039,8 +1039,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         this.call(method='POST', path=['testdocument'], content={'prop': 1})
         this.call(method='POST', path=['testdocument'], content={'prop': 2})
@@ -1062,8 +1062,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value + 1
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
 
         self.assertRaises(http.Forbidden, this.call, method='POST', path=['testdocument'], content={'prop': 1})
 
@@ -1078,8 +1078,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [TestDocument])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['testdocument'], content={'prop': 'set'})
 
         self.assertEqual(
@@ -1109,8 +1109,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
         this.principal = Principal('user')
 
         guid = this.call(method='POST', path=['document'], content={})
@@ -1153,8 +1153,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
 
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'UserName1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User Name2'})
@@ -1193,8 +1193,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
 
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
@@ -1294,8 +1294,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
 
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         this.principal = Principal('user1')
@@ -1363,8 +1363,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
 
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
@@ -1442,8 +1442,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
 
         volume['document'].create({'guid': '3', 'ctime': 3})
         volume['document'].create({'guid': '2', 'ctime': 2})
@@ -1464,8 +1464,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['document'], content={'prop': None})
         self.assertEqual('default', this.call(method='GET', path=['document', guid, 'prop']))
@@ -1483,8 +1483,8 @@ class DbRoutesTest(tests.Test):
                 return value
 
         events = []
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
 
@@ -1541,8 +1541,8 @@ class DbRoutesTest(tests.Test):
                 return value
 
         events = []
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
 
@@ -1585,8 +1585,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['document'], content={})
 
         self.assertRaises(http.Forbidden, this.call, method='POST', path=['document'], content={'prop': {}})
@@ -1605,8 +1605,8 @@ class DbRoutesTest(tests.Test):
             def blobs(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['document'], content={})
 
         agg1 = this.call(method='POST', path=['document', guid, 'props'], content=-1)
@@ -1658,8 +1658,8 @@ class DbRoutesTest(tests.Test):
                 return value
 
         events = []
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
         del events[:]
@@ -1681,8 +1681,8 @@ class DbRoutesTest(tests.Test):
                 return value
 
         events = []
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
 
@@ -1729,8 +1729,8 @@ class DbRoutesTest(tests.Test):
                 return value
 
         events = []
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         this.localcast = lambda x: events.append(x)
         guid = this.call(method='POST', path=['document'], content={})
         del events[:]
@@ -1755,8 +1755,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
         volume['user'].create({'guid': 'user1', 'pubkey': '', 'name': 'User1'})
         volume['user'].create({'guid': 'user2', 'pubkey': '', 'name': 'User2'})
 
@@ -1788,8 +1788,8 @@ class DbRoutesTest(tests.Test):
             def blobs(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
         guid = this.call(method='POST', path=['document'], content={})
 
         digest1 = hashlib.sha1('blob1').hexdigest()
@@ -1852,8 +1852,8 @@ class DbRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
 
         guid1 = this.call(method='POST', path=['document'], content={})
         this.call(method='POST', path=['document', guid1, 'comments'], content='a')
@@ -1898,8 +1898,8 @@ class DbRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume(tests.tmpdir, [User, Document])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [User, Document])
+        router = Router(db.Routes())
 
         guid = this.call(method='POST', path=['document'], content={})
         self.assertEqual('active', volume['document'][guid]['state'])
@@ -1929,8 +1929,8 @@ class DbRoutesTest(tests.Test):
             def postroute(self, result, exception):
                 return this.resource.properties(['guid', 'prop'])
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(Routes())
 
         self.assertEqual({
             'guid': 'guid',
@@ -1952,8 +1952,8 @@ class DbRoutesTest(tests.Test):
             def postroute(self, result, exception):
                 return this.resource.properties(['guid', 'prop'])
 
-        volume = db.Volume(tests.tmpdir, [Document])
-        router = Router(Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(Routes())
 
         this.call(method='POST', path=['document'], content={'guid': 'guid', 'prop': 'probe'})
         self.assertEqual({
@@ -1963,8 +1963,8 @@ class DbRoutesTest(tests.Test):
             this.call(method='DELETE', path=['document', 'guid']))
 
     def test_GetThumbs(self):
-        volume = db.Volume(tests.tmpdir, [])
-        router = Router(db.Routes(volume))
+        this.volume = volume = db.Volume(tests.tmpdir, [])
+        router = Router(db.Routes())
 
         blob = volume.blobs.post(SVG, thumbs=[100, 200])
         volume.blobs.populate_thumbs()

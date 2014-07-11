@@ -153,13 +153,12 @@ class Application(application.Daemon):
         logging.info('Start node mode=%s default_api=%s',
                 mode.value, default_api.value)
 
-        volume = model.Volume(data_root.value,
+        this.volume = model.Volume(data_root.value,
                 apis[default_api.value].RESOURCES)
-        stats_monitor = stats.Monitor(volume,
+        stats_monitor = stats.Monitor(this.volume,
                 stats.stats_step.value, stats.stats_rras.value)
         routes_args = {
                 'master_url': master_url.value,
-                'volume': volume,
                 'auth': SugarAuth(data_root.value),
                 'stats': stats_monitor,
                 'find_limit': find_limit.value,
@@ -171,7 +170,7 @@ class Application(application.Daemon):
             this.avatars = Avatars()
 
         self.jobs.spawn(stats_monitor.auto_commit)
-        self.jobs.spawn(volume.populate)
+        self.jobs.spawn(this.volume.populate)
         self.jobs.spawn(model.presolve, join(data_root.value, 'files'))
 
         logging.info('Listen requests on %s:%s', host.value, port.value)
@@ -195,7 +194,7 @@ class Application(application.Daemon):
             self.jobs.join()
         finally:
             stats_monitor.commit()
-            volume.close()
+            this.volume.close()
             os.unlink(backdoor.value)
 
     def shutdown(self):
@@ -234,10 +233,11 @@ class Application(application.Daemon):
     def resolve(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
         enforce(mode.value == 'master', 'Node is not master')
-        volume = model.Volume(data_root.value, master.MasterRoutes.RESOURCES)
+        this.volume = model.Volume(data_root.value,
+                master.MasterRoutes.RESOURCES)
         try:
-            volume.populate()
-            for doc in volume['context']:
+            this.volume.populate()
+            for doc in this.volume['context']:
                 if 'package' not in doc['type']:
                     continue
                 for key, agg in doc['releases'].items():
@@ -246,21 +246,22 @@ class Application(application.Daemon):
                     model.resolve_package(doc, key, agg['value'])
                 doc.post('releases')
         finally:
-            volume.close()
+            this.volume.close()
         model.presolve(join(data_root.value, 'files'), block=False)
 
     @application.command(
             're-generate node statistics', name='stat')
     def stat(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
-        volume = model.Volume(data_root.value, master.MasterRoutes.RESOURCES)
-        stats_monitor = stats.Monitor(volume,
+        this.volume = model.Volume(data_root.value,
+                master.MasterRoutes.RESOURCES)
+        stats_monitor = stats.Monitor(this.volume,
                 stats.stats_step.value, stats.stats_rras.value)
         try:
-            volume.populate()
+            this.volume.populate()
             stats_monitor.regen()
         finally:
-            volume.close()
+            this.volume.close()
 
     @application.command(
             're-generate calculated property values', name='calc')

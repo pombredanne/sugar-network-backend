@@ -284,13 +284,12 @@ class Test(unittest.TestCase):
         if auth is None:
             auth = SugarAuth('master')
         #self.touch(('master/etc/private/node', file(join(root, 'data', NODE_UID)).read()))
-        self.node_volume = NodeVolume('master', classes)
-        self.node_routes = routes(self.master_url, volume=self.node_volume, auth=auth)
+        this.volume = self.node_volume = NodeVolume('master', classes)
+        self.node_routes = routes(self.master_url, auth=auth)
         self.node_router = Router(self.node_routes)
         self.node = coroutine.WSGIServer(('127.0.0.1', 7777), self.node_router)
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
-        this.volume = self.node_volume
         this.call = self.node_router.call
         return self.node_volume
 
@@ -301,10 +300,10 @@ class Test(unittest.TestCase):
             auth = SugarAuth('master')
 
         def _node():
-            volume = NodeVolume('master', classes)
+            this.volume = NodeVolume('master', classes)
             if cb is not None:
-                cb(volume)
-            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(self.master_url, volume=volume, auth=auth)))
+                cb(this.volume)
+            anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(self.master_url, auth=auth)))
             anode.serve_forever()
 
         pid = self.fork(_node)
@@ -312,39 +311,36 @@ class Test(unittest.TestCase):
         return pid
 
     def start_client(self):
-        volume = client_model.Volume('client')
-        self.client_routes = ClientRoutes(volume, SugarCreds(client.keyfile.value))
+        this.volume = client_model.Volume('client')
+        self.client_routes = ClientRoutes(SugarCreds(client.keyfile.value))
         self.client_routes.connect(client.api.value)
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
-        this.volume = volume
-        return volume
+        return this.volume
 
     def start_online_client(self, classes=None):
         self.fork_master(classes)
         this.injector = Injector('client/cache')
-        home_volume = LocalVolume('client', classes)
-        self.client_routes = ClientRoutes(home_volume, SugarCreds(client.keyfile.value))
+        this.volume = LocalVolume('client', classes)
+        self.client_routes = ClientRoutes(SugarCreds(client.keyfile.value))
         self.client_routes.connect(client.api.value)
         self.wait_for_events(self.client_routes, event='inline', state='online').wait()
         self.client = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(self.client.serve_forever)
         coroutine.dispatch()
-        this.volume = home_volume
-        return home_volume
+        return this.volume
 
     def start_offline_client(self):
         this.injector = Injector('client/cache')
-        home_volume = client_model.Volume('client')
-        self.client_routes = ClientRoutes(home_volume, SugarCreds(client.keyfile.value))
+        this.volume = client_model.Volume('client')
+        self.client_routes = ClientRoutes(SugarCreds(client.keyfile.value))
         server = coroutine.WSGIServer(('127.0.0.1', client.ipc_port.value), Router(self.client_routes))
         coroutine.spawn(server.serve_forever)
         coroutine.dispatch()
-        this.volume = home_volume
-        return home_volume
+        return this.volume
 
     def wait_for_events(self, cp=None, **condition):
         if cp is None:

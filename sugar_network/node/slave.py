@@ -39,8 +39,8 @@ class SlaveRoutes(NodeRoutes):
 
     RESOURCES = (model.User, Context, Post, Report)
 
-    def __init__(self, master_url, volume, **kwargs):
-        guid_path = join(volume.root, 'etc', 'node')
+    def __init__(self, master_url, **kwargs):
+        guid_path = join(this.volume.root, 'etc', 'node')
         if exists(guid_path):
             with file(guid_path) as f:
                 guid = f.read().strip()
@@ -50,8 +50,8 @@ class SlaveRoutes(NodeRoutes):
                 os.makedirs(dirname(guid_path))
             with file(guid_path, 'w') as f:
                 f.write(guid)
-        NodeRoutes.__init__(self, guid, volume=volume, **kwargs)
-        vardir = join(volume.root, 'var')
+        NodeRoutes.__init__(self, guid, **kwargs)
+        vardir = join(this.volume.root, 'var')
         self._push_r = toolkit.Bin(join(vardir, 'push'), [[1, None]])
         self._pull_r = toolkit.Bin(join(vardir, 'pull'), [[1, None]])
         self._master_guid = urlsplit(master_url).netloc

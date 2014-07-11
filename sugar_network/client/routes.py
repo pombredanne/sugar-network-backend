@@ -40,13 +40,13 @@ _logger = logging.getLogger('client.routes')
 
 class ClientRoutes(FrontRoutes, JournalRoutes):
 
-    def __init__(self, home_volume, creds, no_subscription=False):
+    def __init__(self, creds, no_subscription=False):
         FrontRoutes.__init__(self)
         JournalRoutes.__init__(self)
 
         this.localcast = this.broadcast
 
-        self._local = _LocalRoutes(home_volume)
+        self._local = _LocalRoutes()
         self._remote = None
         self._remote_urls = []
         self._creds = creds
@@ -56,7 +56,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         self._sync_jobs = coroutine.Pool()
         self._no_subscription = no_subscription
         self._refresh_r = toolkit.Bin(
-                join(home_volume.root, 'var', 'refresh'), [[1, None]])
+                join(this.volume.root, 'var', 'refresh'), [[1, None]])
 
     def connect(self, api=None):
         if self._connect_jobs:
@@ -67,12 +67,11 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         else:
             self._remote_urls.append(api)
         self._connect_jobs.spawn(self._wait_for_connectivity)
-        self._local.volume.populate()
+        this.volume.populate()
 
     def close(self):
         self._connect_jobs.kill()
         self._got_offline()
-        self._local.volume.close()
         self._refresh_r.commit()
 
     @fallbackroute('GET', ['hub'])
@@ -186,7 +185,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             # To track updates for checked-in resources
             reply.append('mtime')
         result = self.fallback()
-        directory = self._local.volume[request.resource]
+        directory = this.volume[request.resource]
         for item in result['result']:
             checkin = directory[item['guid']]
             if not checkin.exists:
@@ -201,7 +200,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
     @route('GET', [None, None], mime_type='application/json')
     def get(self):
         request = this.request
-        if self._local.volume[request.resource][request.guid].exists:
+        if this.volume[request.resource][request.guid].exists:
             return self._local.call(request, this.response)
         else:
             return self.fallback()
@@ -215,7 +214,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         if not self.inline():
             return self.fallback()
         request = this.request
-        local = self._local.volume[request.resource][request.guid]
+        local = this.volume[request.resource][request.guid]
         if not local.exists or not local.repr('pins'):
             return self.fallback()
         self._pull_checkin(request, None, 'pull')
@@ -257,10 +256,10 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         enforce(not self.inline())
         _logger.debug('Got online on %r', self._remote)
         self._inline.set()
-        self._local.volume.mute = True
+        this.volume.mute = True
         this.injector.api = url
         this.localcast({'event': 'inline', 'state': 'online'})
-        if not self._local.volume.empty:
+        if not this.volume.empty:
             self._sync_jobs.spawn_later(_SYNC_TIMEOUT, self._sync)
 
     def _got_offline(self):
@@ -270,7 +269,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         if self.inline():
             _logger.debug('Got offline on %r', self._remote)
             self._inline.clear()
-            self._local.volume.mute = False
+            this.volume.mute = False
             this.injector.api = None
             this.localcast({'event': 'inline', 'state': 'offline'})
         self._sync_jobs.kill()
@@ -352,7 +351,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         self._inline_job.spawn_later(timeout, connect)
 
     def _checkin_context(self, pin=None):
-        contexts = self._local.volume['context']
+        contexts = this.volume['context']
         local_context = contexts[this.request.guid]
         if not local_context.exists:
             enforce(self.inline(), http.ServiceUnavailable,
@@ -366,7 +365,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             contexts.update(local_context.guid, {'pins': pins + [pin]})
 
     def _checkout_context(self, pin=None):
-        contexts = self._local.volume['context']
+        contexts = this.volume['context']
         local_context = contexts[this.request.guid]
         if not local_context.exists:
             return
@@ -383,7 +382,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         request.headers[header_key] = self._refresh_r.value
         packet = packets.decode(self.fallback(request, response))
 
-        volume = self._local.volume
+        volume = this.volume
         volume[request.resource].patch(request.guid, packet['patch'])
         for blob in packet:
             volume.blobs.patch(blob)
@@ -393,7 +392,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
         _logger.debug('Start pulling checkin updates')
 
         response = Response()
-        for directory in self._local.volume.values():
+        for directory in this.volume.values():
             if directory.empty:
                 continue
             request = Request(method='GET',
@@ -410,7 +409,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
                     ranges.exclude(self._refresh_r.value, r)
 
     def _push(self):
-        volume = self._local.volume
+        volume = this.volume
 
         _logger.debug('Start pushing offline updates')
 
@@ -437,7 +436,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
     def _sync(self):
         try:
             self._pull()
-            if self._local.volume.has_seqno:
+            if this.volume.has_seqno:
                 self._push()
         except:
             this.localcast({'event': 'sync', 'state': 'failed'})
@@ -448,8 +447,8 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
 
 class _LocalRoutes(db.Routes, Router):
 
-    def __init__(self, volume):
-        db.Routes.__init__(self, volume)
+    def __init__(self):
+        db.Routes.__init__(self)
         Router.__init__(self, self)
 
 

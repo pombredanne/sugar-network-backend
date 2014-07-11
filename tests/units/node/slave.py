@@ -17,6 +17,7 @@ from sugar_network.node.auth import RootAuth
 from sugar_network.node.model import User
 from sugar_network.db.volume import Volume
 from sugar_network.toolkit.router import Router, File
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit import coroutine, http, packets
 
 
@@ -48,8 +49,8 @@ class SlaveTest(tests.Test):
                 return value
 
         self.Document = Document
-        self.slave_volume = Volume('slave', [User, Document])
-        self.slave_routes = SlaveRoutes(self.master_url, volume=self.slave_volume, auth=RootAuth())
+        this.volume = self.slave_volume = Volume('slave', [User, Document])
+        self.slave_routes = SlaveRoutes(self.master_url, auth=RootAuth())
         self.slave_server = coroutine.WSGIServer(('127.0.0.1', 8888), Router(self.slave_routes))
         coroutine.spawn(self.slave_server.serve_forever)
         coroutine.dispatch()

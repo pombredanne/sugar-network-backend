@@ -31,8 +31,7 @@ _logger = logging.getLogger('db.routes')
 
 class Routes(object):
 
-    def __init__(self, volume, find_limit=None):
-        this.volume = self.volume = volume
+    def __init__(self, find_limit=None):
         this.add_property('resource', _get_resource)
         self._find_limit = find_limit
 
@@ -47,7 +46,7 @@ class Routes(object):
             if this.principal:
                 authors = doc.posts['author'] = {}
                 self._useradd(authors, this.principal, Author.ORIGINAL)
-            self.volume[this.request.resource].create(doc.posts)
+            this.volume[this.request.resource].create(doc.posts)
             this.request.guid = doc.guid
             doc.routed_created()
             return doc.guid
@@ -58,7 +57,7 @@ class Routes(object):
             if not doc.posts:
                 return
             doc.routed_updating()
-            self.volume[this.request.resource].update(doc.guid, doc.posts)
+            this.volume[this.request.resource].update(doc.guid, doc.posts)
             doc.routed_updated()
 
     @route('PUT', [None, None, None], acl=ACL.AUTH | ACL.AUTHOR)
@@ -71,7 +70,7 @@ class Routes(object):
     def delete(self):
         # Node data should not be deleted immediately
         # to make master-slave synchronization possible
-        directory = self.volume[this.request.resource]
+        directory = this.volume[this.request.resource]
         doc = directory[this.request.guid]
         enforce(doc.available, http.NotFound, 'Resource not found')
         doc.posts['state'] = 'deleted'
@@ -91,32 +90,32 @@ class Routes(object):
             _logger.warning('The find limit is restricted to %s',
                     self._find_limit)
             request['limit'] = self._find_limit
-        documents, total = self.volume[request.resource].find(
+        documents, total = this.volume[request.resource].find(
                 not_state='deleted', **request)
         result = [self._postget(i, reply) for i in documents]
         return {'total': total, 'result': result}
 
     @route('GET', [None, None], cmd='exists', mime_type='application/json')
     def exists(self):
-        return self.volume[this.request.resource][this.request.guid].available
+        return this.volume[this.request.resource][this.request.guid].available
 
     @route('GET', [None, None], arguments={'reply': list},
             mime_type='application/json')
     def get(self, reply):
         if not reply:
             reply = []
-            for prop in self.volume[this.request.resource].metadata.values():
+            for prop in this.volume[this.request.resource].metadata.values():
                 if prop.acl & ACL.READ and not isinstance(prop, Aggregated):
                     reply.append(prop.name)
         self._preget()
-        doc = self.volume[this.request.resource].get(this.request.guid)
+        doc = this.volume[this.request.resource].get(this.request.guid)
         enforce(doc.available, http.NotFound, 'Resource not found')
         return self._postget(doc, reply)
 
     @route('GET', [None, None, None], mime_type='application/json')
     def get_prop(self):
         request = this.request
-        directory = self.volume[request.resource]
+        directory = this.volume[request.resource]
         directory.metadata[request.prop].assert_access(ACL.READ)
         return directory[request.guid].repr(request.prop)
 
@@ -141,7 +140,7 @@ class Routes(object):
 
     @route('GET', [None, None, None, None], mime_type='application/json')
     def get_aggprop(self):
-        doc = self.volume[this.request.resource][this.request.guid]
+        doc = this.volume[this.request.resource][this.request.guid]
         prop = doc.metadata[this.request.prop]
         prop.assert_access(ACL.READ)
         enforce(isinstance(prop, Aggregated), http.BadRequest,
@@ -156,7 +155,7 @@ class Routes(object):
     def useradd(self, user, role):
         request = this.request
         enforce(user, "Argument 'user' is not specified")
-        directory = self.volume[request.resource]
+        directory = this.volume[request.resource]
         authors = directory.get(request.guid)['author']
         self._useradd(authors, user, role)
         directory.update(request.guid, {'author': authors})
@@ -166,7 +165,7 @@ class Routes(object):
         request = this.request
         enforce(user, "Argument 'user' is not specified")
         enforce(user != this.principal, 'Cannot remove yourself')
-        directory = self.volume[request.resource]
+        directory = this.volume[request.resource]
         authors = directory.get(request.guid)['author']
         enforce(user in authors, 'No such user')
         del authors[user]
@@ -174,16 +173,16 @@ class Routes(object):
 
     @route('GET', ['blobs', None])
     def blobs(self, thumb):
-        blob = self.volume.blobs.get(this.request.guid, thumb=thumb)
+        blob = this.volume.blobs.get(this.request.guid, thumb=thumb)
         enforce(blob is not None, http.NotFound, 'No such blob')
         if thumb is '' and 'x-thumbs' in blob.meta:
             thumb = blob.meta['x-thumbs'].split()[0]
-            blob = self.volume.blobs.get(this.request.guid, thumb=thumb)
+            blob = this.volume.blobs.get(this.request.guid, thumb=thumb)
         return blob
 
     @fallbackroute('GET', ['assets'])
     def assets(self):
-        return self.volume.blobs.get(this.request.path)
+        return this.volume.blobs.get(this.request.path)
 
     @contextmanager
     def _post(self, access):
@@ -192,7 +191,7 @@ class Routes(object):
 
         if access == ACL.CREATE:
             guid = content.get('guid') or toolkit.uuid()
-            doc = self.volume[this.request.resource][guid]
+            doc = this.volume[this.request.resource][guid]
             enforce(not doc.exists, 'Resource already exists')
             doc.posts['guid'] = guid
             for name, prop in doc.metadata.items():
@@ -201,7 +200,7 @@ class Routes(object):
         else:
             enforce('guid' not in content, http.BadRequest,
                     'GUID in cannot be changed')
-            doc = self.volume[this.request.resource][this.request.guid]
+            doc = this.volume[this.request.resource][this.request.guid]
             enforce(doc.available, 'Resource not found')
 
         def teardown(new, old):
@@ -235,7 +234,7 @@ class Routes(object):
         if not reply:
             this.request['reply'] = ('guid',)
         else:
-            directory = self.volume[this.request.resource]
+            directory = this.volume[this.request.resource]
             for prop in reply:
                 directory.metadata[prop].assert_access(ACL.READ)
 
@@ -254,7 +253,7 @@ class Routes(object):
 
     def _aggpost(self, acl):
         request = this.request
-        doc = self.volume[request.resource][request.guid]
+        doc = this.volume[request.resource][request.guid]
         prop = doc.metadata[request.prop]
         enforce(isinstance(prop, Aggregated), http.BadRequest,
                 'Property is not aggregated')
@@ -285,7 +284,7 @@ class Routes(object):
             self._useradd(authors, this.principal, role)
         doc.posts[request.prop] = {aggid: aggvalue}
         doc.routed_updating()
-        self.volume[request.resource].update(request.guid, doc.posts)
+        this.volume[request.resource].update(request.guid, doc.posts)
         doc.routed_updated()
 
         return aggid

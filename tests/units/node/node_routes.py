@@ -954,8 +954,8 @@ class NodeRoutesTest(tests.Test):
             def prop4(self, value):
                 return value
 
-        volume = db.Volume('.', [Document])
-        router = Router(NodeRoutes('node', volume=volume))
+        this.volume = volume = db.Volume('.', [Document])
+        router = Router(NodeRoutes('node'))
 
         volume['document'].create({
             'guid': 'guid',
@@ -1048,8 +1048,8 @@ class NodeRoutesTest(tests.Test):
         class User(db.Resource):
             pass
 
-        volume = db.Volume('.', [User])
-        router = Router(NodeRoutes('node', volume=volume))
+        this.volume = volume = db.Volume('.', [User])
+        router = Router(NodeRoutes('node'))
         volume['user'].create({'guid': 'guid'})
 
         self.assertRaises(http.BadRequest, this.call, method='GET', path=['user', 'guid'], cmd='diff')
@@ -1062,8 +1062,8 @@ class NodeRoutesTest(tests.Test):
             def prop(self, value):
                 return value
 
-        volume = db.Volume('.', [Document])
-        router = Router(NodeRoutes('node', volume=volume))
+        this.volume = volume = db.Volume('.', [Document])
+        router = Router(NodeRoutes('node'))
 
         volume['document'].create({'guid': '1', 'prop': 'q'})
         volume['document'].create({'guid': '2', 'prop': 'w'})
@@ -1096,8 +1096,8 @@ class NodeRoutesTest(tests.Test):
         class Document(db.Resource):
             pass
 
-        volume = db.Volume('.', [Document])
-        router = Router(NodeRoutes('node', volume=volume))
+        this.volume = volume = db.Volume('.', [Document])
+        router = Router(NodeRoutes('node'))
 
         volume['document'].create({'guid': '1'})
         volume['document'].create({'guid': '2'})
@@ -1132,8 +1132,8 @@ class NodeRoutesTest(tests.Test):
         class User(db.Resource):
             pass
 
-        volume = db.Volume('.', [User])
-        router = Router(NodeRoutes('node', volume=volume))
+        this.volume = volume = db.Volume('.', [User])
+        router = Router(NodeRoutes('node'))
         volume['user'].create({'guid': '1'})
 
         self.assertRaises(http.BadRequest, this.call, method='GET', path=['user'], cmd='diff')

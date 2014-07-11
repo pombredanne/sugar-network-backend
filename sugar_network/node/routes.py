@@ -46,7 +46,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
         self._guid = guid
         self._auth = auth
         self._stats = stats
-        self._batch_dir = join(self.volume.root, 'batch')
+        self._batch_dir = join(this.volume.root, 'batch')
         self._repos = []
 
         if not exists(self._batch_dir):
@@ -98,7 +98,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
                 result = model.diff_resource(pull)
         if exception is None and self._stats is not None:
             self._stats.count(request)
-        this.response.headers['seqno'] = self.volume.seqno.value
+        this.response.headers['seqno'] = this.volume.seqno.value
         return result
 
     @route('GET', cmd='logon', acl=ACL.AUTH)
@@ -115,8 +115,8 @@ class NodeRoutes(db.Routes, FrontRoutes):
     def status(self):
         return {'guid': self.guid,
                 'seqno': {
-                    'db': self.volume.seqno.value,
-                    'releases': self.volume.release_seqno.value,
+                    'db': this.volume.seqno.value,
+                    'releases': this.volume.release_seqno.value,
                     },
                 'os': self._repos,
                 # TODO
@@ -143,7 +143,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
         if path and path[-1] == 'updates':
             result = []
             last_modified = 0
-            for blob in self.volume.blobs.diff(
+            for blob in this.volume.blobs.diff(
                     [[this.request.if_modified_since + 1, None]],
                     join(*path[:-1]), recursive=False):
                 if '.' in blob.name:
@@ -155,7 +155,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
                 this.response.last_modified = last_modified
             return result
 
-        blob = self.volume.blobs.get(join(*path))
+        blob = this.volume.blobs.get(join(*path))
         if isinstance(blob, File):
             return blob
         else:
@@ -166,12 +166,12 @@ class NodeRoutes(db.Routes, FrontRoutes):
             arguments={'initial': False},
             mime_type='application/json', acl=ACL.AUTH)
     def submit_release(self, initial):
-        blob = self.volume.blobs.post(
+        blob = this.volume.blobs.post(
                 this.request.content, this.request.content_type)
         try:
             context, release = model.load_bundle(blob, initial=initial)
         except Exception:
-            self.volume.blobs.delete(blob.digest)
+            this.volume.blobs.delete(blob.digest)
             raise
         this.call(method='POST', path=['context', context, 'releases'],
                 content_type='application/json', content=release)
@@ -192,7 +192,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
                     "'assume' should be formed as '<CONTEXT>-<VERSION>")
             context, version = item.split('-', 1)
             assume_.setdefault(context, []).append(parse_version(version))
-        solution = model.solve(self.volume, this.request.guid, **this.request)
+        solution = model.solve(this.volume, this.request.guid, **this.request)
         enforce(solution is not None, 'Failed to solve')
         return solution
 
@@ -206,7 +206,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
             )
     def clone(self, assume):
         solution = self.solve(assume)
-        return self.volume.blobs.get(solution[this.request.guid]['blob'])
+        return this.volume.blobs.get(solution[this.request.guid]['blob'])
 
     @route('GET', [None, None], cmd='diff')
     def diff_resource(self):
@@ -223,7 +223,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
         in_r = request.headers['ranges'] or [[1, None]]
         diff = {}
 
-        for doc in self.volume[request.resource].diff(in_r):
+        for doc in this.volume[request.resource].diff(in_r):
             out_r = diff.get(doc[key])
             if out_r is None:
                 if len(diff) >= _GROUPED_DIFF_LIMIT:
@@ -266,7 +266,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
 
     def reload(self):
         try:
-            sugars = self.volume['context']['sugar']['releases']
+            sugars = this.volume['context']['sugar']['releases']
         except Exception:
             pass
         else:

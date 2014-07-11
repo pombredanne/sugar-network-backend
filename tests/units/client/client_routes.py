@@ -29,8 +29,8 @@ import requests
 class ClientRoutesTest(tests.Test):
 
     def test_Hub(self):
-        volume = Volume('db')
-        cp = ClientRoutes(volume, SugarCreds(client.keyfile.value))
+        this.volume = Volume('db')
+        cp = ClientRoutes(SugarCreds(client.keyfile.value))
         server = coroutine.WSGIServer(
                 ('127.0.0.1', client.ipc_port.value), Router(cp))
         coroutine.spawn(server.serve_forever)
@@ -879,7 +879,8 @@ class ClientRoutesTest(tests.Test):
         routes._RECONNECT_TIMEOUT = 2
 
         this.injector = Injector('client')
-        cp = ClientRoutes(Volume('client'), SugarCreds(client.keyfile.value))
+        this.volume = Volume('client')
+        cp = ClientRoutes(SugarCreds(client.keyfile.value))
         cp.connect(client.api.value)
         assert not cp.inline()
 
@@ -1042,7 +1043,7 @@ class ClientRoutesTest(tests.Test):
             RESOURCES = []
             subscribe_tries = 0
 
-            def __init__(self, master_url, volume, auth, *args):
+            def __init__(self, master_url, auth, *args):
                 pass
 
             @route('GET', cmd='status', mime_type='application/json')
