@@ -430,7 +430,10 @@ class Author(Dict):
                     avatar = db_user.repr('avatar')
                     user['name'] = db_user['name']
                     user['role'] |= Author.INSYSTEM
-            user['avatar'] = avatar or File(digest='assets/missing-avatar.png')
+            if 'avatar' not in user:
+                if not avatar:
+                    avatar = File(digest='assets/missing-avatar.png')
+                user['avatar'] = avatar
 
     def encode(self, value):
         for guid, props in value.items():
