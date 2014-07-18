@@ -1589,7 +1589,6 @@ class DbRoutesTest(tests.Test):
         router = Router(db.Routes())
         guid = this.call(method='POST', path=['document'], content={})
 
-        self.assertRaises(http.Forbidden, this.call, method='POST', path=['document'], content={'prop': {}})
         self.assertRaises(http.Forbidden, this.call, method='PUT', path=['document', guid], content={'prop': {}})
 
     def test_AggpropSubtypeCasts(self):
@@ -1892,6 +1891,42 @@ class DbRoutesTest(tests.Test):
         self.assertEqual(
                 sorted([guid2, guid3]),
                 sorted([i['guid'] for i in this.call(method='GET', path=['document'], query='comments:c')['result']]))
+
+    def test_CreateAggregatedAtOnce(self):
+        self.override(time, 'time', lambda: 0)
+
+        class Document(db.Resource):
+
+            @db.stored_property(db.Aggregated, db.Blob())
+            def blobs(self, value):
+                return value
+
+        this.principal = Principal(tests.UID)
+        this.volume = db.Volume(tests.tmpdir, [Document, User])
+        router = Router(db.Routes())
+        digest1 = hashlib.sha1('blob1').hexdigest()
+        digest2 = hashlib.sha1('blob2').hexdigest()
+        digest3 = hashlib.sha1('blob3').hexdigest()
+
+        guid = this.call(method='POST', path=['document'], content={
+            'blobs': ["blob1"],
+            })
+        self.assertEqual({
+            digest1: {'seqno': 2, 'ctime': 0, 'value': digest1, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}},
+            },
+            this.volume['document'].get(guid)['blobs'])
+        assert this.volume.blobs.get(digest1)
+
+        guid = this.call(method='POST', path=['document'], content={
+            'blobs': ["blob2", "blob3"],
+            })
+        self.assertEqual({
+            digest2: {'seqno': 5, 'ctime': 0, 'value': digest2, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}},
+            digest3: {'seqno': 5, 'ctime': 0, 'value': digest3, 'author': {tests.UID: {'role': db.Author.ORIGINAL}}},
+            },
+            this.volume['document'].get(guid)['blobs'])
+        assert this.volume.blobs.get(digest2)
+        assert this.volume.blobs.get(digest3)
 
     def test_HandleDeletes(self):
 

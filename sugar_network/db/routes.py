@@ -216,12 +216,16 @@ class Routes(object):
                     doc.posts[name] = prop.default
                     continue
                 try:
-                    doc.posts[name] = prop.typecast(value)
+                    doc.posts[name] = value = prop.typecast(value)
                 except Exception, error:
                     error = 'Value %r for %r property is invalid: %s' % \
                             (value, prop.name, error)
                     _logger.exception(error)
                     raise http.BadRequest(error)
+                if isinstance(prop, Aggregated):
+                    for aggvalue in value.values():
+                        authors = aggvalue['author'] = {}
+                        self._useradd(authors, this.principal, Author.ORIGINAL)
             yield doc
         except Exception:
             teardown(doc.posts, doc.origs)
@@ -268,15 +272,7 @@ class Routes(object):
 
         aggvalue = {}
         if acl != ACL.REMOVE:
-            value = prop.subtypecast(request.content)
-            if type(value) is tuple:
-                aggid_, value = value
-                enforce(not aggid or aggid == aggid_, http.BadRequest,
-                        'Wrong aggregated id')
-                aggid = aggid_
-            elif not aggid:
-                aggid = toolkit.uuid()
-            aggvalue['value'] = value
+            aggid, aggvalue['value'] = prop.subtypecast(request.content, aggid)
 
         if this.principal:
             authors = aggvalue['author'] = {}

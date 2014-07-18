@@ -370,15 +370,25 @@ class Localized(Composite):
 
 class Aggregated(Composite):
 
-    def __init__(self, subtype=None, acl=ACL.READ | ACL.INSERT | ACL.REMOVE,
-            **kwargs):
-        enforce(not (acl & (ACL.CREATE | ACL.WRITE)),
-                'ACL.CREATE|ACL.WRITE not allowed for aggregated properties')
+    def __init__(self, subtype=None,
+            acl=ACL.CREATE | ACL.READ | ACL.INSERT | ACL.REMOVE, **kwargs):
+        enforce(not (acl & ACL.WRITE),
+                'ACL.WRITE not allowed for aggregated properties')
         Property.__init__(self, acl=acl, default={}, **kwargs)
         self._subtype = subtype or Property()
 
-    def subtypecast(self, value):
-        return self._subtype.typecast(value)
+    def subtypecast(self, value, aggid=None):
+        value = self._subtype.typecast(value)
+        if type(value) is tuple:
+            aggid_, value = value
+            enforce(not aggid or aggid == aggid_, http.BadRequest,
+                    'Wrong aggregated id')
+            aggid = aggid_
+        elif isinstance(value, File.Digest):
+            aggid = value
+        elif not aggid:
+            aggid = toolkit.uuid()
+        return aggid, value
 
     def subreprcast(self, value):
         return self._subtype.reprcast(value)
@@ -387,7 +397,13 @@ class Aggregated(Composite):
         self._subtype.teardown(value)
 
     def typecast(self, value):
-        raise RuntimeError('Aggregated properties cannot be set directly')
+        enforce(type(value) is list, http.BadRequest,
+                'Aggregated value should be a list')
+        result = {}
+        for aggvalue in value:
+            aggid, aggvalue = self.subtypecast(aggvalue)
+            result[aggid] = {'value': aggvalue}
+        return result
 
     def reprcast(self, value):
         result = []
