@@ -121,8 +121,7 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
             result = self.fallback()
             result['route'] = 'proxy'
         else:
-            result = {'route': 'offline'}
-        result['guid'] = self._creds.login
+            result = {'guid': self._creds.login, 'route': 'offline'}
         return result
 
     @route('POST', ['report'], cmd='submit', mime_type='text/event-stream')

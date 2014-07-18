@@ -171,9 +171,13 @@ class ClientRoutesTest(tests.Test):
         self.fork_master()
         self.wait_for_events(event='inline', state='online').wait()
 
-        self.assertEqual(
-                {'guid': tests.UID, 'route': 'proxy'},
-                ipc.get(cmd='whoami'))
+        self.assertEqual({
+            'guid': tests.UID,
+            'name': 'test',
+            'avatar': 'http://127.0.0.1:7777/assets/missing-avatar.png',
+            'route': 'proxy',
+            },
+            ipc.get(cmd='whoami'))
 
     def test_Events(self):
         self.override(time, 'time', lambda: 0)

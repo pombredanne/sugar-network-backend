@@ -105,11 +105,15 @@ class NodeRoutes(db.Routes, FrontRoutes):
     def logon(self):
         pass
 
-    @route('GET', cmd='whoami', mime_type='application/json')
+    @route('GET', cmd='whoami', mime_type='application/json', acl=ACL.AUTH)
     def whoami(self):
-        return {'guid': this.principal,
-                'route': 'direct',
-                }
+        result = {'route': 'direct'}
+        user = this.volume['user'][this.principal]
+        if user.available:
+            result['guid'] = user.guid
+            result['name'] = user.repr('name')
+            result['avatar'] = user.repr('avatar')
+        return result
 
     @route('GET', cmd='status', mime_type='application/json')
     def status(self):
