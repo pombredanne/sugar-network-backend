@@ -64,7 +64,7 @@ class Context(db.Resource):
         return value
 
     @db.stored_property(db.Aggregated, subtype=db.Blob(),
-            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
+            acl=ACL.READ | ACL.CREATE | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
     def previews(self, value):
         return value
 

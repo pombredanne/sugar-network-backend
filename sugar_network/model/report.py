@@ -61,6 +61,6 @@ class Report(db.Resource):
         return value
 
     @db.stored_property(db.Aggregated, subtype=db.Blob(),
-            acl=ACL.READ | ACL.INSERT | ACL.AUTHOR)
+            acl=ACL.READ | ACL.CREATE | ACL.INSERT | ACL.AUTHOR)
     def logs(self, value):
         return value

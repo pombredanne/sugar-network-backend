@@ -71,7 +71,7 @@ class Post(db.Resource):
         return value
 
     @db.stored_property(db.Aggregated, subtype=db.Blob(),
-            acl=ACL.READ | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
+            acl=ACL.READ | ACL.CREATE | ACL.INSERT | ACL.REMOVE | ACL.AUTHOR)
     def attachments(self, value):
         return value
 
