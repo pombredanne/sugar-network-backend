@@ -87,6 +87,15 @@ def ascii(value):
     return value
 
 
+def tobytes(value):
+    if not isinstance(value, unicode):
+        return value
+    result = bytearray(len(value))
+    for pos, char in enumerate(value):
+        result[pos] = ord(char) & 0xFF
+    return result
+
+
 def uuid():
     """Generate GUID value.
 

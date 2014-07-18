@@ -326,7 +326,7 @@ class Blob(Property):
             mime_type = this.request.content_type
         if not mime_type:
             mime_type = self.mime_type
-        return this.volume.blobs.post(value, mime_type).digest
+        return this.volume.blobs.post(toolkit.tobytes(value), mime_type).digest
 
     def reprcast(self, value):
         if not value:
