@@ -309,23 +309,27 @@ class Blob(Property):
         self.mime_type = mime_type
 
     def typecast(self, value):
-        if isinstance(value, File):
-            return value.digest
-        if isinstance(value, File.Digest):
-            return value
-
-        enforce(value is None or isinstance(value, basestring) or
-                hasattr(value, 'read'),
-                http.BadRequest, 'Inappropriate blob value')
-
-        if not value:
-            return ''
-
         mime_type = None
-        if this.request.prop == self.name:
+
+        if value is None:
+            return
+        elif isinstance(value, File):
+            return value.digest
+        elif isinstance(value, File.Digest):
+            return value
+        elif isinstance(value, dict):
+            mime_type = value.get('content-type')
+            value = toolkit.tobytes(value.get('content'))
+        elif isinstance(value, basestring):
+            value = toolkit.tobytes(value)
+        elif not hasattr(value, 'read'):
+            raise http.BadRequest('Inappropriate blob value')
+
+        if not mime_type and this.request.prop == self.name:
             mime_type = this.request.content_type
         if not mime_type:
             mime_type = self.mime_type
+
         return this.volume.blobs.post(toolkit.tobytes(value), mime_type).digest
 
     def reprcast(self, value):

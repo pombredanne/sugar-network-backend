@@ -184,6 +184,27 @@ class DbRoutesTest(tests.Test):
         this.call(method='PUT', path=['testdocument', guid, 'blob'], content=None)
         assert this.call(method='GET', path=['testdocument', guid, 'blob']) is File.AWAY
 
+    def test_SetBLOBsByDict(self):
+
+        class TestDocument(db.Resource):
+
+            @db.stored_property(db.Blob)
+            def blob(self, value):
+                return value
+
+        this.volume = db.Volume(tests.tmpdir, [TestDocument])
+        router = Router(db.Routes())
+
+        guid = this.call(method='POST', path=['testdocument'], content={
+            'blob': {'content': 'blob', 'content-type': 'foo/bar'},
+            })
+        self.assertEqual(
+                'blob',
+                file(this.call(method='GET', path=['testdocument', guid, 'blob']).path).read())
+        self.assertEqual(
+                'foo/bar',
+                this.call(method='GET', path=['testdocument', guid, 'blob']).meta['content-type'])
+
     def test_CreateBLOBsWithMeta(self):
 
         class TestDocument(db.Resource):
