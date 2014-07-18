@@ -61,7 +61,7 @@ class Routes(object):
     @route('GET', ['journal'], mime_type='application/json', arguments={
             'offset': int,
             'limit': int,
-            'reply': ('uid', 'title', 'description', 'preview'),
+            'reply': ['uid', 'title', 'description', 'preview'],
             'order_by': list,
             })
     def journal_find(self):
@@ -71,11 +71,14 @@ class Routes(object):
 
         request = this.request
         reply = request.pop('reply')
+        has_preview = False
         if 'preview' in reply:
             reply.remove('preview')
             has_preview = True
-        else:
-            has_preview = False
+        has_data = False
+        if 'data' in reply:
+            reply.remove('data')
+            has_data = True
         for key in ('timestamp', 'filesize', 'creation_time'):
             value = request.get(key)
             if not value or '..' not in value:
@@ -83,6 +86,8 @@ class Routes(object):
             start, end = value.split('..', 1)
             value = {'start': start or '0', 'end': end or str(sys.maxint)}
             request[key] = dbus.Dictionary(value)
+        if 'filesize' not in request:
+            request['filesize'] = {'start': 1}
         if 'uid' not in reply:
             reply.append('uid')
 
@@ -92,7 +97,9 @@ class Routes(object):
             # Do not break SN like API
             guid = item['guid'] = item.pop('uid')
             if has_preview:
-                item['preview'] = _preview(guid)
+                item['preview'] = _url(guid, 'preview')
+            if has_data:
+                item['data'] = _url(guid, 'data')
 
         return {'result': result, 'total': int(total)}
 
@@ -102,7 +109,7 @@ class Routes(object):
         return {'guid': guid,
                 'title': get(guid, 'title'),
                 'description': get(guid, 'description'),
-                'preview': _preview(guid),
+                'preview': _url(guid, 'preview'),
                 }
 
     @route('GET', ['journal', None, 'preview'])
@@ -194,7 +201,6 @@ def _prop_path(guid, prop):
     return _ds_path(guid, 'metadata', prop)
 
 
-def _preview(guid):
-    return {'url': 'http://127.0.0.1:%s/journal/%s/preview' %
-                   (client.ipc_port.value, guid),
-            }
+def _url(guid, prop):
+    return 'http://127.0.0.1:%s/journal/%s/%s' % \
+            (client.ipc_port.value, guid, prop)

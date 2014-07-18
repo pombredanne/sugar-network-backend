@@ -108,32 +108,32 @@ class JournalTest(tests.Test):
         this.request.path = ['journal']
         this.response = Response()
         self.assertEqual([
-            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': {'url': url + 'guid1/preview'}},
-            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': {'url': url + 'guid2/preview'}},
-            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': {'url': url + 'guid3/preview'}},
+            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
+            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
+            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
             ],
             ds.journal_find()['result'])
 
         this.request = Request(offset=1, limit=1, reply=['uid', 'title', 'description', 'preview'])
         this.request.path = ['journal']
         self.assertEqual([
-            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': {'url': url + 'guid2/preview'}},
+            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
             ],
             ds.journal_find()['result'])
 
         this.request = Request(query='title3', reply=['uid', 'title', 'description', 'preview'])
         this.request.path = ['journal']
         self.assertEqual([
-            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': {'url': url + 'guid3/preview'}},
+            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
             ],
             ds.journal_find()['result'])
 
         this.request = Request(order_by=['+title'], reply=['uid', 'title', 'description', 'preview'])
         this.request.path = ['journal']
         self.assertEqual([
-            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': {'url': url + 'guid3/preview'}},
-            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': {'url': url + 'guid2/preview'}},
-            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': {'url': url + 'guid1/preview'}},
+            {'guid': 'guid3', 'title': 'title3', 'description': 'description3', 'preview': url + 'guid3/preview'},
+            {'guid': 'guid2', 'title': 'title2', 'description': 'description2', 'preview': url + 'guid2/preview'},
+            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
             ],
             ds.journal_find()['result'])
 
@@ -147,7 +147,7 @@ class JournalTest(tests.Test):
         this.request.path = ['journal', 'guid1']
         this.response = Response()
         self.assertEqual(
-            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': {'url': url + 'guid1/preview'}},
+            {'guid': 'guid1', 'title': 'title1', 'description': 'description1', 'preview': url + 'guid1/preview'},
             ds.journal_get())
 
     def test_GetPropRequest(self):
