@@ -481,6 +481,13 @@ class Router(object):
         enforce(api is not None, http.BadRequest, 'No such API version')
         route_ = api.resolve_route(request)
 
+        if request.method in ('POST', 'PUT') and route_.typecast is not None:
+            try:
+                request.content = route_.typecast(request.content)
+            except Exception:
+                _logger.exception('Failed to typecast content')
+                raise http.BadRequest('Malformed content')
+
         for arg, cast in route_.arguments.items():
             value = request.get(arg)
             if value is None:
@@ -797,8 +804,9 @@ class _Routes(dict):
 
 class _Route(object):
 
-    def __init__(self, callback, method, path, cmd, mime_type=None, acl=0,
-            arguments=None):
+    def __init__(self, callback, method, path, cmd,
+            mime_type='application/octet-stream', acl=0,
+            arguments=None, typecast=None):
         enforce(acl ^ ACL.AUTHOR or acl & ACL.AUTH,
                 'ACL.AUTHOR without ACL.AUTH')
         enforce(acl ^ ACL.AUTHOR or len(path) >= 2,
@@ -815,6 +823,7 @@ class _Route(object):
         self.cmd = cmd
         self.mime_type = mime_type
         self.acl = acl
+        self.typecast = typecast
         self.arguments = arguments or {}
         self.kwarg_names = []
 

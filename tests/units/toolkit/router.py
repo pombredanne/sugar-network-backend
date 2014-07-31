@@ -64,7 +64,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_1')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_1'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_2'],
@@ -73,7 +75,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/',
                     'QUERY_STRING': 'cmd=command_2',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_2')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_2'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_3'],
@@ -82,7 +86,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_3')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_3'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_4'],
@@ -91,7 +97,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource',
                     'QUERY_STRING': 'cmd=command_4',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_4')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_4'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_5'],
@@ -100,7 +108,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_5')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_5'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_6'],
@@ -109,7 +119,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid',
                     'QUERY_STRING': 'cmd=command_6',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_6')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_6'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_7'],
@@ -118,7 +130,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid/prop',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_7')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_7'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_8'],
@@ -127,7 +141,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid/prop',
                     'QUERY_STRING': 'cmd=command_8',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_8')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_8'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['{"request": "/*/*/*", "error": "Path not found"}'],
@@ -180,7 +196,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid/*',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_1')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_1'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_2'],
@@ -189,7 +207,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid/*',
                     'QUERY_STRING': 'cmd=command_2',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_2')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_2'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_3'],
@@ -198,7 +218,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid2/prop',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_3')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_3'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_4'],
@@ -207,7 +229,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource/guid2/prop',
                     'QUERY_STRING': 'cmd=command_4',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_4')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_4'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_5'],
@@ -216,7 +240,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/*/guid/prop',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_5')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_5'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_6'],
@@ -225,7 +251,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/*/guid/prop',
                     'QUERY_STRING': 'cmd=command_6',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_6')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_6'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['{"request": "/", "error": "Path not found"}'],
@@ -267,7 +295,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource1/*/prop1',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_1')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_1'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_2'],
@@ -276,7 +306,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/resource1/*/prop1',
                     'QUERY_STRING': 'cmd=command_2',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_2')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_2'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_3'],
@@ -285,7 +317,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/*/*/prop2',
                     'QUERY_STRING': '',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_3')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_3'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['command_4'],
@@ -294,7 +328,9 @@ class RouterTest(tests.Test):
                     'PATH_INFO': '/*/*/prop2',
                     'QUERY_STRING': 'cmd=command_4',
                     }, lambda *args: status.append(args))])
-        self.assertEqual(('200 OK', [('content-length', str(len('command_4')))]), status[-1])
+        self.assertEqual(
+                ('200 OK', [('content-length', str(len('command_4'))), ('content-type', 'application/octet-stream')]),
+                status[-1])
 
         self.assertEqual(
                 ['{"request": "/*/*/prop3", "error": "Path not found"}'],
@@ -1063,7 +1099,7 @@ class RouterTest(tests.Test):
         self.assertEqual(error, ''.join([i for i in reply]))
         self.assertEqual([
             '303 See Other',
-            {'content-length': '0', 'location': URL},
+            {'content-length': '0', 'location': URL, 'content-type': 'application/octet-stream'},
             ],
             response)
 
@@ -1111,7 +1147,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'last-modified': formatdate(10, localtime=False, usegmt=True), 'content-length': str(len(result))},
+            {'last-modified': formatdate(10, localtime=False, usegmt=True), 'content-length': str(len(result)), 'content-type': 'application/octet-stream'},
             ],
             response)
 
@@ -1138,7 +1174,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'content-length': str(len(result))},
+            {'content-length': str(len(result)), 'content-type': 'application/octet-stream'},
             ],
             response)
 
@@ -1153,7 +1189,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'content-length': str(len(result))},
+            {'content-length': str(len(result)), 'content-type': 'application/octet-stream'},
             ],
             response)
 
@@ -1264,7 +1300,7 @@ class RouterTest(tests.Test):
         self.assertEqual(result, ''.join([i for i in reply]))
         self.assertEqual([
             '200 OK',
-            {'content-length': str(len(result))},
+            {'content-length': str(len(result)), 'content-type': 'application/octet-stream'},
             ],
             response)
 
@@ -1292,6 +1328,7 @@ class RouterTest(tests.Test):
             {
                 'content-length': str(len(result)),
                 'content-disposition': 'attachment; filename="foo.bar"',
+                'content-type': 'application/octet-stream',
                 }
             ],
             response)
@@ -1315,7 +1352,7 @@ class RouterTest(tests.Test):
         self.assertEqual([], [i for i in reply])
         self.assertEqual([
             '200 OK',
-            {'content-length': '100'},
+            {'content-length': '100', 'content-type': 'application/octet-stream'},
             ],
             response)
 

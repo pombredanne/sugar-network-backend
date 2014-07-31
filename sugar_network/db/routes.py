@@ -39,7 +39,8 @@ class Routes(object):
     def __preroute__(self, op):
         this.reset_property('resource')
 
-    @route('POST', [None], acl=ACL.AUTH, mime_type='application/json')
+    @route('POST', [None], acl=ACL.AUTH, mime_type='application/json',
+            typecast=dict)
     def create(self):
         with self._post(ACL.CREATE) as doc:
             doc.routed_creating()
@@ -51,7 +52,7 @@ class Routes(object):
             doc.routed_created()
             return doc.guid
 
-    @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR)
+    @route('PUT', [None, None], acl=ACL.AUTH | ACL.AUTHOR, typecast=dict)
     def update(self):
         with self._post(ACL.WRITE) as doc:
             if not doc.posts:

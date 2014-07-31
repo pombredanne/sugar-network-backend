@@ -112,7 +112,7 @@ class HTTPTest(tests.Test):
 
         class Routes(object):
 
-            @route('POST', mime_type='application/json')
+            @route('POST')
             def probe(self):
                 return this.request.content.read()
 
@@ -130,7 +130,7 @@ class HTTPTest(tests.Test):
             'REQUEST_METHOD': 'POST',
             'PATH_INFO': '/',
             }, content=data())
-        self.assertEqual('123', conn.call(request))
+        self.assertEqual('123', conn.call(request).read())
 
     def test_DoNotRepostOn401(self):
         requests = []
@@ -154,7 +154,7 @@ class HTTPTest(tests.Test):
                 requests.append(repr(this.request))
                 if this.request.environ.get('HTTP_LOGIN') != 'ok':
                     raise http.Unauthorized()
-                return this.request.content.read()
+                return this.request.content
 
         self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Routes()))
         coroutine.spawn(self.server.serve_forever)
@@ -176,6 +176,7 @@ class HTTPTest(tests.Test):
         request = Request({
             'REQUEST_METHOD': 'POST',
             'PATH_INFO': '/',
+            'CONTENT_TYPE': 'application/json',
             }, content='probe')
         self.assertEqual('probe', conn.call(request))
         self.assertEqual([
@@ -188,6 +189,7 @@ class HTTPTest(tests.Test):
         request = Request({
             'REQUEST_METHOD': 'POST',
             'PATH_INFO': '/',
+            'CONTENT_TYPE': 'application/json',
             }, content='probe')
         self.assertRaises(RuntimeError, conn.call, request)
         self.assertEqual([
@@ -220,7 +222,7 @@ class HTTPTest(tests.Test):
                 if this.request.environ.get('HTTP_LOGIN') != 'ok':
                     this.response['www-authenticate'] = 'fail'
                     raise http.Unauthorized()
-                return this.request.content.read()
+                return this.request.content
 
         self.server = coroutine.WSGIServer(('127.0.0.1', local.ipc_port.value), Router(Routes()))
         coroutine.spawn(self.server.serve_forever)
@@ -231,6 +233,7 @@ class HTTPTest(tests.Test):
         request = Request({
             'REQUEST_METHOD': 'POST',
             'PATH_INFO': '/',
+            'CONTENT_TYPE': 'application/json',
             }, content='probe')
         self.assertEqual('probe', conn.call(request))
         self.assertEqual([
@@ -247,6 +250,7 @@ class HTTPTest(tests.Test):
         request = Request({
             'REQUEST_METHOD': 'POST',
             'PATH_INFO': '/',
+            'CONTENT_TYPE': 'application/json',
             }, content='probe')
         self.assertEqual('probe', conn.call(request))
         self.assertEqual([
