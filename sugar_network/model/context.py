@@ -51,16 +51,23 @@ class Context(db.Resource):
     @db.stored_property(db.Blob, mime_type='image/png',
             default='assets/missing.png')
     def icon(self, value):
+        if value.digest == 'assets/missing.png' and 'package' in self['type']:
+            value = this.volume.blobs.get('assets/package.png')
         return value
 
     @db.stored_property(db.Blob, mime_type='image/svg+xml',
             default='assets/missing.svg')
     def artefact_icon(self, value):
+        if value.digest == 'assets/missing.svg' and 'package' in self['type']:
+            value = this.volume.blobs.get('assets/package.svg')
         return value
 
     @db.stored_property(db.Blob, mime_type='image/png',
             default='assets/missing-logo.png')
     def logo(self, value):
+        if value.digest == 'assets/missing-logo.png' and \
+                'package' in self['type']:
+            value = this.volume.blobs.get('assets/package-logo.png')
         return value
 
     @db.stored_property(db.Aggregated, subtype=db.Blob(),
@@ -88,11 +95,7 @@ class Context(db.Resource):
         return value
 
     def routed_created(self):
-        if 'package' in self['type']:
-            self.post('icon', 'assets/package.png')
-            self.post('logo', 'assets/package-logo.png')
-            self.post('artefact_icon', 'assets/package.svg')
-        elif 'activity' not in self['type']:
+        if 'activity' not in self['type']:
             if self['artefact_icon'] == self.metadata['artefact_icon'].default:
                 self._generate_default_icons(self['type'])
         db.Resource.routed_created(self)

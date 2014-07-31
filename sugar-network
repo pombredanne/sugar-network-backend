@@ -139,9 +139,8 @@ class Application(application.Application):
                 try:
                     request.content = loads(request.content)
                     request.content_type = 'application/json'
-                except Exception:
-                    # TODO
-                    pass
+                except Exception, error:
+                    raise RuntimeError('Malformed JSON post data: %s' % error)
 
         self._parse_path(request)
         self._parse_args(request)
