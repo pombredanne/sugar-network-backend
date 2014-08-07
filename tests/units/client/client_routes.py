@@ -176,6 +176,7 @@ class ClientRoutesTest(tests.Test):
             'name': 'test',
             'avatar': 'http://127.0.0.1:7777/assets/missing-avatar.png',
             'route': 'proxy',
+            'find_limit': None,
             },
             ipc.get(cmd='whoami'))
 

@@ -13,6 +13,7 @@
 
 v1.0
 ====
+- switch to AGPL
 - move API docs to sources to share them from `GET /` route
 - do not subscribe on client to keep UI up-to-date
 

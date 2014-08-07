@@ -33,7 +33,7 @@ class Routes(object):
 
     def __init__(self, find_limit=None):
         this.add_property('resource', _get_resource)
-        self._find_limit = find_limit
+        self.find_limit = find_limit
 
     @preroute
     def __preroute__(self, op):
@@ -86,11 +86,11 @@ class Routes(object):
         self._preget()
         request = this.request
         if not limit:
-            request['limit'] = self._find_limit
-        elif self._find_limit and limit > self._find_limit:
+            request['limit'] = self.find_limit
+        elif self.find_limit and limit > self.find_limit:
             _logger.warning('The find limit is restricted to %s',
-                    self._find_limit)
-            request['limit'] = self._find_limit
+                    self.find_limit)
+            request['limit'] = self.find_limit
         documents, total = this.volume[request.resource].find(
                 not_state='deleted', **request)
         result = [self._postget(i, reply) for i in documents]

@@ -306,11 +306,11 @@ class NodeRoutesTest(tests.Test):
             'description': 'description',
             })
 
-        self.node_routes._find_limit = 3
+        self.node_routes.find_limit = 3
         self.assertEqual(3, len(this.call(method='GET', path=['context'], limit=1024)['result']))
-        self.node_routes._find_limit = 2
+        self.node_routes.find_limit = 2
         self.assertEqual(2, len(this.call(method='GET', path=['context'], limit=1024)['result']))
-        self.node_routes._find_limit = 1
+        self.node_routes.find_limit = 1
         self.assertEqual(1, len(this.call(method='GET', path=['context'], limit=1024)['result']))
 
     def test_DeletedDocuments(self):
