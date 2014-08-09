@@ -202,7 +202,7 @@ class Application(application.Application):
         if not this.volume['context'][SN_GUID].exists:
             this.volume['context'].create({
                     'guid': SN_GUID,
-                    'type': ['project', 'talks'],
+                    'type': ['group', 'project', 'talks'],
                     'title': {'en': 'Sugar Network'},
                     'summary': {'en': 'Sugar Network'},
                     'description': {'en': 'Sugar Network'},
@@ -214,7 +214,7 @@ class Application(application.Application):
         if not this.volume['context'][SUGAR_GUID].exists:
             this.volume['context'].create({
                     'guid': SUGAR_GUID,
-                    'type': ['package', 'project'],
+                    'type': ['group', 'package', 'project'],
                     'title': {'en': 'sugar'},
                     'summary': {'en': 'Constructionist learning platform'},
                     'description': {'en':
@@ -235,7 +235,7 @@ class Application(application.Application):
         if not this.volume['context'][PACKAGES_GUID].exists:
             this.volume['context'].create({
                     'guid': PACKAGES_GUID,
-                    'type': ['project', 'talks'],
+                    'type': ['group', 'project', 'talks'],
                     'title': {'en': 'Packages'},
                     'summary': {
                         'en': 'Collection of GNU/Linux packages metadata',

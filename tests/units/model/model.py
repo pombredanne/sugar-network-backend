@@ -7,16 +7,18 @@ import mimetypes
 
 from __init__ import tests
 
-from sugar_network import db
+from sugar_network import db, model
 from sugar_network.model.post import Post
 from sugar_network.model.context import Context
 from sugar_network.node.model import User
+from sugar_network.toolkit import http
 from sugar_network.toolkit.coroutine import this
 
 
 class ModelTest(tests.Test):
 
     def test_RatingSort(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         this.volume = db.Volume('db', [Context, Post])
         directory = this.volume['post']
 
@@ -44,6 +46,7 @@ class ModelTest(tests.Test):
                 [i.guid for i in directory.find(order_by='-rating')[0]])
 
     def test_RatingSecondarySortByVotes(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         this.volume = db.Volume('db', [Context, Post])
         directory = this.volume['post']
 
@@ -69,6 +72,50 @@ class ModelTest(tests.Test):
         self.assertEqual(
                 ['3', '4', '5', '1', '2'],
                 [i.guid for i in directory.find(order_by='-rating')[0]])
+
+    def test_MandatoryRootContextType(self):
+        this.volume = db.Volume('db', [Context])
+
+        self.assertRaises(http.BadRequest, this.volume['context'].create, {
+            'type': [],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+
+        self.assertRaises(http.BadRequest, this.volume['context'].create, {
+            'type': ['talks', 'project'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+
+    def test_MutexContextTypes(self):
+        this.volume = db.Volume('db', [Context])
+
+        assert this.volume['context'].create({'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}})
+        assert this.volume['context'].create({'type': ['book'], 'title': {}, 'summary': {}, 'description': {}})
+        assert this.volume['context'].create({'type': ['group'], 'title': {}, 'summary': {}, 'description': {}})
+        assert this.volume['context'].create({'type': ['package'], 'title': {}, 'summary': {}, 'description': {}})
+
+        self.assertRaises(http.BadRequest, this.volume['context'].create, {
+            'type': ['activity', 'book'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        self.assertRaises(http.BadRequest, this.volume['context'].create, {
+            'type': ['book', 'group'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
+        self.assertRaises(http.BadRequest, this.volume['context'].create, {
+            'type': ['group', 'package'],
+            'title': {},
+            'summary': {},
+            'description': {},
+            })
 
 
 if __name__ == '__main__':

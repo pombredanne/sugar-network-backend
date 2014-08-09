@@ -51,6 +51,8 @@ tmpdir = None
 gettext._default_localedir = join(root, 'data', 'locale')
 languages.LANGUAGES = ['en', 'es', 'fr']
 
+_TOP_CONTEXT_TYPES = model.TOP_CONTEXT_TYPES
+
 
 def main():
     shutil.rmtree(tmproot, ignore_errors=True)
@@ -113,6 +115,7 @@ class Test(unittest.TestCase):
         obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
+        model.TOP_CONTEXT_TYPES = _TOP_CONTEXT_TYPES
         gbus.join()
 
         db.Volume.model = [

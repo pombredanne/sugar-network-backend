@@ -6,6 +6,7 @@ from cStringIO import StringIO
 
 from __init__ import tests
 
+from sugar_network import model
 from sugar_network.node.auth import RootAuth
 from sugar_network.node.model import Volume
 from sugar_network.node.stats import Monitor
@@ -269,6 +270,7 @@ class StatsTest(tests.Test):
             this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatTopics(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         ts = int(time.time())
         this.volume = self.start_master(auth=RootAuth())
         self.node_routes._stats = Monitor(this.volume, 1, ['RRA:AVERAGE:0.5:1:10'])
@@ -319,6 +321,7 @@ class StatsTest(tests.Test):
             this.call(method='GET', cmd='stats', limit=10))
 
     def test_StatPosts(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         ts = int(time.time())
         this.volume = self.start_master(auth=RootAuth())
         self.node_routes._stats = Monitor(this.volume, 1, ['RRA:AVERAGE:0.5:1:10'])
@@ -369,6 +372,7 @@ class StatsTest(tests.Test):
             this.call(method='GET', cmd='stats', limit=10))
 
     def test_ReuseTotalsOnInitialStart(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         this.volume = self.start_master(auth=RootAuth())
 
         context = this.volume['context'].create({

@@ -25,12 +25,20 @@ ICON_SIZE = 55
 LOGO_SIZE = 140
 
 CONTEXT_TYPES = [
-        'activity',     # Sugar activity
+        'activity',     # Sugar application
         'book',         # books in various forms
-        'talks',        # offline discussion groups
-        'project',      # general purpose context to group related Post objects
+        'group',        # a social group of related activities
         'package',      # GNU/Linux package metadata
+        'talks',        # mix-in offline discussion forum
+        'project',      # mix-in issue tracker and polling functionality
         ]
+
+TOP_CONTEXT_TYPES = frozenset([
+        'activity',
+        'book',
+        'group',
+        'package',
+        ])
 
 POST_TYPES = {
         # General purpose top-level Post

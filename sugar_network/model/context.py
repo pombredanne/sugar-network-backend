@@ -16,9 +16,10 @@
 from os.path import join
 
 from sugar_network import db, model
+from sugar_network.toolkit import http
 from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.router import ACL
-from sugar_network.toolkit import svg_to_png
+from sugar_network.toolkit import svg_to_png, enforce
 
 
 class Context(db.Resource):
@@ -26,6 +27,14 @@ class Context(db.Resource):
     @db.indexed_property(db.List, prefix='T',
             subtype=db.Enum(model.CONTEXT_TYPES))
     def type(self, value):
+        return value
+
+    @type.setter
+    def type(self, value):
+        top_type = set(value) & model.TOP_CONTEXT_TYPES
+        enforce(len(top_type) == 1, http.BadRequest,
+                'Context should be one of %s types',
+                ', '.join(model.TOP_CONTEXT_TYPES))
         return value
 
     @db.indexed_property(db.Localized, slot=1, prefix='S', full_text=True)
@@ -106,8 +115,7 @@ class Context(db.Resource):
         for type_, image in [
                 ('activity', 'activity.svg'),
                 ('book', 'book.svg'),
-                ('project', 'group.svg'),
-                ('talks', 'group.svg'),
+                ('group', 'group.svg'),
                 ]:
             if type_ in types:
                 with file(blobs.get(join('assets', image)).path) as f:

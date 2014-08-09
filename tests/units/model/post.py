@@ -20,6 +20,7 @@ from sugar_network.toolkit import http
 class PostTest(tests.Test):
 
     def test_ShiftContextRating(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = db.Volume('db', [Context, Post])
         this.volume = volume
 
@@ -67,6 +68,7 @@ class PostTest(tests.Test):
         self.assertEqual([2, 3], volume['context'][context]['rating'])
 
     def test_ShiftContextRatingOnDeletes(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
@@ -87,6 +89,7 @@ class PostTest(tests.Test):
         self.assertEqual([0, 0], volume['context'][context]['rating'])
 
     def test_DoNotShiftRatingOnZeroVotes(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
@@ -109,6 +112,7 @@ class PostTest(tests.Test):
         self.assertEqual([0, 0], volume['context'][context]['rating'])
 
     def test_ShiftTopicRating(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = db.Volume('db2', [Context, Post])
         this.volume = volume
 
@@ -171,6 +175,7 @@ class PostTest(tests.Test):
         self.assertEqual([2, 3], volume['post'][topic]['rating'])
 
     def test_ShiftTopicRatingOnDeletes(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
@@ -195,7 +200,7 @@ class PostTest(tests.Test):
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
-            'type': ['talks'],
+            'type': ['group', 'talks'],
             'title': {},
             'summary': {},
             'description': {},
@@ -214,7 +219,7 @@ class PostTest(tests.Test):
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
-            'type': ['talks'],
+            'type': ['group', 'talks'],
             'title': {},
             'summary': {},
             'description': {},
@@ -229,7 +234,7 @@ class PostTest(tests.Test):
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
-            'type': ['talks'],
+            'type': ['group', 'talks'],
             'title': {},
             'summary': {},
             'description': {},
@@ -243,6 +248,7 @@ class PostTest(tests.Test):
                 content={'context': context, 'type': 'post', 'topic': topic, 'title': '', 'message': ''})
 
     def test_DefaultResolution(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
@@ -265,6 +271,7 @@ class PostTest(tests.Test):
         self.assertEqual('open', volume['post'][poll]['resolution'])
 
     def test_InappropriateResolution(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({
@@ -294,6 +301,7 @@ class PostTest(tests.Test):
         self.assertEqual('closed', volume['post'][topic]['resolution'])
 
     def test_ForbiddenIssueResolution(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master()
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
@@ -318,6 +326,7 @@ class PostTest(tests.Test):
         self.assertEqual('resolved', volume['post'][topic]['resolution'])
 
     def test_ForbiddenPollResolution(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master()
         volume['user'].create({'guid': tests.UID, 'name': 'user', 'pubkey': tests.PUBKEY})
         volume['user'].create({'guid': tests.UID2, 'name': 'user2', 'pubkey': tests.PUBKEY2})
@@ -342,6 +351,7 @@ class PostTest(tests.Test):
         self.assertEqual('closed', volume['post'][topic]['resolution'])
 
     def test_ShiftReplies(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = db.Volume('.', [Context, Post])
         this.volume = volume
 
@@ -378,6 +388,7 @@ class PostTest(tests.Test):
         self.assertEqual(2, volume['post'][topic]['replies'])
 
     def test_ShiftRepliesOnDeletes(self):
+        model.TOP_CONTEXT_TYPES = set(['activity'])
         volume = self.start_master(auth=RootAuth())
 
         context = volume['context'].create({

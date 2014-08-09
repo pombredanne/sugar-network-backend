@@ -2274,7 +2274,7 @@ class NodeModelTest(tests.Test):
         conn = Connection()
 
         bundle_id = conn.post(['context'], {
-            'type': 'talks',
+            'type': 'group',
             'title': 'NonActivity',
             'summary': 'summary',
             'description': 'description',
