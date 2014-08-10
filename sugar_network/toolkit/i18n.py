@@ -89,10 +89,9 @@ def decode(value, accept_language=None):
         accept_language = default_langs()
     elif isinstance(accept_language, basestring):
         accept_language = [accept_language]
-    accept_language.append('en')
 
     stripped_value = None
-    for lang in accept_language:
+    for lang in accept_language + ['en']:
         result = value.get(lang)
         if result is not None:
             return result
