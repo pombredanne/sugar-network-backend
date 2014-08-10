@@ -684,34 +684,27 @@ class IndexTest(tests.Test):
 
         self.assertEqual(
                 sorted([
-                    {'guid': '2'},
                     {'guid': '3'},
                     ]),
-                sorted(db._find(reply=['guid'], **{'!prop': 'a'})[0]))
+                sorted(db._find(reply=['guid'], not_prop=['a', 'b'])[0]))
+
+        self.assertEqual(
+                sorted([
+                    ]),
+                sorted(db._find(reply=['guid'], not_prop=['a', 'b', 'c'])[0]))
 
         self.assertEqual(
                 sorted([
                     {'guid': '3'},
                     ]),
-                sorted(db._find(reply=['guid'], **{'!prop': ['a', 'b']})[0]))
-
-        self.assertEqual(
-                sorted([
-                    ]),
-                sorted(db._find(reply=['guid'], **{'!prop': ['a', 'b', 'c']})[0]))
-
-        self.assertEqual(
-                sorted([
-                    {'guid': '3'},
-                    ]),
-                sorted(db._find(prop='c', reply=['guid'], **{'!prop': 'b'})[0]))
+                sorted(db._find(prop='c', reply=['guid'], not_prop='b')[0]))
 
         self.assertEqual(
                 sorted([
                     {'guid': '1'},
                     {'guid': '3'},
                     ]),
-                sorted(db._find(prop=['a', 'c'], reply=['guid'], **{'!prop': 'b'})[0]))
+                sorted(db._find(prop=['a', 'c'], reply=['guid'], not_prop='b')[0]))
 
     def test_find_CustomEncode(self):
         db = Index({'trait': Numeric('trait', 1, 'A')})

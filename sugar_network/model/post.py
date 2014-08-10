@@ -21,11 +21,11 @@ from sugar_network.toolkit import http, enforce
 
 class Post(db.Resource):
 
-    @db.indexed_property(db.Reference, prefix='C', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(db.Reference, prefix='A', acl=ACL.CREATE | ACL.READ)
     def context(self, value):
         return value
 
-    @db.indexed_property(db.Reference, prefix='A', default='',
+    @db.indexed_property(db.Reference, prefix='B', default='',
             acl=ACL.CREATE | ACL.READ)
     def topic(self, value):
         return value
@@ -35,26 +35,26 @@ class Post(db.Resource):
         self._update_replies(value, +1)
         return value
 
-    @db.indexed_property(db.Enum, prefix='T', items=model.POST_TYPES.keys(),
+    @db.indexed_property(db.Enum, prefix='C', items=model.POST_TYPES.keys(),
             acl=ACL.CREATE | ACL.READ)
     def type(self, value):
         return value
 
-    @db.indexed_property(db.Localized, slot=1, prefix='N', full_text=True,
+    @db.indexed_property(db.Localized, slot=1, prefix='D', full_text=True,
             acl=ACL.CREATE | ACL.READ)
     def title(self, value):
         return value
 
-    @db.indexed_property(db.Localized, prefix='M', full_text=True,
+    @db.indexed_property(db.Localized, prefix='E', full_text=True,
             acl=ACL.CREATE | ACL.READ)
     def message(self, value):
         return value
 
-    @db.indexed_property(prefix='R', default='', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='F', default='', acl=ACL.CREATE | ACL.READ)
     def resolution(self, value):
         return value
 
-    @db.indexed_property(db.Enum, prefix='V', items=range(6), default=0,
+    @db.indexed_property(db.Enum, prefix='G', items=range(6), default=0,
             acl=ACL.CREATE | ACL.READ)
     def vote(self, value):
         return value
@@ -79,7 +79,7 @@ class Post(db.Resource):
     def rating(self, value):
         return value
 
-    @db.indexed_property(db.Numeric, slot=3, prefix='P', default=0,
+    @db.indexed_property(db.Numeric, slot=3, prefix='H', default=0,
             acl=ACL.READ | ACL.LOCAL)
     def replies(self, value):
         return value

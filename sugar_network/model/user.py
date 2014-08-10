@@ -19,15 +19,15 @@ from sugar_network.toolkit.coroutine import this
 
 class User(db.Resource):
 
-    @db.indexed_property(slot=1, prefix='N', full_text=True)
+    @db.indexed_property(slot=1, prefix='A', full_text=True)
     def name(self, value):
         return value
 
-    @db.indexed_property(prefix='P', full_text=True, default='')
+    @db.indexed_property(prefix='B', full_text=True, default='')
     def location(self, value):
         return value
 
-    @db.indexed_property(db.Numeric, slot=2, prefix='B', default=0)
+    @db.indexed_property(db.Numeric, slot=2, prefix='C', default=0)
     def birthday(self, value):
         return value
 

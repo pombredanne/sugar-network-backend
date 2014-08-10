@@ -34,30 +34,30 @@ class Report(db.Resource):
 
     one_way = True
 
-    @db.indexed_property(db.Reference, prefix='C', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(db.Reference, prefix='A', acl=ACL.CREATE | ACL.READ)
     def context(self, value):
         return value
 
-    @db.indexed_property(prefix='V', default='', acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(_Solution, prefix='B', full_text=True,
+            acl=ACL.CREATE | ACL.READ)
+    def solution(self, value):
+        return value
+
+    @db.indexed_property(prefix='C', default='', acl=ACL.CREATE | ACL.READ)
     def version(self, value):
         return value
 
-    @db.indexed_property(prefix='E', full_text=True, acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='D', full_text=True, acl=ACL.CREATE | ACL.READ)
     def error(self, value):
         return value
 
-    @db.indexed_property(prefix='U', full_text=True, acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='E', full_text=True, acl=ACL.CREATE | ACL.READ)
     def uname(self, value):
         return value
 
-    @db.indexed_property(db.Dict, prefix='L', full_text=True,
+    @db.indexed_property(db.Dict, prefix='F', full_text=True,
             acl=ACL.CREATE | ACL.READ)
     def lsb_release(self, value):
-        return value
-
-    @db.indexed_property(_Solution, prefix='S', full_text=True,
-            acl=ACL.CREATE | ACL.READ)
-    def solution(self, value):
         return value
 
     @db.stored_property(db.Aggregated, subtype=db.Blob(),

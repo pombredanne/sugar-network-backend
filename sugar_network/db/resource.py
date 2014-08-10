@@ -55,25 +55,7 @@ class Resource(object):
             self._post_seqno = value
             self.post('seqno', value)
 
-    @indexed_property(Numeric, slot=1000, prefix='RS', acl=0, default=0)
-    def seqno(self, value):
-        return value
-
-    @indexed_property(Numeric, slot=1001, prefix='RC', default=0, acl=ACL.READ)
-    def ctime(self, value):
-        return value
-
-    @indexed_property(Numeric, slot=1002, prefix='RM', default=0, acl=ACL.READ)
-    def mtime(self, value):
-        return value
-
-    @indexed_property(Author, prefix='RA', default={}, full_text=True,
-            acl=ACL.READ)
-    def author(self, value):
-        Author.format(value)
-        return value
-
-    @indexed_property(Enum, STATES, prefix='RE', default=STATES[0], acl=0)
+    @indexed_property(Enum, STATES, prefix='XA', default=STATES[0], acl=0)
     def state(self, value):
         return value
 
@@ -83,18 +65,36 @@ class Resource(object):
             self.deleted()
         return value
 
-    @indexed_property(List, prefix='RT', full_text=True, default=[])
-    def tags(self, value):
-        return value
-
-    @indexed_property(List, prefix='RU', default=[], acl=ACL.READ,
+    @indexed_property(List, prefix='XB', default=[], acl=ACL.READ,
             subtype=Enum(STATUSES))
     def status(self, value):
         return value
 
-    @indexed_property(List, prefix='RP', default=[],
+    @indexed_property(List, prefix='XC', default=[],
             acl=ACL.READ | ACL.LOCAL)
     def pins(self, value):
+        return value
+
+    @indexed_property(Author, prefix='XD', default={}, full_text=True,
+            acl=ACL.READ)
+    def author(self, value):
+        Author.format(value)
+        return value
+
+    @indexed_property(List, prefix='XE', full_text=True, default=[])
+    def tags(self, value):
+        return value
+
+    @indexed_property(Numeric, slot=1000, prefix='XF', default=0, acl=ACL.READ)
+    def ctime(self, value):
+        return value
+
+    @indexed_property(Numeric, slot=1001, prefix='XG', default=0, acl=ACL.READ)
+    def mtime(self, value):
+        return value
+
+    @indexed_property(Numeric, slot=1002, prefix='XH', acl=0, default=0)
+    def seqno(self, value):
         return value
 
     @property

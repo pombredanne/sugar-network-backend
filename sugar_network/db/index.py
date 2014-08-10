@@ -15,6 +15,7 @@
 
 import re
 import time
+import bisect
 import shutil
 import logging
 
@@ -198,27 +199,33 @@ class IndexReader(object):
                     '')
             all_queries.append(query)
 
+        args = []
         for name, value in request.items():
-            queries = sub_queries = []
-            if name.startswith('!'):
-                queries = and_not_queries
-                name = name[1:]
-            elif name.startswith('not_'):
-                queries = and_not_queries
+            negative = False
+            if name.startswith('not_'):
                 name = name[4:]
+                negative = True
             prop = self._props.get(name)
             if prop is None or not prop.prefix:
                 continue
+            bisect.insort(args, (prop.prefix, prop, value, negative))
+
+        for __, prop, value, negative in args:
+            if negative:
+                queries = and_not_queries
+            else:
+                queries = []
             for needle in value if type(value) in (tuple, list) else [value]:
                 if needle is None:
                     continue
                 needle = prop.decode(needle)
                 queries.append(xapian.Query(_term(prop.prefix, needle)))
-            if len(sub_queries) == 1:
-                all_queries.append(sub_queries[0])
-            elif sub_queries:
-                all_queries.append(
-                        xapian.Query(xapian.Query.OP_OR, sub_queries))
+            if negative or not queries:
+                continue
+            if len(queries) > 1:
+                all_queries.append(xapian.Query(xapian.Query.OP_OR, queries))
+            else:
+                all_queries.append(queries[0])
 
         final = None
         if len(all_queries) == 1:

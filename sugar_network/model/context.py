@@ -24,7 +24,7 @@ from sugar_network.toolkit import svg_to_png, enforce
 
 class Context(db.Resource):
 
-    @db.indexed_property(db.List, prefix='T',
+    @db.indexed_property(db.List, prefix='A',
             subtype=db.Enum(model.CONTEXT_TYPES))
     def type(self, value):
         return value
@@ -37,11 +37,11 @@ class Context(db.Resource):
                 ', '.join(model.TOP_CONTEXT_TYPES))
         return value
 
-    @db.indexed_property(db.Localized, slot=1, prefix='S', full_text=True)
+    @db.indexed_property(db.Localized, slot=1, prefix='B', full_text=True)
     def title(self, value):
         return value
 
-    @db.indexed_property(db.Localized, prefix='R', full_text=True)
+    @db.indexed_property(db.Localized, prefix='C', full_text=True)
     def summary(self, value):
         return value
 
@@ -49,11 +49,11 @@ class Context(db.Resource):
     def description(self, value):
         return value
 
-    @db.indexed_property(prefix='H', default='', full_text=True)
+    @db.indexed_property(prefix='E', default='', full_text=True)
     def homepage(self, value):
         return value
 
-    @db.indexed_property(db.List, prefix='Y', default=[])
+    @db.indexed_property(db.List, prefix='F', default=[])
     def mime_types(self, value):
         return value
 
@@ -89,7 +89,7 @@ class Context(db.Resource):
     def releases(self, value):
         return value
 
-    @db.indexed_property(model.Rating, slot=3, acl=ACL.READ | ACL.LOCAL)
+    @db.indexed_property(model.Rating, slot=2, acl=ACL.READ | ACL.LOCAL)
     def rating(self, value):
         return value
 

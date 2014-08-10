@@ -1894,10 +1894,10 @@ class DbRoutesTest(tests.Test):
                 sorted([guid1, guid2, guid3]),
                 sorted([i['guid'] for i in this.call(method='GET', path=['document'], query='a')['result']]))
         self.assertEqual(
-                sorted([guid1, guid3]),
+                sorted([guid1, guid2, guid3]),
                 sorted([i['guid'] for i in this.call(method='GET', path=['document'], query='b')['result']]))
         self.assertEqual(
-                sorted([guid2, guid3]),
+                sorted([guid1, guid2, guid3]),
                 sorted([i['guid'] for i in this.call(method='GET', path=['document'], query='c')['result']]))
         self.assertEqual(
                 sorted([]),
