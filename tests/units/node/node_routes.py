@@ -605,7 +605,7 @@ class NodeRoutesTest(tests.Test):
         post = volume['post'][announce]
         assert tests.UID in post['author']
         self.assertEqual('topic', post['type'])
-        self.assertEqual(['announce'], post['tags'])
+        self.assertEqual(['release'], post['tags'])
         self.assertEqual({
             'en': 'TestActivitry 1 release',
             'es': 'TestActivitry 1 release',

@@ -636,7 +636,7 @@ def load_bundle(blob, context=None, initial=False, extra_deps=None,
         'type': 'topic',
         'title': i18n.encode(title, name=doc['title'], version=version),
         'message': release_notes or '',
-        'tags': ['announce'],
+        'tags': ['release'],
         }
     release['announce'] = this.call(method='POST', path=['post'],
             content=announce, content_type='application/json',
