@@ -244,8 +244,9 @@ class Injector(object):
                     'Not available in offline')
             _logger.debug('Solve %r', context)
             solution = self._api.get(['context', context], cmd='solve',
-                    stability=stability, lsb_id=lsb_release.distributor_id(),
-                    lsb_release=lsb_release.release())
+                    stability=stability, distro=lsb_release.name(),
+                    arch=os.uname()[-1],
+                    )
             with toolkit.new_file(path) as f:
                 json.dump((self.api, stability, self.seqno, solution), f)
 

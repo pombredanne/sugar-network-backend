@@ -10,10 +10,7 @@ version   = 0.9
 stability = developer
 
 requires  = xapian-bindings-python; m2crypto; rrdtool-python; gevent >= 1
-            dbus-python; openssh-client; sugar-network-webui; sugar-network-hub
-            librsvg-python; pycairo; pythonmagick
-replaces  = sugar-network-server; sweets-recipe; active-document
-            pylru; requests
+            dbus-python; openssh-client; librsvg-python; pycairo; pythonmagick
 
 [Build]
 make      = make

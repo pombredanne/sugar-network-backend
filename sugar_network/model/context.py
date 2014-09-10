@@ -60,23 +60,16 @@ class Context(db.Resource):
     @db.stored_property(db.Blob, mime_type='image/png',
             default='assets/missing.png')
     def icon(self, value):
-        if value.digest == 'assets/missing.png' and 'package' in self['type']:
-            value = this.volume.blobs.get('assets/package.png')
         return value
 
     @db.stored_property(db.Blob, mime_type='image/svg+xml',
             default='assets/missing.svg')
     def artefact_icon(self, value):
-        if value.digest == 'assets/missing.svg' and 'package' in self['type']:
-            value = this.volume.blobs.get('assets/package.svg')
         return value
 
     @db.stored_property(db.Blob, mime_type='image/png',
             default='assets/missing-logo.png')
     def logo(self, value):
-        if value.digest == 'assets/missing-logo.png' and \
-                'package' in self['type']:
-            value = this.volume.blobs.get('assets/package-logo.png')
         return value
 
     @db.stored_property(db.Aggregated, subtype=db.Blob(),

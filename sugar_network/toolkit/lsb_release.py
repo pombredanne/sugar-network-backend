@@ -76,6 +76,10 @@ def release():
     return _release
 
 
+def name():
+    return '%s-%s' % (distributor_id(), release())
+
+
 def _init():
     global _distributor_id, _release
 

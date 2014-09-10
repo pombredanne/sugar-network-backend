@@ -627,7 +627,7 @@ class NodeRoutesTest(tests.Test):
             'icon = icon',
             'activity_version = 1',
             'license = Public Domain',
-            'requires = dep; package',
+            'requires = dep',
             ])
         activity_pack = self.zips(('topdir/activity/activity.info', activity_unpack))
         activity_blob = json.load(conn.request('POST', ['context'], activity_pack, params={'cmd': 'submit', 'initial': True}).raw)
@@ -643,15 +643,6 @@ class NodeRoutesTest(tests.Test):
             ])
         dep_pack = self.zips(('topdir/activity/activity.info', dep_unpack))
         dep_blob = json.load(conn.request('POST', ['context'], dep_pack, params={'cmd': 'submit', 'initial': True}).raw)
-
-        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
-            'guid': 'package',
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            }, principal=Principal('admin', 0xF))
-        conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         self.assertEqual({
             'activity': {
@@ -670,9 +661,6 @@ class NodeRoutesTest(tests.Test):
                 'size': len(dep_pack),
                 'unpack_size': len(dep_unpack),
                 'content-type': 'application/vnd.olpc-sugar',
-                },
-            'package': {
-                'packages': ['package.bin'],
                 },
             },
             conn.get(['context', 'activity'], cmd='solve', details=False))
@@ -719,19 +707,6 @@ class NodeRoutesTest(tests.Test):
         dep_pack = self.zips(('topdir/activity/activity.info', dep_unpack))
         dep_blob = json.load(conn.request('POST', ['context'], dep_pack, params={'cmd': 'submit', 'initial': True}).raw)
 
-        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
-            'guid': 'package',
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            }, principal=Principal('admin', 0xF))
-        volume['context'].update('package', {'releases': {
-            'resolves': {'value': {
-                'Ubuntu-10.04': {'version': [[1], 0], 'packages': ['package.bin']},
-                'Ubuntu-12.04': {'version': [[2], 0], 'packages': ['package-fake.bin']},
-            }}}})
-
         self.assertEqual({
             'activity': {
                 'title': 'activity',
@@ -750,13 +725,9 @@ class NodeRoutesTest(tests.Test):
                 'unpack_size': len(dep_unpack),
                 'content-type': 'application/vnd.olpc-sugar',
                 },
-            'package': {
-                'packages': ['package.bin'],
-                'version': '1',
-                },
             },
             conn.get(['context', 'activity'], cmd='solve', details=False,
-                stability='developer', lsb_id='Ubuntu', lsb_release='10.04', requires=['dep', 'package']))
+                stability='developer', requires=['dep']))
 
     def test_Clone(self):
         volume = self.start_master()
@@ -770,7 +741,7 @@ class NodeRoutesTest(tests.Test):
             'icon = icon',
             'activity_version = 1',
             'license = Public Domain',
-            'requires = dep; package',
+            'requires = dep',
             ])
         activity_blob = self.zips(('topdir/activity/activity.info', activity_info))
         activity_file = json.load(conn.request('POST', ['context'], activity_blob, params={'cmd': 'submit', 'initial': True}).raw)
@@ -785,14 +756,6 @@ class NodeRoutesTest(tests.Test):
                 'license = Public Domain',
                 ]))),
             params={'cmd': 'submit', 'initial': True}).raw)
-        this.call(method='POST', path=['context'], environ=auth_env(tests.UID), content={
-            'guid': 'package',
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            }, principal=Principal('admin', 0xF))
-        conn.put(['context', 'package', 'releases', '*'], {'binary': ['package.bin']})
 
         response = Response()
         reply = conn.call(Request(method='GET', path=['context', 'activity'], cmd='clone'), response)

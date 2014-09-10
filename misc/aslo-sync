@@ -50,7 +50,6 @@ ASLO_AUTHOR = {'d26cef70447160f31a7497cc0320f23a4e383cc3': {'role': 0}}
 ACTIVITIES_PATH = '/upload/activities'
 SUGAR_GUID = 'sugar'
 SN_GUID = 'sugar-network'
-PACKAGES_GUID = 'packages'
 LOGIN_RE = re.compile(r'^[a-zA-Z0-9_][-a-zA-Z0-9_.]+$')
 
 SUGAR_API_COMPATIBILITY = {
@@ -214,7 +213,7 @@ class Application(application.Application):
         if not this.volume['context'][SUGAR_GUID].exists:
             this.volume['context'].create({
                     'guid': SUGAR_GUID,
-                    'type': ['group', 'package', 'project'],
+                    'type': ['group', 'project'],
                     'title': {'en': 'sugar'},
                     'summary': {'en': 'Constructionist learning platform'},
                     'description': {'en':
@@ -230,24 +229,6 @@ class Application(application.Application):
                     'ctime': int(time.time()),
                     'mtime': int(time.time()),
                     'author': ASLO_AUTHOR,
-                    })
-
-        if not this.volume['context'][PACKAGES_GUID].exists:
-            this.volume['context'].create({
-                    'guid': PACKAGES_GUID,
-                    'type': ['group', 'project', 'talks'],
-                    'title': {'en': 'Packages'},
-                    'summary': {
-                        'en': 'Collection of GNU/Linux packages metadata',
-                        },
-                    'description': {
-                        'en': 'Collection of GNU/Linux packages metadata',
-                        },
-                    'ctime': int(time.time()),
-                    'mtime': int(time.time()),
-                    'author': ASLO_AUTHOR,
-                    'icon': 'assets/package.png',
-                    'logo': 'assets/package-logo.png',
                     })
 
         self.sync_users()

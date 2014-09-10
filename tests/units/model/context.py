@@ -19,21 +19,6 @@ from sugar_network.toolkit import svg_to_png, i18n, http, coroutine, enforce
 
 class ContextTest(tests.Test):
 
-    def test_PackageImages(self):
-        volume = self.start_master()
-        conn = Connection()
-
-        guid = conn.post(['context'], {
-            'type': 'package',
-            'title': 'title',
-            'summary': 'summary',
-            'description': 'description',
-            })
-
-        assert conn.request('GET', ['context', guid, 'artefact_icon']).content == file(volume.blobs.get('assets/package.svg').path).read()
-        assert conn.request('GET', ['context', guid, 'icon']).content == file(volume.blobs.get('assets/package.png').path).read()
-        assert conn.request('GET', ['context', guid, 'logo']).content == file(volume.blobs.get('assets/package-logo.png').path).read()
-
     def test_ContextImages(self):
         volume = self.start_master()
         conn = Connection()

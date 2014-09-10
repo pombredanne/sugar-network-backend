@@ -351,6 +351,7 @@ class _Local(object):
     def __init__(self):
         self.attrs = set()
         self.properties = {}
+        self.singletons = {}
 
         if hasattr(gevent.getcurrent(), 'local'):
             current = gevent.getcurrent().local
@@ -358,6 +359,7 @@ class _Local(object):
                 self.attrs.add(attr)
                 setattr(self, attr, getattr(current, attr))
             self.properties = current.properties
+            self.singletons = current.singletons
 
 
 class _LocalAccess(object):
@@ -384,6 +386,12 @@ class _LocalAccess(object):
 
     def reset_property(self, name):
         local = gevent.getcurrent().local
+        setattr(local, name, _Local.PROPERTY_NOT_SET)
+
+    def add_property_singleton(self, name, cls, *args, **kwargs):
+        local = gevent.getcurrent().local
+        local.properties[name] = \
+                lambda: local.singletons.get(name) or cls(*args, **kwargs)
         setattr(local, name, _Local.PROPERTY_NOT_SET)
 
 

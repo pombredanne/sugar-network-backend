@@ -875,25 +875,15 @@ class InjectorTest(tests.Test):
         self.assertEqual('2', file('client/releases/%s/output' % release2).read())
 
     def test_launch_InstallDeps(self):
-
-        def master_cb(volume):
-            distro = '%s-%s' % (lsb_release.distributor_id(), lsb_release.release())
-            volume['context'].create({
-                'guid': 'package1', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                    'resolves': {'value': {
-                        distro: {'version': '1', 'packages': ['pkg1', 'pkg2']},
-                        }},
-                    },
-                })
-            volume['context'].create({
-                'guid': 'package2', 'type': ['package'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
-                    'resolves': {'value': {
-                        distro: {'version': '1', 'packages': ['pkg3', 'pkg4']},
-                        }},
-                    },
-                })
-
-        self.fork_master(cb=master_cb)
+        self.fork_master()
+        self.touch((
+            'master/files/packages/%s/%s/package1' % (lsb_release.name(), os.uname()[-1]),
+            json.dumps({'version': '1', 'binary': ['pkg1', 'pkg2']}),
+            ))
+        self.touch((
+            'master/files/packages/%s/%s/package2' % (lsb_release.name(), os.uname()[-1]),
+            json.dumps({'version': '1', 'binary': ['pkg3', 'pkg4']}),
+            ))
         this.volume = LocalVolume('client')
         conn = Connection()
         injector = Injector(tests.tmpdir + '/client')

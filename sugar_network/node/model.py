@@ -15,7 +15,6 @@
 
 import os
 import json
-import bisect
 import hashlib
 import logging
 import gettext
@@ -26,19 +25,17 @@ from os.path import join
 from sugar_network import db, toolkit
 from sugar_network.model import context as _context, user as _user
 from sugar_network.model import ICON_SIZE, LOGO_SIZE
-from sugar_network.node import obs
 from sugar_network.node.auth import Principal
 from sugar_network.toolkit.router import ACL, File, Request, Response
-from sugar_network.toolkit.coroutine import Queue, Empty, this
+from sugar_network.toolkit.coroutine import this
 from sugar_network.toolkit.bundle import Bundle
-from sugar_network.toolkit import sat, http, i18n, ranges, packets, packagekit
-from sugar_network.toolkit import spec, svg_to_png, enforce
+from sugar_network.toolkit import http, i18n, ranges, packets, spec
+from sugar_network.toolkit import svg_to_png, enforce
 
 
 BATCH_SUFFIX = '.meta'
 
 _logger = logging.getLogger('node.model')
-_presolve_queue = Queue()
 
 
 class User(_user.User):
@@ -56,19 +53,10 @@ class _ReleaseValue(dict):
 class _Release(object):
 
     _subcast = db.Dict()
-    _package_subcast = db.Dict(db.List())
 
     def typecast(self, value):
         if isinstance(value, _ReleaseValue):
             return value.guid, value
-        doc = this.volume['context'][this.request.guid]
-        if 'package' in doc['type']:
-            enforce(this.request.key, http.BadRequest, 'No distro in path')
-            value = _ReleaseValue(self._package_subcast.typecast(value))
-            value.guid = this.request.key
-            resolve_package(doc, this.request.key, value)
-            doc.post('releases')
-            return value
         bundle = this.volume.blobs.post(value, this.request.content_type)
         __, value = load_bundle(bundle, context=this.request.guid)
         return value.guid, value
@@ -284,243 +272,6 @@ def apply_batch(path):
         os.unlink(path)
 
 
-def solve(volume, top_context, command=None, lsb_id=None, lsb_release=None,
-        stability=None, requires=None, assume=None, details=False):
-    top_context = volume['context'][top_context]
-    if stability is None:
-        stability = ['stable']
-    if isinstance(stability, basestring):
-        stability = [stability]
-    top_cond = []
-    top_requires = {}
-    if isinstance(requires, basestring):
-        top_requires.update(spec.parse_requires(requires))
-    elif requires:
-        for i in requires:
-            top_requires.update(spec.parse_requires(i))
-    if top_context['dependencies']:
-        top_requires.update(spec.parse_requires(top_context['dependencies']))
-    if top_context.guid in top_requires:
-        top_cond = top_requires.pop(top_context.guid)
-
-    lsb_distro = '-'.join([lsb_id, lsb_release]) if lsb_release else None
-    varset = [None]
-    context_clauses = {}
-    clauses = []
-
-    _logger.debug(
-            'Solve %r lsb_id=%r lsb_release=%r stability=%r requires=%r',
-            top_context.guid, lsb_id, lsb_release, stability, top_requires)
-
-    def rate_release(key, release):
-        return [command in release.get('commands', []),
-                _STABILITY_RATES.get(release['stability']) or 0,
-                release['version'],
-                key,
-                ]
-
-    def add_deps(v_usage, deps):
-        usage = varset[v_usage]
-        for dep, cond in deps.items():
-            dep_clause = [-v_usage]
-            for v_release in add_context(dep):
-                release = varset[v_release]
-                if spec.ensure_version(release[1]['version'], cond):
-                    _logger.trace('Consider %d:%s(%s) depends on %d:%s(%s)',
-                            v_usage, usage[0], usage[1]['version'],
-                            v_release, dep, release[1]['version'])
-                    dep_clause.append(v_release)
-                else:
-                    _logger.trace('Ignore %d:%s(%s) depends on %d:%s(%s)',
-                            v_usage, usage[0], usage[1]['version'],
-                            v_release, dep, release[1]['version'])
-            clauses.append(dep_clause)
-
-    def add_context(context):
-        if context in context_clauses:
-            return context_clauses[context]
-        context = volume['context'][context]
-
-        if not context.available:
-            _logger.trace('No %r context', context.guid)
-            return []
-
-        releases = context['releases']
-        clause = []
-
-        if 'package' in context['type']:
-            if assume and context.guid in assume:
-                for version in reversed(sorted(assume[context.guid])):
-                    _logger.trace('Assume %d:%s(%s) package',
-                            len(varset), context.guid, version)
-                    clause.append(len(varset))
-                    varset.append((context.guid, {'version': version}))
-            else:
-                pkg_info = {}
-                if 'resolves' in releases and \
-                        lsb_distro in releases['resolves']['value']:
-                    pkg = releases['resolves']['value'][lsb_distro]
-                    if 'version' not in pkg:
-                        _logger.trace('No resolves for %r', context.guid)
-                        return []
-                    pkg_info['version'] = pkg['version']
-                    pkg_info['packages'] = pkg['packages']
-                else:
-                    alias = releases.get(lsb_id) or releases.get('*')
-                    if alias:
-                        pkg_info['version'] = []
-                        pkg_info['packages'] = alias['value']['binary']
-                if pkg_info:
-                    _logger.trace('Consider %d:%s(%s) package',
-                            len(varset), context.guid, pkg_info['version'])
-                    clause.append(len(varset))
-                    varset.append((context.guid, pkg_info))
-        else:
-            candidates = []
-            for key, rel in releases.items():
-                if 'value' not in rel:
-                    continue
-                rel = rel['value']
-                if rel['stability'] not in stability or \
-                        context.guid == top_context.guid and \
-                            not spec.ensure_version(rel['version'], top_cond):
-                    continue
-                bisect.insort(candidates, rate_release(key, rel))
-            for rate in reversed(candidates):
-                agg_value = releases[rate[-1]]
-                rel = agg_value['value']
-                # TODO Assume we have only noarch bundles
-                bundle = rel['bundles']['*-*']
-                blob = volume.blobs.get(bundle['blob'])
-                if blob is None:
-                    _logger.debug('Absent blob for %r release', rel)
-                    continue
-                release_info = {
-                        'title': i18n.decode(context['title'],
-                            this.request.accept_language),
-                        'version': rel['version'],
-                        'blob': blob,
-                        'size': blob.size,
-                        'content-type': blob.meta['content-type'],
-                        }
-                if details:
-                    if 'announce' in rel:
-                        announce = volume['post'][rel['announce']]
-                        if announce.available:
-                            release_info['announce'] = i18n.decode(
-                                    announce['message'],
-                                    this.request.accept_language)
-                    release_info['ctime'] = agg_value['ctime']
-                    release_info['author'] = agg_value['author']
-                    db.Author.format(agg_value['author'])
-                unpack_size = bundle.get('unpack_size')
-                if unpack_size is not None:
-                    release_info['unpack_size'] = unpack_size
-                requires = rel.get('requires') or {}
-                if top_requires and context.guid == top_context.guid:
-                    requires.update(top_requires)
-                if context.guid == top_context.guid and 'commands' in rel:
-                    cmd = rel['commands'].get(command)
-                    if cmd is None:
-                        cmd = rel['commands'].values()[0]
-                    release_info['command'] = cmd['exec']
-                    requires.update(cmd.get('requires') or {})
-                _logger.trace('Consider %d:%s(%s) context',
-                        len(varset), context.guid, release_info['version'])
-                v_release = len(varset)
-                varset.append((context.guid, release_info))
-                clause.append(v_release)
-                add_deps(v_release, requires)
-
-        if clause:
-            context_clauses[context.guid] = clause
-        else:
-            _logger.trace('No candidates for %r', context.guid)
-        return clause
-
-    top_clause = add_context(top_context.guid)
-    if not top_clause:
-        _logger.debug('No versions for %r', top_context.guid)
-        return None
-
-    result = sat.solve(clauses + [top_clause], context_clauses)
-    if not result:
-        _logger.debug('Failed to solve %r', top_context.guid)
-        return None
-    if not top_context.guid in result:
-        _logger.debug('No top versions for %r', top_context.guid)
-        return None
-
-    solution = dict([varset[i] for i in result.values()])
-    for rel in solution.values():
-        version = rel['version']
-        if version:
-            rel['version'] = spec.format_version(rel['version'])
-        else:
-            del rel['version']
-
-    _logger.debug('Solution for %r: %r', top_context.guid, solution)
-
-    return solution
-
-
-def resolve_package(doc, distro, alias):
-    enforce(alias.get('binary'), http.BadRequest, 'No binary aliases')
-
-    if distro == '*':
-        lsb_id = None
-        lsb_release = None
-    elif '-' in distro:
-        lsb_id, lsb_release = distro.split('-', 1)
-    else:
-        lsb_id = distro
-        lsb_release = None
-    releases = doc['releases']
-    resolves = releases['resolves']['value'] if 'resolves' in releases else {}
-    to_presolve = []
-
-    for repo in obs.get_repos():
-        if lsb_id and lsb_id != repo['lsb_id'] or \
-                lsb_release and lsb_release != repo['lsb_release']:
-            continue
-        # Make sure there are no alias overrides
-        if not lsb_id and repo['lsb_id'] in releases or \
-                not lsb_release and repo['name'] in releases:
-            continue
-        pkgs = sum([alias.get(i, []) for i in ('binary', 'devel')], [])
-        version = None
-        try:
-            for arch in repo['arches']:
-                version = obs.resolve(repo['name'], arch, pkgs)['version']
-        except Exception, error:
-            _logger.warning('Failed to resolve %r on %s',
-                    pkgs, repo['name'])
-            resolve = {'status': str(error)}
-        else:
-            to_presolve.append((repo['name'], pkgs))
-            version = packagekit.cleanup_distro_version(version)
-            resolve = {
-                    'version': spec.parse_version(version),
-                    'packages': pkgs,
-                    'status': 'success',
-                    }
-        resolves.setdefault(repo['name'], {}).update(resolve)
-
-    if to_presolve and _presolve_queue is not None:
-        _presolve_queue.put(to_presolve)
-    doc.posts.setdefault('releases', {})['resolves'] = {'value': resolves}
-
-
-def presolve(presolve_path, **pop_kwargs):
-    while True:
-        try:
-            value = _presolve_queue.get(**pop_kwargs)
-        except Empty:
-            break
-        for repo_name, pkgs in value:
-            obs.presolve(repo_name, pkgs, presolve_path)
-
-
 def load_bundle(blob, context=None, initial=False, extra_deps=None,
         license=None, release_notes=None, update_context=True):
     context_type = None
@@ -706,12 +457,3 @@ def _generate_icons(svg, props):
             blobs.post(svg_to_png(svg, ICON_SIZE), 'image/png').digest
     props['logo'] = \
             blobs.post(svg_to_png(svg, LOGO_SIZE), 'image/png').digest
-
-
-_STABILITY_RATES = {
-        'insecure': 0,
-        'buggy': 1,
-        'developer': 2,
-        'testing': 3,
-        'stable': 4,
-        }

@@ -24,7 +24,7 @@ from os.path import join, exists
 
 from sugar_network import db, toolkit
 from sugar_network.model import FrontRoutes
-from sugar_network.node import model
+from sugar_network.node import model, solver
 from sugar_network.toolkit.router import ACL, File, route
 from sugar_network.toolkit.router import fallbackroute, preroute, postroute
 from sugar_network.toolkit.spec import parse_version
@@ -198,7 +198,7 @@ class NodeRoutes(db.Routes, FrontRoutes):
                     "'assume' should be formed as '<CONTEXT>-<VERSION>")
             context, version = item.split('-', 1)
             assume_.setdefault(context, []).append(parse_version(version))
-        solution = model.solve(this.volume, this.request.guid, **this.request)
+        solution = solver.solve(this.volume, this.request.guid, **this.request)
         enforce(solution is not None, 'Failed to solve')
         return solution
 

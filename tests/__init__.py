@@ -20,7 +20,7 @@ from M2Crypto import DSA
 from sugar_network.toolkit import coroutine
 coroutine.inject()
 
-from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, packets
+from sugar_network.toolkit import http, mountpoints, Option, gbus, i18n, languages, packets, lsb_release
 from sugar_network.toolkit.router import Router, Request, Response
 from sugar_network.toolkit.coroutine import this
 from sugar_network.client import IPCConnection, journal, routes as client_routes, model as client_model
@@ -38,7 +38,7 @@ from sugar_network.node.auth import SugarAuth
 from sugar_network.node import routes as node_routes
 from sugar_network.model.post import Post
 from sugar_network.node.master import MasterRoutes
-from sugar_network.node import obs, slave, master
+from sugar_network.node import slave, master
 from requests import adapters
 
 
@@ -111,8 +111,6 @@ class Test(unittest.TestCase):
         mountpoints._connects.clear()
         mountpoints._found.clear()
         mountpoints._COMPLETE_MOUNT_TIMEOUT = .1
-        obs._conn = None
-        obs._repos = {'base': [], 'presolve': []}
         http._RECONNECTION_NUMBER = 0
         toolkit.cachedir.value = tmpdir + '/tmp'
         model.TOP_CONTEXT_TYPES = _TOP_CONTEXT_TYPES
@@ -151,6 +149,9 @@ class Test(unittest.TestCase):
         this.principal = None
         this.reset_property('resource')
         this.static_prefix = None
+
+        self.override(lsb_release, 'distributor_id', lambda: 'Ubuntu')
+        self.override(lsb_release, 'release', lambda: '12.04')
 
     def tearDown(self):
         self.stop_nodes()
@@ -294,6 +295,9 @@ class Test(unittest.TestCase):
         coroutine.spawn(self.node.serve_forever)
         coroutine.dispatch(.1)
         this.call = self.node_router.call
+        packages_path = 'master/files/packages/%s/%s' % (lsb_release.name(), os.uname()[-1])
+        if not exists(packages_path):
+            os.makedirs(packages_path)
         return self.node_volume
 
     def fork_master(self, classes=None, routes=MasterRoutes, cb=None, auth=None):
@@ -304,6 +308,9 @@ class Test(unittest.TestCase):
 
         def _node():
             this.volume = NodeVolume('master', classes)
+            packages_path = 'master/files/packages/%s/%s' % (lsb_release.name(), os.uname()[-1])
+            if not exists(packages_path):
+                os.makedirs(packages_path)
             if cb is not None:
                 cb(this.volume)
             anode = coroutine.WSGIServer(('127.0.0.1', 7777), Router(routes(self.master_url, auth=auth)))

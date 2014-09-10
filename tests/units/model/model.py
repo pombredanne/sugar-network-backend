@@ -96,7 +96,6 @@ class ModelTest(tests.Test):
         assert this.volume['context'].create({'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}})
         assert this.volume['context'].create({'type': ['book'], 'title': {}, 'summary': {}, 'description': {}})
         assert this.volume['context'].create({'type': ['group'], 'title': {}, 'summary': {}, 'description': {}})
-        assert this.volume['context'].create({'type': ['package'], 'title': {}, 'summary': {}, 'description': {}})
 
         self.assertRaises(http.BadRequest, this.volume['context'].create, {
             'type': ['activity', 'book'],
@@ -106,12 +105,6 @@ class ModelTest(tests.Test):
             })
         self.assertRaises(http.BadRequest, this.volume['context'].create, {
             'type': ['book', 'group'],
-            'title': {},
-            'summary': {},
-            'description': {},
-            })
-        self.assertRaises(http.BadRequest, this.volume['context'].create, {
-            'type': ['group', 'package'],
             'title': {},
             'summary': {},
             'description': {},

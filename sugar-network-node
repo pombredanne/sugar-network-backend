@@ -26,7 +26,7 @@ from sugar_network import db, toolkit
 from sugar_network.model.post import Post
 from sugar_network.node.auth import SugarAuth
 from sugar_network.node.avatars import Avatars
-from sugar_network.node import obs, master, slave, model, stats
+from sugar_network.node import master, slave, model, stats
 from sugar_network.toolkit.http import Connection
 from sugar_network.toolkit.router import Router
 from sugar_network.toolkit.coroutine import this
@@ -103,6 +103,12 @@ SUPPORTED_API = {
             },
         }
 
+EPILOG = """\
+Supported API versions:
+%s
+See http://wiki.sugarlabs.org/go/Sugar_Network for details.\
+"""
+
 
 class Application(application.Daemon):
 
@@ -171,12 +177,11 @@ class Application(application.Daemon):
 
         self.jobs.spawn(stats_monitor.auto_commit)
         self.jobs.spawn(this.volume.populate)
-        self.jobs.spawn(model.presolve, join(data_root.value, 'files'))
 
         logging.info('Listen requests on %s:%s', host.value, port.value)
         server = coroutine.WSGIServer((host.value, port.value),
                 Router(self.routes, default_api=default_api.value),
-                http_log=_open_logfile('access'), **ssl_args)
+                http_log=open_http_logfile('access'), **ssl_args)
         self.jobs.spawn(server.serve_forever)
         self.servers.append(server)
 
@@ -185,7 +190,7 @@ class Application(application.Daemon):
                 reuse_address=True, mode=0660)
         server = coroutine.WSGIServer(sock,
                 Router(self.routes[default_api.value]),
-                http_log=_open_logfile('backdoor'))
+                http_log=open_http_logfile('backdoor'))
         self.jobs.spawn(server.serve_forever)
         self.servers.append(server)
 
@@ -228,29 +233,7 @@ class Application(application.Daemon):
         self._ensure_instance().post(cmd='offline_sync', path=path)
 
     @application.command(
-            'resolve/presolve packages for all package-type Contexts',
-            name='resolve')
-    def resolve(self):
-        enforce(not self.check_for_instance(), 'Node should be stopped')
-        enforce(mode.value == 'master', 'Node is not master')
-        this.volume = model.Volume(data_root.value,
-                master.MasterRoutes.RESOURCES)
-        try:
-            this.volume.populate()
-            for doc in this.volume['context']:
-                if 'package' not in doc['type']:
-                    continue
-                for key, agg in doc['releases'].items():
-                    if key == 'resolves' or 'value' not in agg:
-                        continue
-                    model.resolve_package(doc, key, agg['value'])
-                doc.post('releases')
-        finally:
-            this.volume.close()
-        model.presolve(join(data_root.value, 'files'), block=False)
-
-    @application.command(
-            're-generate node statistics', name='stat')
+            'generate node statistics', name='stat')
     def stat(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
         this.volume = model.Volume(data_root.value,
@@ -264,7 +247,7 @@ class Application(application.Daemon):
             this.volume.close()
 
     @application.command(
-            're-generate calculated property values', name='calc')
+            'generate calculated property values', name='calc')
     def calc(self):
         enforce(not self.check_for_instance(), 'Node should be stopped')
         this.volume = model.Volume(data_root.value,
@@ -280,12 +263,20 @@ class Application(application.Daemon):
         return Connection('file://' + backdoor.value)
 
 
-def _open_logfile(name):
+def open_http_logfile(name):
     if not http_logdir.value:
         return None
     if not exists(http_logdir.value):
         os.makedirs(http_logdir.value)
     return file(join(http_logdir.value, name + '.log'), 'a+')
+
+
+def api_names():
+    result = ''
+    for side, apis in SUPPORTED_API.items():
+        result += application.INDENT_FORMAT % side
+        result += ', '.join(apis.keys()) + '\n'
+    return result
 
 
 i18n.init('sugar-network')
@@ -301,20 +292,12 @@ Option.seek('node', [
     data_root, mode, host, port, default_api, master_url, static_url,
     backdoor, http_logdir, find_limit, keyfile, certfile, avatars,
     ])
-Option.seek('obs', obs)
 Option.seek('db', db)
-
-epilog = """\
-Supported API versions:
-  %s
-
-See http://wiki.sugarlabs.org/go/Sugar_Network for details.\
-""" % ' '.join(SUPPORTED_API.keys())
 
 app = Application(
         name='sugar-network-node',
-        description='Sugar Network node server',
-        epilog=epilog,
+        description='Sugar Network node.',
+        epilog=EPILOG % api_names(),
         config_files=[
             '/etc/sugar-network.d',
             '/etc/sugar-network.conf',

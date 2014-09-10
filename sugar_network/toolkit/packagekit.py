@@ -54,7 +54,7 @@ def install(names):
                 resp.error_details, resp.error_code)
 
 
-def cleanup_distro_version(version):
+def parse_version(version):
     if ':' in version:
         # Skip 'epoch'
         version = version.split(':', 1)[1]
@@ -63,7 +63,7 @@ def cleanup_distro_version(version):
         version, suffix = version.split('~', 1)
         if suffix.startswith('pre'):
             suffix = suffix[3:]
-        suffix = '-pre' + (cleanup_distro_version(suffix) or '')
+        suffix = '-pre' + (parse_version(suffix) or '')
     else:
         suffix = ''
     match = _VERSION_RE.match(version)
@@ -75,6 +75,19 @@ def cleanup_distro_version(version):
             version = '%s-%s' % (version, revision[2:])
         return version + suffix
     return None
+
+
+def parse_machine(arch):
+    arch = arch.lower()
+    if arch == 'x86':
+        return 'i386'
+    elif arch == 'amd64':
+        return 'x86_64'
+    elif arch == 'power macintosh':
+        return 'ppc'
+    elif arch == 'i86pc':
+        return 'i686'
+    return arch
 
 
 def _resolve(names):
@@ -129,7 +142,7 @@ def _pk(result, op, *args):
 
     def Package_cb(status, pk_id, summary):
         package_name, version, arch, __ = pk_id.split(';')
-        clean_version = cleanup_distro_version(version)
+        clean_version = parse_version(version)
         if not clean_version:
             _logger.warn('Cannot parse distribution version "%s" '
                     'for package "%s"', version, package_name)
@@ -139,7 +152,7 @@ def _pk(result, op, *args):
                 'pk_id': str(pk_id),
                 'version': clean_version,
                 'name': package_name,
-                'arch': _canonicalize_machine(arch),
+                'arch': parse_machine(arch),
                 'installed': (status == 'installed'),
                 }
         _logger.debug('Found: %r', package)
@@ -168,18 +181,6 @@ def _pk(result, op, *args):
         auth.ObtainAuthorization(iface, dbus.UInt32(0),
                 dbus.UInt32(os.getpid()), timeout=300)
         op(*args)
-
-
-def _canonicalize_machine(arch):
-    arch = arch.lower()
-    if arch == 'x86':
-        return 'i386'
-    elif arch == 'amd64':
-        return 'x86_64'
-    elif arch == 'power macintosh':
-        return 'ppc'
-    elif arch == 'i86pc':
-        return 'i686'
 
 
 _DOTTED_RE = r'[0-9]+(?:\.[0-9]+)*'

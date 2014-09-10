@@ -29,6 +29,10 @@ from sugar_network.toolkit import Option
 from sugar_network.toolkit import coroutine, printf, init_logging, enforce
 
 
+INDENT_SIZE = 22
+INDENT_FORMAT = '  %%-%ds' % INDENT_SIZE
+
+
 debug = Option(
         _('debug logging level; multiple argument'),
         default=0, type_cast=int, short_option='-D', action='count',
@@ -121,8 +125,8 @@ class Application(object):
                         term += ' ' + line
                         continue
                 text.extend(textwrap.wrap(line, 54))
-            if len(term) < 22:
-                sys.stdout.write('  %-22s' % term)
+            if len(term) < INDENT_SIZE:
+                sys.stdout.write(INDENT_FORMAT % term)
             else:
                 text.insert(0, '')
                 sys.stdout.write('  %s' % term)

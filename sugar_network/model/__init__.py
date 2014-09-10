@@ -28,7 +28,6 @@ CONTEXT_TYPES = [
         'activity',     # Sugar application
         'book',         # books in various forms
         'group',        # a social group of related activities
-        'package',      # GNU/Linux package metadata
         'talks',        # mix-in offline discussion forum
         'project',      # mix-in issue tracker and polling functionality
         ]
@@ -37,7 +36,6 @@ TOP_CONTEXT_TYPES = frozenset([
         'activity',
         'book',
         'group',
-        'package',
         ])
 
 POST_TYPES = {
