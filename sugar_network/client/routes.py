@@ -128,11 +128,8 @@ class ClientRoutes(FrontRoutes, JournalRoutes):
     def submit_report(self):
         props = this.request.content
         logs = props.pop('logs')
-        props['uname'] = os.uname()
-        props['lsb_release'] = {
-                'distributor_id': lsb_release.distributor_id(),
-                'release': lsb_release.release(),
-                }
+        props['uname'] = ' '.join(os.uname())
+        props['lsb_release'] = lsb_release.name()
         guid = self.fallback(method='POST', path=['report'],
                 content=props, content_type='application/json')
         for logfile in logs:

@@ -27,11 +27,11 @@ class User(db.Resource):
     def location(self, value):
         return value
 
-    @db.indexed_property(db.Numeric, slot=2, prefix='C', default=0)
+    @db.indexed_property(db.Numeric, prefix='C', default=0)
     def birthday(self, value):
         return value
 
-    @db.stored_property(default='')
+    @db.indexed_property(prefix='D', default='')
     def email(self, value):
         return value
 

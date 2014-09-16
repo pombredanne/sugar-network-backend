@@ -453,7 +453,7 @@ class SolverTest(tests.Test):
                     }},
                 },
             })
-        self.touch(('master/files/packages/distro/arch/package', json.dumps({
+        self.touch(('master/files/packages/lsb_release/machine/package', json.dumps({
             'version': '1',
             'binary': ['pkg1', 'pkg2'],
             })))
@@ -461,7 +461,7 @@ class SolverTest(tests.Test):
             'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 'command', 'size': 0, 'content-type': 'mime'},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': '1'},
             },
-            solver.solve(volume, 'context', distro='distro', arch='arch'))
+            solver.solve(volume, 'context', lsb_release='lsb_release', machine='machine'))
 
         context = volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
@@ -480,9 +480,9 @@ class SolverTest(tests.Test):
             'dep': {'title': '', 'blob': 'http://localhost/blobs/2', 'version': '1', 'size': 0, 'content-type': 'mime'},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': '1'},
             },
-            solver.solve(volume, 'context', distro='distro', arch='arch'))
+            solver.solve(volume, 'context', lsb_release='lsb_release', machine='machine'))
 
-    def test_solve_PackagesWithoutArch(self):
+    def test_solve_PackagesWithoutMachine(self):
         volume = Volume('master', [Context])
         volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
         this.volume = volume
@@ -495,7 +495,7 @@ class SolverTest(tests.Test):
                     }},
                 },
             })
-        self.touch(('master/files/packages/distro/arch1/package', json.dumps({
+        self.touch(('master/files/packages/lsb_release/machine1/package', json.dumps({
             'version': '1',
             'binary': ['pkg1', 'pkg2'],
             })))
@@ -503,13 +503,13 @@ class SolverTest(tests.Test):
             'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 'command', 'size': 0, 'content-type': 'mime'},
             'package': {'packages': ['pkg1', 'pkg2'], 'version': '1'},
             },
-            solver.solve(volume, 'context', distro='distro'))
+            solver.solve(volume, 'context', lsb_release='lsb_release'))
 
-        self.touch(('master/files/packages/distro/arch2/package', json.dumps({
+        self.touch(('master/files/packages/lsb_release/machine2/package', json.dumps({
             'version': '2',
             'binary': ['pkg3', 'pkg4'],
             })))
-        self.assertRaises(http.BadRequest, solver.solve, volume, 'context', distro='distro')
+        self.assertRaises(http.BadRequest, solver.solve, volume, 'context', lsb_release='lsb_release')
 
     def test_solve_NoPackages(self):
         volume = Volume('master', [Context])
@@ -549,7 +549,7 @@ class SolverTest(tests.Test):
         volume = Volume('master', [Context])
         volume.blobs.get = lambda digest: File(digest=digest, meta={'content-length': '0', 'content-type': 'mime'})
         this.volume = volume
-        os.makedirs('master/files/packages/distro/arch')
+        os.makedirs('master/files/packages/lsb_release/machine')
 
         volume['context'].create({
             'guid': 'context', 'type': ['activity'], 'title': {}, 'summary': {}, 'description': {}, 'releases': {
@@ -563,7 +563,7 @@ class SolverTest(tests.Test):
         self.assertEqual({
             'context': {'title': '', 'blob': 'http://localhost/blobs/1', 'version': '1', 'command': 1, 'size': 0, 'content-type': 'mime'},
             },
-            solver.solve(volume, 'context', distro='distro', arch='arch'))
+            solver.solve(volume, 'context', lsb_release='lsb_release', machine='machine'))
 
     def test_solve_MultipleAssumes(self):
         volume = Volume('master', [Context])
@@ -623,11 +623,11 @@ class SolverTest(tests.Test):
                     'requires': spec.parse_requires('sugar>0.96; sugar<0.100; libxml2; numpy')}},
                 },
             })
-        self.touch(('master/files/packages/distro/arch/libxml2', json.dumps({
+        self.touch(('master/files/packages/lsb_release/machine/libxml2', json.dumps({
             'version': '2.7.8',
             'binary': ['libxml'],
             })))
-        self.touch(('master/files/packages/distro/arch/numpy', json.dumps({
+        self.touch(('master/files/packages/lsb_release/machine/numpy', json.dumps({
             'version': '1.6.1',
             'binary': ['numpy'],
             })))
@@ -638,14 +638,14 @@ class SolverTest(tests.Test):
             'libxml2': {'version': '2.7.8', 'packages': ['libxml']},
             'numpy': {'version': '1.6.1', 'packages': ['numpy']},
             },
-            solver.solve(volume, 'org.laptop.Memorize', distro='distro', arch='arch', assume={'sugar': [[[0, 84], 0], [[0, 94], 0]]}))
+            solver.solve(volume, 'org.laptop.Memorize', lsb_release='lsb_release', machine='machine', assume={'sugar': [[[0, 84], 0], [[0, 94], 0]]}))
         self.assertEqual({
             'org.laptop.Memorize': {'title': '', 'blob': 'http://localhost/blobs/blob', 'version': '45', 'command': 'true', 'size': 0, 'content-type': 'mime'},
             'sugar': {'version': '0.94'},
             'libxml2': {'version': '2.7.8', 'packages': ['libxml']},
             'numpy': {'version': '1.6.1', 'packages': ['numpy']},
             },
-            solver.solve(volume, 'org.laptop.Memorize', distro='distro', arch='arch', assume={'sugar': [[[0, 94], 0], [[0, 84], 0]]}))
+            solver.solve(volume, 'org.laptop.Memorize', lsb_release='lsb_release', machine='machine', assume={'sugar': [[[0, 94], 0], [[0, 84], 0]]}))
 
 
 if __name__ == '__main__':

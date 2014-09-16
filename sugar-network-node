@@ -78,7 +78,7 @@ http_logdir = Option(
 
 find_limit = Option(
         'limit the resulting list for search requests',
-        default=128, type_cast=int, name='find-limit')
+        default=64, type_cast=int, name='find-limit')
 
 keyfile = Option(
         'path to SSL certificate keyfile to serve requests via HTTPS',

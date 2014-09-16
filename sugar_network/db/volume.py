@@ -36,7 +36,6 @@ class Volume(dict):
         Volume._flush_pool.append(self)
         self.resources = {}
         self.mute = False
-        self._populators = coroutine.Pool()
 
         if index_class is None:
             index_class = IndexWriter
@@ -85,16 +84,16 @@ class Volume(dict):
     def close(self):
         """Close operations with the server."""
         _logger.info('Closing documents in %r', self._root)
-        self._populators.kill()
         while self:
             __, cls = self.popitem()
             cls.close()
 
     def populate(self):
         for resource in self.resources:
-            self.__getitem__(resource)
+            for __ in self[resource].populate():
+                coroutine.dispatch()
         for __ in self.blobs.populate():
-            pass
+            coroutine.dispatch()
 
     def broadcast(self, event):
         if not self.mute:
@@ -122,10 +121,5 @@ class Volume(dict):
                 cls = resource
             dir_ = Directory(self._root, cls, self._index_class, self.seqno,
                     self.broadcast)
-            self._populators.spawn(self._populate, dir_)
             self[name] = dir_
         return dir_
-
-    def _populate(self, directory):
-        for __ in directory.populate():
-            coroutine.dispatch()

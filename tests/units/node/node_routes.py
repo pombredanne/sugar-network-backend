@@ -385,49 +385,49 @@ class NodeRoutesTest(tests.Test):
         volume = self.start_master()
         client = Connection()
 
-        self.touch(('master/files/packages/repo/arch/package', 'file'))
+        self.touch(('master/files/packages/lsb_release/machine/package', 'file'))
         for __ in volume.blobs.populate():
             pass
 
         self.assertEqual([], client.get(['packages']))
-        self.assertEqual([], client.get(['packages', 'repo']))
-        self.assertEqual(['package'], client.get(['packages', 'repo', 'arch']))
-        self.assertEqual('file', client.get(['packages', 'repo', 'arch', 'package']))
+        self.assertEqual([], client.get(['packages', 'lsb_release']))
+        self.assertEqual(['package'], client.get(['packages', 'lsb_release', 'machine']))
+        self.assertEqual('file', client.get(['packages', 'lsb_release', 'machine', 'package']))
 
     def test_PackageUpdatesRoute(self):
         volume = self.start_master()
         ipc = Connection()
 
-        self.touch('master/files/packages/repo/1', 'master/files/packages/repo/1.1')
+        self.touch('master/files/packages/lsb_release/1', 'master/files/packages/lsb_release/1.1')
         for __ in volume.blobs.populate():
             pass
-        self.touch('master/files/packages/repo/2', 'master/files/packages/repo/2.2')
+        self.touch('master/files/packages/lsb_release/2', 'master/files/packages/lsb_release/2.2')
         for __ in volume.blobs.populate():
             pass
 
         self.assertEqual(
                 sorted(['1', '2']),
-                sorted(ipc.get(['packages', 'repo', 'updates'])))
+                sorted(ipc.get(['packages', 'lsb_release', 'updates'])))
 
-        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(0)})
+        response = ipc.request('GET', ['packages', 'lsb_release', 'updates'], headers={'if-modified-since': formatdate(0)})
         self.assertEqual(
                 sorted(['1', '2']),
                 sorted(json.loads(response.content)))
         self.assertEqual(2, time.mktime(parsedate(response.headers['last-modified'])))
 
-        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(1)})
+        response = ipc.request('GET', ['packages', 'lsb_release', 'updates'], headers={'if-modified-since': formatdate(1)})
         self.assertEqual(
                 sorted(['2']),
                 sorted(json.loads(response.content)))
         self.assertEqual(2, time.mktime(parsedate(response.headers['last-modified'])))
 
-        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(2)})
+        response = ipc.request('GET', ['packages', 'lsb_release', 'updates'], headers={'if-modified-since': formatdate(2)})
         self.assertEqual(
                 sorted([]),
                 sorted(json.loads(response.content)))
         assert 'last-modified' not in response.headers
 
-        response = ipc.request('GET', ['packages', 'repo', 'updates'], headers={'if-modified-since': formatdate(3)})
+        response = ipc.request('GET', ['packages', 'lsb_release', 'updates'], headers={'if-modified-since': formatdate(3)})
         self.assertEqual(
                 sorted([]),
                 sorted(json.loads(response.content)))

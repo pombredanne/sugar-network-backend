@@ -25,7 +25,7 @@ from sugar_network.toolkit.packagekit import parse_machine
 from sugar_network.toolkit import sat, http, i18n, spec, enforce
 
 
-_ARCH_DOWNGRADE_MAP = {
+_MACHINE_MAP = {
         'i486': ['i386'],
         'i586': ['i486', 'i386'],
         'i686': ['i586', 'i486', 'i386'],
@@ -45,15 +45,15 @@ _STABILITY_RATES = {
 _logger = logging.getLogger('node.solver')
 
 
-def solve(volume, top_context, command=None, distro=None, arch=None,
+def solve(volume, top_context, command=None, lsb_release=None, machine=None,
         stability=None, requires=None, assume=None, details=False):
     top_context = volume['context'][top_context]
     if stability is None:
         stability = ['stable']
     if isinstance(stability, basestring):
         stability = [stability]
-    if distro:
-        arch = _resolve_arch(distro, arch)
+    if lsb_release:
+        machine = _resolve_machine(lsb_release, machine)
     top_cond = []
     top_requires = {}
     if isinstance(requires, basestring):
@@ -71,8 +71,8 @@ def solve(volume, top_context, command=None, distro=None, arch=None,
     clauses = []
 
     _logger.debug(
-            'Solve %r distro=%r arch=%r stability=%r requires=%r',
-            top_context.guid, distro, arch, stability, top_requires)
+            'Solve %r lsb_release=%r machine=%r stability=%r requires=%r',
+            top_context.guid, lsb_release, machine, stability, top_requires)
 
     def rate_release(key, release):
         return [command in release.get('commands', []),
@@ -193,8 +193,8 @@ def solve(volume, top_context, command=None, distro=None, arch=None,
             clause = add_assumed_package(guid)
         else:
             package = None
-            if distro:
-                package = _resolve_package(distro, arch, guid)
+            if lsb_release:
+                package = _resolve_package(lsb_release, machine, guid)
             if package is not None:
                 clause = add_package(guid, package)
             else:
@@ -231,39 +231,41 @@ def solve(volume, top_context, command=None, distro=None, arch=None,
     return solution
 
 
-def _resolve_arch(distro, arch):
-    path = join(this.volume.root, 'files', 'packages', distro)
-    supported_arches = []
-    for __, supported_arches, __ in os.walk(path):
+def _resolve_machine(lsb_release, machine):
+    path = join(this.volume.root, 'files', 'packages', lsb_release)
+    supported = []
+    for __, supported, __ in os.walk(path):
         break
     else:
         raise http.BadRequest('Unsupported GNU/Linux distribution')
 
-    if not arch:
-        enforce(len(supported_arches) == 1,
-                http.BadRequest, "Argument 'arch' not specified")
-        return supported_arches[0]
+    if not machine:
+        enforce(len(supported) == 1,
+                http.BadRequest, "Argument 'machine' not specified")
+        return supported[0]
 
-    arch = parse_machine(arch)
-    if arch in supported_arches:
-        return arch
+    machine = parse_machine(machine)
+    if machine in supported:
+        return machine
 
-    enforce(arch in _ARCH_DOWNGRADE_MAP,
+    enforce(machine in _MACHINE_MAP,
             http.BadRequest, 'Unknown machine architecture')
-    for arch in _ARCH_DOWNGRADE_MAP[arch]:
-        if arch in supported_arches:
-            return arch
+    for machine in _MACHINE_MAP[machine]:
+        if machine in supported:
+            return machine
 
     raise http.BadRequest('Unsupported machine architecture')
 
 
-def _resolve_package(distro, arch, name):
-    path = join(this.volume.root, 'files', 'packages', distro, arch, name)
+def _resolve_package(lsb_release, machine, name):
+    path = join(this.volume.root, 'files', 'packages',
+            lsb_release, machine, name)
     if not exists(path):
         return None
     try:
         with file(path) as f:
             return json.load(f)
     except Exception:
-        _logger.exception('Failed to resolve %s/%s/%s', distro, arch, name)
+        _logger.exception('Failed to resolve %s/%s/%s',
+                lsb_release, machine, name)
         return None

@@ -22,7 +22,7 @@ import logging
 import xapian
 
 from sugar_network import toolkit
-from sugar_network.db.metadata import GUID_PREFIX
+from sugar_network.db.metadata import IndexableText, GUID_PREFIX
 from sugar_network.toolkit import Option, coroutine, enforce
 
 
@@ -154,7 +154,7 @@ class IndexReader(object):
         enquire = self._enquire(request, query, order_by, group_by)
         mset = self._call_db(enquire.get_mset, offset, limit, check_at_least)
 
-        _logger.debug('Found in %s: query=%r time=%s total=%s parsed=%s',
+        _logger.trace('Found in %s: query=%r time=%s total=%s parsed=%s',
                 self.metadata.name, query, time.time() - start_timestamp,
                 mset.get_matches_estimated(), enquire.get_query())
 
@@ -218,8 +218,8 @@ class IndexReader(object):
             for needle in value if type(value) in (tuple, list) else [value]:
                 if needle is None:
                     continue
-                needle = prop.decode(needle)
-                queries.append(xapian.Query(_term(prop.prefix, needle)))
+                term = _term(_EXACT_PREFIX + prop.prefix, prop.decode(needle))
+                queries.append(xapian.Query(term))
             if negative or not queries:
                 continue
             if len(queries) > 1:
@@ -336,7 +336,7 @@ class IndexWriter(IndexReader):
             if properties is None:
                 return
 
-        _logger.debug('Index %r object: %r', self.metadata.name, properties)
+        _logger.trace('Index %r object: %r', self.metadata.name, properties)
 
         doc = xapian.Document()
         term_generator = xapian.TermGenerator()
@@ -353,13 +353,16 @@ class IndexWriter(IndexReader):
             if prop.prefix or prop.full_text:
                 for value_ in prop.encode(value):
                     if prop.prefix:
+                        term = _term(prop.prefix, value_)
                         if prop.boolean:
-                            doc.add_boolean_term(_term(prop.prefix, value_))
+                            doc.add_boolean_term(term)
+                            doc.add_boolean_term(_EXACT_PREFIX + term)
                         else:
-                            doc.add_term(_term(prop.prefix, value_))
-                    if prop.full_text:
+                            doc.add_term(term)
+                            doc.add_term(_EXACT_PREFIX + term)
+                    if prop.full_text or isinstance(value_, IndexableText):
                         term_generator.index_text(value_, 1, prop.prefix or '')
-                    term_generator.increase_termpos()
+                        term_generator.increase_termpos()
 
         self._db.replace_document(_term(GUID_PREFIX, guid), doc)
         self._pending_updates += 1
@@ -442,4 +445,4 @@ class IndexWriter(IndexReader):
 
 
 def _term(prefix, value):
-    return _EXACT_PREFIX + prefix + toolkit.ascii(value).split('\n')[0][:243]
+    return prefix + toolkit.ascii(value).split('\n')[0][:243]

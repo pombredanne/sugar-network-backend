@@ -77,17 +77,17 @@ def parse_version(version):
     return None
 
 
-def parse_machine(arch):
-    arch = arch.lower()
-    if arch == 'x86':
+def parse_machine(machine):
+    machine = machine.lower()
+    if machine == 'x86':
         return 'i386'
-    elif arch == 'amd64':
+    elif machine == 'amd64':
         return 'x86_64'
-    elif arch == 'power macintosh':
+    elif machine == 'power macintosh':
         return 'ppc'
-    elif arch == 'i86pc':
+    elif machine == 'i86pc':
         return 'i686'
-    return arch
+    return machine
 
 
 def _resolve(names):

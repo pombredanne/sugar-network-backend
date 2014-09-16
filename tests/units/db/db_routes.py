@@ -818,8 +818,7 @@ class DbRoutesTest(tests.Test):
         this.localcast = lambda x: events.append(x)
         this.broadcast = lambda x: events.append(x)
         this.volume = volume = db.Volume(tests.tmpdir, [Document1, Document2])
-        volume['document1']
-        volume['document2']
+        volume.populate()
         coroutine.sleep(.1)
 
         mtime = int(os.stat('index/document1/state').st_mtime)
@@ -2059,6 +2058,68 @@ class DbRoutesTest(tests.Test):
                     'PATH_INFO': '/blobs/%s' % blob.digest,
                     'QUERY_STRING': 'thumb=300',
                     }, lambda *args: None)])))
+
+    def test_Highlight(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(db.Localized, prefix='L', full_text=True)
+            def prop(self, value):
+                return value
+
+        this.volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
+
+        guid = this.call(method='POST', path=['document'], content={'prop': 'a b c'})
+        print '----------'
+        self.assertEqual(
+                '<mark>a</mark> b c',
+                this.call(method='GET', path=['document'], query='a', reply='prop', highlight='')['result'][0]['prop'])
+        print '----------'
+        self.assertEqual(
+                '<mark>a</mark> <mark>b</mark> c',
+                this.call(method='GET', path=['document'], query='a b', reply='prop', highlight='')['result'][0]['prop'])
+        print '----------'
+        self.assertEqual(
+                '<mark>a</mark> <mark>b</mark> <mark>c</mark>',
+                this.call(method='GET', path=['document'], query='a b c', reply='prop', highlight='')['result'][0]['prop'])
+        print '----------'
+
+        this.call(method='PUT', path=['document', guid, 'prop'], content='a\n> b\n>> c\n>> > d')
+        self.assertEqual(
+                '<mark>a</mark>\n> b\n>> c\n>> > d',
+                this.call(method='GET', path=['document'], query='a', reply='prop', highlight='')['result'][0]['prop'])
+        self.assertEqual(
+                '<mark>a</mark>\n> <mark>b</mark>\n>> c\n>> > d',
+                this.call(method='GET', path=['document'], query='a b', reply='prop', highlight='')['result'][0]['prop'])
+        self.assertEqual(
+                '<mark>a</mark>\n> <mark>b</mark>\n>> <mark>c</mark>\n>> > d',
+                this.call(method='GET', path=['document'], query='a b c', reply='prop', highlight='')['result'][0]['prop'])
+        self.assertEqual(
+                '<mark>a</mark>\n> <mark>b</mark>\n>> <mark>c</mark>\n>> > <mark>d</mark>',
+                this.call(method='GET', path=['document'], query='a b c d', reply='prop', highlight='')['result'][0]['prop'])
+
+    def test_HighlightSnippet(self):
+
+        class Document(db.Resource):
+
+            @db.indexed_property(db.Localized, prefix='L', full_text=True)
+            def prop(self, value):
+                return value
+
+        this.volume = db.Volume(tests.tmpdir, [Document])
+        router = Router(db.Routes())
+
+        guid = this.call(method='POST', path=['document'], content={'prop': 'qwerty\nasdfgh\naxcvbn'})
+        self.assertEqual(
+                '<mark>asdfgh</mark>',
+                this.call(method='GET', path=['document'], query='asdfg', reply='prop', highlight='1')['result'][0]['prop'])
+        self.assertEqual(
+                '<mark>asdfgh</mark>',
+                this.call(method='GET', path=['document'], query='asdfg', reply='prop', highlight='6')['result'][0]['prop'])
+        self.assertEqual(
+                '<mark>asdfgh</mark>\naxcvbn',
+                this.call(method='GET', path=['document'], query='asdfg', reply='prop', highlight='7')['result'][0]['prop'])
 
 
 SVG = """\

@@ -18,6 +18,8 @@
 import logging
 from contextlib import contextmanager
 
+import xapian
+
 from sugar_network import toolkit
 from sugar_network.db.metadata import Aggregated, Author
 from sugar_network.toolkit.router import ACL, File
@@ -33,6 +35,7 @@ class Routes(object):
 
     def __init__(self, find_limit=None):
         this.add_property('resource', _get_resource)
+        this.add_property('query', _get_query)
         self.find_limit = find_limit
 
     @preroute
@@ -290,3 +293,11 @@ class Routes(object):
 def _get_resource():
     request = this.request
     return this.volume[request.resource][request.guid]
+
+
+def _get_query():
+    if 'query' not in this.request:
+        return []
+    query = xapian.QueryParser().parse_query(
+            this.request['query'], xapian.QueryParser.FLAG_BOOLEAN, '')
+    return [i for i in query]

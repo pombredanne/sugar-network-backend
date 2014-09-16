@@ -81,7 +81,7 @@ class Resource(object):
         Author.format(value)
         return value
 
-    @indexed_property(List, prefix='XE', full_text=True, default=[])
+    @indexed_property(List, prefix='XE', default=[])
     def tags(self, value):
         return value
 

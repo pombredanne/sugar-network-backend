@@ -473,8 +473,10 @@ class Router(object):
         if response is None:
             response = Response()
 
+        this.reset()
         this.request = request
         this.response = response
+        this.cookie = _load_cookie(request, 'sugar_network_node')
 
         api_version = request.environ.get('HTTP_X_API')
         api = self._apis.get(api_version or self._default_api)
@@ -526,6 +528,7 @@ class Router(object):
             this.response = response
             for i in api.postroutes:
                 result = i(result, exception)
+            _save_cookie(response, 'sugar_network_node', this.cookie)
 
         return result
 
@@ -539,8 +542,6 @@ class Router(object):
 
         content = None
         try:
-            this.cookie = _load_cookie(request, 'sugar_network_node')
-
             if 'HTTP_ORIGIN' in request.environ:
                 enforce(self._assert_origin(request.environ), http.Forbidden,
                         'Cross-site is not allowed for %r origin',
@@ -606,7 +607,6 @@ class Router(object):
 
         _logger.trace('%s call: request=%s response=%r',
                 self, request.environ, response)
-        _save_cookie(response, 'sugar_network_node', this.cookie)
         start_response(response.status, response.items())
 
         if streamed_content:

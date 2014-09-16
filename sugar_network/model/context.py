@@ -49,7 +49,7 @@ class Context(db.Resource):
     def description(self, value):
         return value
 
-    @db.indexed_property(prefix='E', default='', full_text=True)
+    @db.stored_property(prefix='E', default='')
     def homepage(self, value):
         return value
 

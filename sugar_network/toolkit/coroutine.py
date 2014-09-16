@@ -348,18 +348,18 @@ class _Local(object):
 
     PROPERTY_NOT_SET = object()
 
-    def __init__(self):
+    def __init__(self, parent=None):
         self.attrs = set()
-        self.properties = {}
-        self.singletons = {}
+        self.getters = {}
 
-        if hasattr(gevent.getcurrent(), 'local'):
-            current = gevent.getcurrent().local
-            for attr in current.attrs:
+        if parent is None and hasattr(gevent.getcurrent(), 'local'):
+            parent = gevent.getcurrent().local
+
+        if parent is not None:
+            for attr in parent.attrs:
                 self.attrs.add(attr)
-                setattr(self, attr, getattr(current, attr))
-            self.properties = current.properties
-            self.singletons = current.singletons
+                setattr(self, attr, getattr(parent, attr))
+            self.getters = parent.getters
 
 
 class _LocalAccess(object):
@@ -368,31 +368,34 @@ class _LocalAccess(object):
         local = gevent.getcurrent().local
         value = getattr(local, name)
         if value is _Local.PROPERTY_NOT_SET:
-            value = local.properties[name]()
+            value = local.getters[name]()
             setattr(local, name, value)
         return value
 
     def __setattr__(self, name, value):
         local = gevent.getcurrent().local
         local.attrs.add(name)
-        if value is None and name in local.properties:
+        if value is None and name in local.getters:
             value = _Local.PROPERTY_NOT_SET
         setattr(local, name, value)
 
-    def add_property(self, name, getter):
+    def add_property(self, name, getter, *args, **kwargs):
         local = gevent.getcurrent().local
-        local.properties[name] = getter
+        local.getters[name] = lambda: getter(*args, **kwargs)
+        local.attrs.add(name)
         setattr(local, name, _Local.PROPERTY_NOT_SET)
 
     def reset_property(self, name):
         local = gevent.getcurrent().local
         setattr(local, name, _Local.PROPERTY_NOT_SET)
 
-    def add_property_singleton(self, name, cls, *args, **kwargs):
-        local = gevent.getcurrent().local
-        local.properties[name] = \
-                lambda: local.singletons.get(name) or cls(*args, **kwargs)
-        setattr(local, name, _Local.PROPERTY_NOT_SET)
+    def reset(self):
+        job = gevent.getcurrent()
+        if job.local is gevent.get_hub().local:
+            for name in job.local.getters:
+                setattr(job.local, name, _Local.PROPERTY_NOT_SET)
+        else:
+            job.local = _Local(gevent.get_hub().local)
 
 
 class _Child(object):

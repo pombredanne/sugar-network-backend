@@ -17,17 +17,21 @@ from sugar_network import db
 from sugar_network.toolkit.router import ACL
 
 
-class _Solution(db.Property):
+class _Solution(db.Dict):
 
     def __init__(self, **kwargs):
-        db.Property.__init__(self, default=[], **kwargs)
+        db.Dict.__init__(self, db.Dict(), default={}, **kwargs)
 
-    def typecast(self, value):
-        return [] if value is None else list(value)
-
-    def encode(self, value):
-        for i in value:
-            yield i[0]
+    def encode(self, solution):
+        for context, value in solution.items():
+            yield context
+            if 'version' in value:
+                yield db.IndexableText('-'.join((context, value['version'])))
+            if 'title' in value:
+                yield db.IndexableText(value['title'])
+            if 'packages' in value:
+                for pkg in value['packages']:
+                    yield pkg
 
 
 class Report(db.Resource):
@@ -38,8 +42,7 @@ class Report(db.Resource):
     def context(self, value):
         return value
 
-    @db.indexed_property(_Solution, prefix='B', full_text=True,
-            acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(_Solution, prefix='B', acl=ACL.CREATE | ACL.READ)
     def solution(self, value):
         return value
 
@@ -55,8 +58,7 @@ class Report(db.Resource):
     def uname(self, value):
         return value
 
-    @db.indexed_property(db.Dict, prefix='F', full_text=True,
-            acl=ACL.CREATE | ACL.READ)
+    @db.indexed_property(prefix='F', acl=ACL.CREATE | ACL.READ)
     def lsb_release(self, value):
         return value
 

@@ -13,16 +13,26 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import re
+import logging
+
 import xapian
 
 from sugar_network import toolkit
 from sugar_network.toolkit.router import ACL, File
 from sugar_network.toolkit.coroutine import this
-from sugar_network.toolkit import i18n, http, enforce
+from sugar_network.toolkit import pylru, i18n, http, enforce
 
 
 #: Xapian term prefix for GUID value
 GUID_PREFIX = 'I'
+
+_HL_STEM_CACHE = 1024
+_HL_PREFIX = '<mark>'
+_HL_POSTFIX = '</mark>'
+_HL_WORDS_RE = re.compile(r'[\w\']+|\s+|[^\w\'\s]+')
+
+_logger = logging.getLogger('db.metadata')
 
 
 def stored_property(klass=None, *args, **kwargs):
@@ -58,6 +68,10 @@ def indexed_property(klass=None, *args, **kwargs):
             "None of 'slot', 'prefix' or 'full_text' was specified "
             'for indexed property')
     return stored_property(klass, *args, **kwargs)
+
+
+class IndexableText(str):
+    pass
 
 
 class Metadata(dict):
@@ -360,8 +374,12 @@ class Localized(Composite):
 
     def reprcast(self, value):
         if value is None:
-            return self.default
-        return i18n.decode(value, this.request.accept_language)
+            value = self.default
+        else:
+            value = i18n.decode(value, this.request.accept_language)
+        if 'highlight' in this.request and this.query:
+            value = _highlight(value)
+        return value
 
     def encode(self, value):
         for i in value.values():
@@ -464,3 +482,79 @@ class Author(Dict):
                 if user.exists:
                     yield toolkit.ascii(user['name'])
             yield guid
+
+
+class _Stemmer(object):
+
+    _pool = {}
+
+    @staticmethod
+    def get(lang):
+        lang = lang.split('-')[0]
+        stemmer = _Stemmer._pool.get(lang)
+        if stemmer is None:
+            stemmer = _Stemmer._pool[lang] = _Stemmer(lang)
+        return stemmer
+
+    def __init__(self, lang):
+        try:
+            self._stemmer = xapian.Stem(lang)
+            self._cache = pylru.lrucache(_HL_STEM_CACHE)
+        except Exception:
+            _logger.warn('Failed to create %r stemmer, ignore stemming', lang)
+            self._stemmer = None
+
+    def __call__(self, word):
+        if self._stemmer is None:
+            return word
+        if word in self._cache:
+            return self._cache[word]
+        else:
+            stem = self._cache[word] = self._stemmer(word)
+            return stem
+
+
+def _is_term(word):
+    for term in this.query:
+        if word.startswith(term):
+            return True
+
+
+def _highlight(text):
+    snippet_size = int(this.request['highlight'] or 0)
+    stemmer = _Stemmer.get(this.request.accept_language[0])
+    words = _HL_WORDS_RE.findall(text)
+    snippet_start = 0
+    snippet_stop = 0
+    snippet_len = 0
+    found = False
+
+    for index, word in enumerate(words):
+        normalized_word = toolkit.ascii(word.lower())
+        if _is_term(normalized_word) or _is_term(stemmer(normalized_word)):
+            words[index] = _HL_PREFIX + word + _HL_POSTFIX
+            found = True
+        if not snippet_size:
+            continue
+        if word.istitle():
+            if found:
+                snippet_stop = index
+            else:
+                snippet_start = index
+                snippet_len = len(word)
+        elif '.' in word or '\n' in word:
+            if found:
+                snippet_stop = index + 1
+            else:
+                snippet_start = index + 1
+                snippet_len = 0
+        else:
+            snippet_len += len(word)
+            if found and snippet_len >= snippet_size:
+                if not snippet_stop:
+                    snippet_stop = index + 1
+                break
+
+    if snippet_stop:
+        return ''.join(words[snippet_start:snippet_stop + 1]).strip()
+    return ''.join(words)
